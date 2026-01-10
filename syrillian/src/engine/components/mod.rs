@@ -46,6 +46,7 @@ pub mod fp_movement;
 pub mod freecam;
 pub mod gravity;
 pub mod image;
+pub mod joints;
 pub mod light;
 pub mod mesh_renderer;
 pub mod panel;
