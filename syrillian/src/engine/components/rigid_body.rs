@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::{Component, NewComponent};
 use crate::core::GameObjectId;
@@ -6,6 +7,7 @@ use nalgebra::{Isometry3, Translation3};
 use rapier3d::prelude::*;
 use syrillian_utils::debug_panic;
 
+#[derive(Debug, Reflect)]
 pub struct RigidBodyComponent {
     parent: GameObjectId,
     pub body_handle: RigidBodyHandle,

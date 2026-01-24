@@ -4,6 +4,7 @@ use crate::core::GameObjectId;
 use crate::rendering::strobe::ImageScalingMode;
 use crate::windowing::RenderTargetId;
 use nalgebra::Vector2;
+use syrillian_macros::Reflect;
 
 #[derive(Debug, Clone)]
 pub struct UiRectLayout {
@@ -32,7 +33,7 @@ impl UiSize {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct UiRect {
     anchor: Vector2<f32>,
     pivot: Vector2<f32>,

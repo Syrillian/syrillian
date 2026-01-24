@@ -7,6 +7,7 @@ use itertools::Itertools;
 use nalgebra::{Point3, Vector3, Vector4};
 use rapier3d::geometry::Ray;
 use web_time::{Duration, Instant};
+use syrillian_macros::Reflect;
 
 #[derive(Debug, Clone)]
 pub struct DebugRay {
@@ -26,6 +27,7 @@ impl From<&DebugRay> for DebugLine {
     }
 }
 
+#[derive(Debug, Reflect)]
 pub struct CameraDebug {
     rays: Vec<DebugRay>,
     ray_times: Vec<Instant>,

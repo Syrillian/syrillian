@@ -9,8 +9,9 @@ use crate::rendering::{CPUDrawCtx, UiContext};
 use crate::windowing::RenderTargetId;
 use delegate::delegate;
 use nalgebra::{Vector2, Vector3};
+use syrillian_macros::Reflect;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Reflect)]
 pub struct Text2D {
     proxy: TextProxy<2, TwoD>,
     parent: GameObjectId,
@@ -77,7 +78,7 @@ impl Component for Text2D {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Reflect)]
 pub struct Text3D {
     proxy: TextProxy<3, ThreeD>,
 }

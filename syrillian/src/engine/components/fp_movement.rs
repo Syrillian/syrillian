@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::{
     CRef, CWeak, CameraComponent, Component, FirstPersonCameraController, NewComponent,
@@ -12,6 +13,7 @@ use rapier3d::prelude::{LockedAxes, QueryFilter, RigidBody, vector};
 use tracing::warn;
 use winit::keyboard::KeyCode;
 
+#[derive(Debug, Reflect)]
 pub struct FirstPersonMovementController {
     parent: GameObjectId,
     pub move_speed: f32,

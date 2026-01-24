@@ -1,9 +1,10 @@
 use nalgebra::Vector3;
-
+use crate::Reflect;
 use crate::World;
 use crate::components::{Component, NewComponent};
 use crate::core::GameObjectId;
 
+#[derive(Debug, Reflect)]
 pub struct GravityComponent {
     pub acceleration_per_sec: f32,
     pub velocity: f32,

@@ -5,7 +5,7 @@ use crate::engine::assets::HMesh;
 use crate::engine::rendering::CPUDrawCtx;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::proxies::mesh_proxy::MeshSceneProxy;
-use crate::{MAX_BONES, World, proxy_data_mut};
+use crate::{MAX_BONES, Reflect, World, proxy_data_mut};
 use nalgebra::{Matrix4, Vector3};
 use tracing::warn;
 
@@ -58,7 +58,7 @@ pub struct DebugVertexNormal {
     normal: Vector3<f32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct MeshRenderer {
     parent: GameObjectId,
     mesh: HMesh,

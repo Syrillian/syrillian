@@ -3,7 +3,9 @@ use std::any::TypeId;
 use syrillian::World;
 use syrillian::components::{Component, NewComponent};
 use syrillian::core::GameObjectId;
+use syrillian::Reflect;
 
+#[derive(Debug, Reflect)]
 struct MyComponent {
     parent: GameObjectId,
 }
@@ -77,4 +79,33 @@ fn check_typed() {
     obj.remove_component(comp, &mut world);
 
     assert_eq!(world.components.values().count(), 0);
+}
+
+#[test]
+fn component_reflection() {
+    let info_pre =
+        syrillian::components::component_type_info(TypeId::of::<MyComponent>())
+            .expect("component type should be registered");
+    assert_eq!(info_pre.type_id, TypeId::of::<MyComponent>());
+    assert_eq!(info_pre.type_name, std::any::type_name::<MyComponent>());
+    assert_eq!(info_pre.short_name, "MyComponent");
+
+    let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
+    let mut obj = world.new_object("Test");
+
+    let comp = obj.add_component::<MyComponent>();
+    let info = comp.type_info();
+
+    assert_eq!(info.type_id, TypeId::of::<MyComponent>());
+    assert_eq!(info.type_name, std::any::type_name::<MyComponent>());
+    assert_eq!(info.short_name, "MyComponent");
+    assert_eq!(comp.type_name(), info.type_name);
+    assert_eq!(info, info_pre);
+
+    let typed = comp.typed_id();
+    assert_eq!(typed.type_name(), Some(info.type_name));
+
+    let registry = syrillian::components::component_type_info(TypeId::of::<MyComponent>())
+        .expect("component type should be registered");
+    assert_eq!(registry, info);
 }

@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::{CameraComponent, Component, NewComponent};
 use crate::core::GameObjectId;
@@ -8,6 +9,7 @@ use nalgebra::{UnitQuaternion, Vector2, Vector3};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
+#[derive(Debug, Reflect)]
 pub struct FreecamController {
     pub move_speed: f32,
     pub look_sensitivity: f32,
