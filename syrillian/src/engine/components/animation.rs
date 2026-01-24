@@ -10,7 +10,9 @@ use nalgebra::{UnitQuaternion, Vector3};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use tracing::warn;
+use syrillian_macros::Reflect;
 
+#[derive(Reflect)]
 pub struct AnimationComponent {
     parent: GameObjectId,
 

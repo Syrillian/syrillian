@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::{Component, MeshRenderer, NewComponent};
 use crate::core::{Bones, GameObjectId};
@@ -7,6 +8,7 @@ use nalgebra::{Matrix4, Rotation3, Scale3, Vector3};
 use nalgebra::{Translation3, UnitQuaternion};
 use tracing::warn;
 
+#[derive(Debug, Reflect)]
 pub struct SkeletalComponent {
     parent: GameObjectId,
     bones_static: Bones,

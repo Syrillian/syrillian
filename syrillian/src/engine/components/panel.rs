@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::ui_rect::UiRectLayout;
 use crate::components::{Component, NewComponent, UiRect};
@@ -5,7 +6,7 @@ use crate::core::GameObjectId;
 use nalgebra::Vector2;
 
 /// Basic container for 2D UI elements.
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct Panel {
     parent: GameObjectId,
     padding: Vector2<f32>,

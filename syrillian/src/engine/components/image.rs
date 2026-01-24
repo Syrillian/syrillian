@@ -7,8 +7,9 @@ use crate::rendering::strobe::ImageScalingMode;
 use crate::strobe::UiImageDraw;
 use crate::windowing::RenderTargetId;
 use nalgebra::Matrix4;
+use syrillian_macros::Reflect;
 
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct Image {
     material: HMaterial,
     scaling: ImageScalingMode,

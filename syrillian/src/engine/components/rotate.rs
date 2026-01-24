@@ -1,9 +1,11 @@
 use nalgebra::{UnitQuaternion, Vector3};
 
+use crate::Reflect;
 use crate::World;
 use crate::components::{Component, NewComponent};
 use crate::core::GameObjectId;
 
+#[derive(Debug, Reflect)]
 pub struct RotateComponent {
     pub rotate_speed: f32,
     pub iteration: f32,

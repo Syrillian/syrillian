@@ -33,6 +33,34 @@ pub type PointLightComponent = LightComponent<Point>;
 pub type SunLightComponent = LightComponent<Sun>;
 pub type SpotLightComponent = LightComponent<Spot>;
 
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<PointLightComponent>(),
+        type_name: concat!(module_path!(), "::", "PointLightComponent"),
+        short_name: "PointLightComponent",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<SunLightComponent>(),
+        type_name: concat!(module_path!(), "::", "SunLightComponent"),
+        short_name: "SunLightComponent",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<SpotLightComponent>(),
+        type_name: concat!(module_path!(), "::", "SpotLightComponent"),
+        short_name: "SpotLightComponent",
+    }
+}
+
+impl crate::components::Reflect for PointLightComponent {}
+impl crate::components::Reflect for SunLightComponent {}
+impl crate::components::Reflect for SpotLightComponent {}
+
 impl LightTypeTrait for Sun {
     fn type_id() -> LightType {
         LightType::Sun

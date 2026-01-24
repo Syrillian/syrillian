@@ -211,6 +211,61 @@ pub type SphericalJoint = JointComponent<Spherical>;
 pub type RopeJoint = JointComponent<Rope>;
 pub type SpringJoint = JointComponent<Spring>;
 
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<FixedJoint>(),
+        type_name: concat!(module_path!(), "::", "FixedJoint"),
+        short_name: "FixedJoint",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<RevoluteJoint>(),
+        type_name: concat!(module_path!(), "::", "RevoluteJoint"),
+        short_name: "RevoluteJoint",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<PrismaticJoint>(),
+        type_name: concat!(module_path!(), "::", "PrismaticJoint"),
+        short_name: "PrismaticJoint",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<SphericalJoint>(),
+        type_name: concat!(module_path!(), "::", "SphericalJoint"),
+        short_name: "SphericalJoint",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<RopeJoint>(),
+        type_name: concat!(module_path!(), "::", "RopeJoint"),
+        short_name: "RopeJoint",
+    }
+}
+
+inventory::submit! {
+    crate::components::ComponentTypeInfo {
+        type_id: ::std::any::TypeId::of::<SpringJoint>(),
+        type_name: concat!(module_path!(), "::", "SpringJoint"),
+        short_name: "SpringJoint",
+    }
+}
+
+impl crate::components::Reflect for FixedJoint {}
+impl crate::components::Reflect for RevoluteJoint {}
+impl crate::components::Reflect for PrismaticJoint {}
+impl crate::components::Reflect for SphericalJoint {}
+impl crate::components::Reflect for RopeJoint {}
+impl crate::components::Reflect for SpringJoint {}
+
 impl<T: JointTypeTrait> NewComponent for JointComponent<T> {
     fn new(parent: GameObjectId) -> Self {
         Self {

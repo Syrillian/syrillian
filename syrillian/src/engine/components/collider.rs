@@ -22,8 +22,10 @@ use crate::rendering::proxies::SceneProxy;
 use crate::rendering::{CPUDrawCtx, DebugRenderer};
 #[cfg(debug_assertions)]
 use nalgebra::{Matrix4, Vector4};
+use syrillian_macros::Reflect;
 use syrillian_utils::debug_panic;
 
+#[derive(Debug, Reflect)]
 pub struct Collider3D {
     pub phys_handle: ColliderHandle,
     linked_to_body: Option<RigidBodyHandle>,

@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::assets::HSound;
 use crate::components::{Component, NewComponent};
@@ -8,10 +9,12 @@ use kira::sound::static_sound::StaticSoundHandle;
 use kira::track::{SpatialTrackBuilder, SpatialTrackHandle};
 use tracing::{trace, warn};
 
+#[derive(Debug, Reflect)]
 pub struct AudioReceiver {
     parent: GameObjectId,
 }
 
+#[derive(Debug, Reflect)]
 pub struct AudioEmitter {
     parent: GameObjectId,
     asset_handle: Option<HSound>,

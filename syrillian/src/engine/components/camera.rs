@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::{Component, NewComponent};
 use crate::core::GameObjectId;
@@ -6,6 +7,7 @@ use crate::windowing::RenderTargetId;
 use nalgebra::{Matrix4, Perspective3, Point3, Vector2, Vector4};
 use rapier3d::geometry::Ray;
 
+#[derive(Debug, Reflect)]
 pub struct CameraComponent {
     pub projection: Perspective3<f32>,
     pub projection_inverse: Matrix4<f32>,

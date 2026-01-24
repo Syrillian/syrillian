@@ -88,6 +88,7 @@ use crate::core::GameObjectId;
 use crate::rendering::lights::LightProxy;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::{CPUDrawCtx, UiContext};
+use dashmap::DashMap;
 use delegate::delegate;
 use slotmap::{Key, new_key_type};
 use std::any::{Any, TypeId};
@@ -98,9 +99,68 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Once, OnceLock};
 
 new_key_type! { pub struct ComponentId; }
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ComponentTypeInfo {
+    pub type_id: TypeId,
+    pub type_name: &'static str,
+    pub short_name: &'static str,
+}
+
+impl ComponentTypeInfo {
+    pub fn of<C: Component + 'static>() -> Self {
+        let type_name = std::any::type_name::<C>();
+        let base_name = type_name.split('<').next().unwrap_or(type_name);
+        let short_name = base_name.rsplit("::").next().unwrap_or(base_name);
+        Self {
+            type_id: TypeId::of::<C>(),
+            type_name,
+            short_name,
+        }
+    }
+}
+
+inventory::collect!(ComponentTypeInfo);
+
+static COMPONENT_REGISTRY: OnceLock<DashMap<TypeId, ComponentTypeInfo>> = OnceLock::new();
+static COMPONENT_INVENTORY_LOADED: Once = Once::new();
+
+fn component_registry() -> &'static DashMap<TypeId, ComponentTypeInfo> {
+    COMPONENT_REGISTRY.get_or_init(DashMap::new)
+}
+
+fn load_component_inventory() {
+    COMPONENT_INVENTORY_LOADED.call_once(|| {
+        for info in inventory::iter::<ComponentTypeInfo> {
+            component_registry().entry(info.type_id).or_insert(*info);
+        }
+    });
+}
+
+pub fn preload_component_reflections() {
+    load_component_inventory();
+}
+
+pub fn register_component_type<C: Component + 'static>() -> ComponentTypeInfo {
+    let info = ComponentTypeInfo::of::<C>();
+    component_registry().entry(info.type_id).or_insert(info);
+    info
+}
+
+pub fn component_type_info(type_id: TypeId) -> Option<ComponentTypeInfo> {
+    load_component_inventory();
+    component_registry().get(&type_id).map(|entry| *entry)
+}
+
+pub fn component_type_infos() -> Vec<ComponentTypeInfo> {
+    load_component_inventory();
+    component_registry().iter().map(|entry| *entry).collect()
+}
+
+pub trait Reflect: Component {}
 
 pub struct ComponentContext {
     pub(crate) tid: TypedComponentId,
@@ -335,6 +395,18 @@ impl TypedComponentId {
         self.0
     }
 
+    pub fn type_info(&self) -> Option<ComponentTypeInfo> {
+        component_type_info(self.0)
+    }
+
+    pub fn type_name(&self) -> Option<&'static str> {
+        self.type_info().map(|info| info.type_name)
+    }
+
+    pub fn short_name(&self) -> Option<&'static str> {
+        self.type_info().map(|info| info.short_name)
+    }
+
     pub(crate) fn null<C: Component + ?Sized>() -> TypedComponentId {
         Self::from_typed::<C>(ComponentId::null())
     }
@@ -394,6 +466,20 @@ pub trait Component: Any {
 
     // Gets called after all other updates are done
     fn post_update(&mut self, world: &mut World) {}
+
+    fn type_info(&self) -> ComponentTypeInfo
+    where
+        Self: Sized,
+    {
+        register_component_type::<Self>()
+    }
+
+    fn type_name(&self) -> &'static str
+    where
+        Self: Sized,
+    {
+        self.type_info().type_name
+    }
 
     fn create_render_proxy(&mut self, world: &World) -> Option<Box<dyn SceneProxy>> {
         None

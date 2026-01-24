@@ -84,6 +84,8 @@ impl Default for MyMain {
 
 impl AppState for MyMain {
     fn init(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
+        dbg!(syrillian::components::component_type_infos());
+
         world.spawn(&City);
 
         let materials = Self::build_dynamic_materials(world);

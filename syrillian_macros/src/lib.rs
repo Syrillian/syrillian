@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::Error;
 use syn::spanned::Spanned;
+use syn::Error;
 
 #[proc_macro_derive(UniformIndex)]
 pub fn uniform_index(input: TokenStream) -> TokenStream {
@@ -102,6 +102,64 @@ pub fn syrillian_app(input: TokenStream) -> TokenStream {
             }
         }
     }.into()
+}
+
+#[proc_macro_derive(Reflect)]
+pub fn reflect_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+
+    if !input.generics.params.is_empty() {
+        return Error::new(
+            input.generics.span(),
+            "Reflect cannot be derived for generic components",
+        )
+            .to_compile_error()
+            .into();
+    }
+
+    let type_ident = &input.ident;
+
+    let registration = quote! {
+        ::syrillian::inventory::submit! {
+            ::syrillian::components::ComponentTypeInfo {
+                type_id: ::std::any::TypeId::of::<#type_ident>(),
+                type_name: concat!(module_path!(), "::", stringify!(#type_ident)),
+                short_name: stringify!(#type_ident),
+            }
+        }
+    };
+
+    let reflect_impl = quote! {
+        impl ::syrillian::components::Reflect for #type_ident {}
+    };
+
+    quote! {
+        #registration
+        #reflect_impl
+    }
+        .into()
+}
+
+#[proc_macro_attribute]
+pub fn reflect_fn(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let _ = syn::parse_macro_input!(attr as syn::parse::Nothing);
+    let func = syn::parse_macro_input!(input as syn::ItemFn);
+    let sig = &func.sig;
+    let ident = &func.sig.ident;
+
+    quote! {
+        #func
+
+        ::syrillian::inventory::submit! {
+            ::syrillian::reflection::FunctionInfo {
+                name: stringify!(#ident),
+                module_path: module_path!(),
+                full_name: concat!(module_path!(), "::", stringify!(#ident)),
+                signature: stringify!(#sig),
+            }
+        }
+    }
+        .into()
 }
 
 // TODO: macro-ize some things related to proxy data / scene proxies and in general

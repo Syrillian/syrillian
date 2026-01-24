@@ -1,3 +1,4 @@
+use crate::Reflect;
 use crate::World;
 use crate::components::{CameraComponent, Component, NewComponent};
 use crate::core::{GameObjectId, Transform};
@@ -49,7 +50,7 @@ pub struct FPSCameraConfig {
     pub enable_zoom: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct FirstPersonCameraController {
     parent: GameObjectId,
     pub config: FPSCameraConfig,

@@ -8,6 +8,7 @@ pub mod components;
 pub mod core;
 pub mod input;
 pub mod physics;
+pub mod reflection;
 pub mod world;
 
 pub mod assets;
