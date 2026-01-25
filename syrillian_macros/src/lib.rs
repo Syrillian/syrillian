@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::{Data, Error, Field, Fields, Meta};
+use syn::{Attribute, Data, Error, Field, Fields, Meta};
 
 #[proc_macro_derive(UniformIndex)]
 pub fn uniform_index(input: TokenStream) -> TokenStream {
@@ -104,7 +104,7 @@ pub fn syrillian_app(input: TokenStream) -> TokenStream {
     }.into()
 }
 
-#[proc_macro_derive(Reflect, attributes(reflect))]
+#[proc_macro_derive(Reflect, attributes(reflect, reflect_all, dont_reflect))]
 pub fn reflect_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
 
@@ -116,6 +116,8 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
             .to_compile_error()
             .into();
     }
+
+    let reflect_all = has_attr(&input.attrs, "reflect_all");
 
     let type_ident = &input.ident;
 
@@ -132,7 +134,7 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
 
     if let Fields::Named(fields) = input.fields {
         for field in &fields.named {
-            if !should_reflect(&field) {
+            if !should_reflect(field, reflect_all) {
                 continue;
             }
 
@@ -151,12 +153,12 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
 
     let registration = quote! {
         ::syrillian::inventory::submit! {
-            <#type_ident as ::syrillian::core::reflection::Reflect>::DATA
+            <#type_ident as ::syrillian::core::reflection::PartialReflect>::DATA
         }
     };
 
     let reflect_impl = quote! {
-        impl ::syrillian::core::reflection::Reflect for #type_ident {
+        impl ::syrillian::core::reflection::PartialReflect for #type_ident {
             const DATA: ::syrillian::core::reflection::ReflectedTypeInfo = ::syrillian::core::reflection::ReflectedTypeInfo {
                 type_id: std::any::TypeId::of::<#type_ident>(),
                 type_name: concat!(module_path!(), "::", stringify!(#type_ident)),
@@ -173,15 +175,23 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
         .into()
 }
 
-fn should_reflect(field: &Field) -> bool {
-    for attr in &field.attrs {
-        if let Meta::Path(path) = &attr.meta {
-            if path.segments.iter().any(|s| s.ident == "reflect") {
-                return true;
-            }
+fn has_attr(attrs: &[Attribute], name: &str) -> bool {
+    for attr in attrs {
+        if let Meta::Path(path) = &attr.meta
+            && path.segments.iter().any(|s| s.ident == name)
+        {
+            return true;
         }
     }
     false
+}
+
+fn should_reflect(field: &Field, reflect_all: bool) -> bool {
+    if reflect_all && !has_attr(&field.attrs, "dont_reflect") {
+        return true;
+    }
+
+    has_attr(&field.attrs, "reflect")
 }
 
 #[proc_macro_attribute]

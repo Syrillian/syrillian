@@ -33,12 +33,14 @@ impl UiSize {
 }
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct UiRect {
     anchor: Vector2<f32>,
     pivot: Vector2<f32>,
     offset: Vector2<f32>,
     size: UiSize,
     pub depth: f32,
+    #[dont_reflect]
     render_target: RenderTargetId,
 }
 

@@ -1,4 +1,4 @@
-use crate::core::reflection::{Reflect, ReflectedField, ReflectedTypeInfo};
+use crate::core::reflection::{PartialReflect, Reflect, ReflectedField, ReflectedTypeInfo};
 use crate::{
     World,
     components::{Component, RigidBodyComponent},
@@ -17,6 +17,7 @@ use snafu::{Snafu, ensure};
 use std::any::TypeId;
 use std::mem::offset_of;
 use std::{f32, marker::PhantomData};
+use syrillian_macros::Reflect;
 use tracing::warn;
 
 #[derive(Debug, Snafu)]
@@ -31,7 +32,7 @@ pub enum JointError {
 }
 
 pub trait JointTypeTrait: Send + Sync + 'static {
-    type Config: Default + Clone + Send + Sync;
+    type Config: Reflect + Default + Clone + Send + Sync;
 
     const NAME: &'static str;
     const FULL_NAME: &'static str;
@@ -46,33 +47,39 @@ pub struct Spherical;
 pub struct Rope;
 pub struct Spring;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Reflect)]
+#[reflect_all]
 pub struct FixedConfig {
     pub frame1: Isometry<f32>,
     pub frame2: Isometry<f32>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Reflect)]
+#[reflect_all]
 pub struct RevoluteConfig {
     pub axis: Unit<Vector3<f32>>,
     pub limits: Option<[f32; 2]>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Reflect)]
+#[reflect_all]
 pub struct PrismaticConfig {
     pub axis: Unit<Vector3<f32>>,
     pub limits: Option<[f32; 2]>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Reflect)]
+#[reflect_all]
 pub struct SphericalConfig;
 
-#[derive(Clone)]
+#[derive(Clone, Reflect)]
+#[reflect_all]
 pub struct RopeConfig {
     pub max_distance: f32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Reflect)]
+#[reflect_all]
 pub struct SpringConfig {
     pub rest_length: f32,
     pub stiffness: f32,
@@ -232,7 +239,7 @@ pub type SphericalJoint = JointComponent<Spherical>;
 pub type RopeJoint = JointComponent<Rope>;
 pub type SpringJoint = JointComponent<Spring>;
 
-impl<T: JointTypeTrait> Reflect for JointComponent<T> {
+impl<T: JointTypeTrait> PartialReflect for JointComponent<T> {
     const DATA: ReflectedTypeInfo = ReflectedTypeInfo {
         type_id: TypeId::of::<Self>(),
         type_name: T::FULL_NAME,
@@ -252,6 +259,11 @@ impl<T: JointTypeTrait> Reflect for JointComponent<T> {
                 name: "break_torque",
                 offset: offset_of!(Self, break_torque),
                 type_id: TypeId::of::<Option<bool>>(),
+            },
+            ReflectedField {
+                name: "config",
+                offset: offset_of!(Self, config),
+                type_id: TypeId::of::<T::Config>(),
             },
         ],
     };

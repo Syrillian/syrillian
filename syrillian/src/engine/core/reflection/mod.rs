@@ -44,7 +44,7 @@ pub fn type_info(type_id: TypeId) -> Option<ReflectedTypeInfo> {
 }
 
 #[inline]
-pub fn type_info_of<T: 'static>() -> Option<ReflectedTypeInfo> {
+pub fn type_info_of<T: ?Sized + 'static>() -> Option<ReflectedTypeInfo> {
     type_info(TypeId::of::<T>())
 }
 
@@ -53,6 +53,40 @@ pub fn type_infos() -> Vec<ReflectedTypeInfo> {
     type_registry().iter().map(|entry| *entry).collect()
 }
 
-pub trait Reflect {
+fn field<R, T>(this: &R, name: &str) -> Option<*const T>
+where
+    R: Sized + Reflect + 'static,
+    T: 'static,
+{
+    let type_info = type_info_of::<R>()?;
+    let field = type_info.fields.iter().find(|f| f.name == name)?;
+    if field.type_id != TypeId::of::<T>() {
+        return None;
+    }
+    let base = this as *const R;
+    Some(unsafe { base.byte_add(field.offset) as *const T })
+}
+
+pub trait PartialReflect {
     const DATA: ReflectedTypeInfo;
+}
+
+impl<T: PartialReflect> Reflect for T {}
+
+pub trait Reflect {
+    fn field_ref<'a, T: 'static>(this: &'a Self, name: &str) -> Option<&'a T>
+    where
+        Self: Sized + 'static,
+    {
+        let field_ptr = field(this, name)?;
+        Some(unsafe { &*field_ptr })
+    }
+
+    fn field_mut<'a, T: 'static>(this: &'a mut Self, name: &str) -> Option<&'a mut T>
+    where
+        Self: Sized + 'static,
+    {
+        let field_ptr = field::<_, T>(this, name)? as *mut T;
+        Some(unsafe { &mut *field_ptr })
+    }
 }

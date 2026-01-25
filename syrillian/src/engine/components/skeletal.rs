@@ -9,6 +9,7 @@ use nalgebra::{Translation3, UnitQuaternion};
 use tracing::warn;
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct SkeletalComponent {
     bones_static: Bones,
     skin_transform: Vec<Matrix4<f32>>,
@@ -17,6 +18,7 @@ pub struct SkeletalComponent {
     skin_local: Vec<Matrix4<f32>>,
     globals: Vec<Matrix4<f32>>,
     palette: Vec<Matrix4<f32>>,
+    #[dont_reflect]
     dirty: bool,
 }
 

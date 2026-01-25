@@ -7,6 +7,7 @@ use nalgebra::Vector2;
 
 /// Basic container for 2D UI elements.
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct Panel {
     padding: Vector2<f32>,
 }

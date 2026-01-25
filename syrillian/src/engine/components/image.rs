@@ -11,7 +11,9 @@ use syrillian_macros::Reflect;
 #[derive(Debug, Reflect)]
 pub struct Image {
     material: HMaterial,
+    #[reflect]
     scaling: ImageScalingMode,
+    #[reflect]
     translation: Matrix4<f32>,
     draw_order: u32,
     render_target: RenderTargetId,

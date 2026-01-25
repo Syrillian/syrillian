@@ -9,8 +9,11 @@ use syrillian_utils::debug_panic;
 #[derive(Debug, Default, Reflect)]
 pub struct RigidBodyComponent {
     pub body_handle: Option<RigidBodyHandle>,
+    #[reflect]
     kinematic: bool,
+    #[reflect]
     prev_iso: Isometry3<f32>,
+    #[reflect]
     curr_iso: Isometry3<f32>,
 }
 

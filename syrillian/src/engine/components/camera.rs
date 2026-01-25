@@ -8,6 +8,7 @@ use nalgebra::{Matrix4, Perspective3, Point3, Vector2, Vector4};
 use rapier3d::geometry::Ray;
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct CameraComponent {
     pub projection: Perspective3<f32>,
     pub projection_inverse: Matrix4<f32>,
@@ -18,7 +19,10 @@ pub struct CameraComponent {
     width: f32,
     height: f32,
     pub zoom_speed: f32,
+
+    #[dont_reflect]
     projection_dirty: bool,
+    #[dont_reflect]
     render_target: RenderTargetId,
 }
 

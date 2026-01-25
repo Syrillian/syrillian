@@ -9,6 +9,7 @@ use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct FreecamController {
     pub move_speed: f32,
     pub look_sensitivity: f32,

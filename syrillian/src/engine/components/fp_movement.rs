@@ -12,10 +12,13 @@ use tracing::warn;
 use winit::keyboard::KeyCode;
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct FirstPersonMovementController {
     pub move_speed: f32,
     pub jump_factor: f32,
+    #[dont_reflect]
     rigid_body: CWeak<RigidBodyComponent>,
+    #[dont_reflect]
     camera_controller: CWeak<FirstPersonCameraController>,
     pub velocity: Vector3<f32>,
     pub sprint_multiplier: f32,

@@ -1,3 +1,7 @@
+use syrillian::World;
+use syrillian::components::RopeJoint;
+use syrillian::components::joints::RopeConfig;
+use syrillian::core::reflection::Reflect;
 use syrillian::reflection::{function_info, function_infos};
 
 #[syrillian::reflect_fn]
@@ -21,4 +25,22 @@ fn function_reflection() {
             .iter()
             .any(|entry| entry.full_name == full_name)
     );
+}
+
+#[test]
+fn field_reflection() {
+    let (mut world, ..) = World::fresh();
+    let mut obj = world.new_object("Something");
+
+    let mut joint = obj.add_component::<RopeJoint>();
+
+    assert_ne!(joint.config.max_distance, 5.0);
+
+    let config: &mut RopeConfig = Reflect::field_mut(&mut joint, "config").unwrap();
+    config.max_distance = 5.0;
+
+    assert_eq!(joint.config.max_distance, 5.0);
+
+    let config: &RopeConfig = Reflect::field_ref(&mut joint, "config").unwrap();
+    assert_eq!(config.max_distance, 5.0);
 }

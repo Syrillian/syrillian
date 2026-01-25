@@ -5,6 +5,7 @@ use crate::World;
 use crate::components::Component;
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct RotateComponent {
     pub rotate_speed: f32,
     pub iteration: f32,

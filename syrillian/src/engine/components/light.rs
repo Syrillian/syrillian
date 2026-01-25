@@ -1,6 +1,6 @@
 use crate::World;
 use crate::components::Component;
-use crate::core::reflection::{Reflect, ReflectedTypeInfo};
+use crate::core::reflection::{PartialReflect, ReflectedTypeInfo};
 use crate::rendering::CPUDrawCtx;
 use crate::rendering::lights::{Light, LightProxy, LightType};
 use crate::utils::FloatMathExt;
@@ -36,7 +36,7 @@ pub type PointLightComponent = LightComponent<Point>;
 pub type SunLightComponent = LightComponent<Sun>;
 pub type SpotLightComponent = LightComponent<Spot>;
 
-impl<T: LightTypeTrait> Reflect for LightComponent<T> {
+impl<T: LightTypeTrait> PartialReflect for LightComponent<T> {
     const DATA: ReflectedTypeInfo = ReflectedTypeInfo {
         type_id: TypeId::of::<Self>(),
         type_name: T::FULL_NAME,

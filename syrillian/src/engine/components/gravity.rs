@@ -4,6 +4,7 @@ use crate::components::Component;
 use nalgebra::Vector3;
 
 #[derive(Debug, Reflect)]
+#[reflect_all]
 pub struct GravityComponent {
     pub acceleration_per_sec: f32,
     pub velocity: f32,

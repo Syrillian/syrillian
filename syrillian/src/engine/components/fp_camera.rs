@@ -10,7 +10,8 @@ use nalgebra::{UnitQuaternion, Vector2, Vector3};
 use tracing::warn;
 
 /// All tweakable parameters for the FPS Camera
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Reflect)]
+#[reflect_all]
 pub struct FPSCameraConfig {
     /// Mouse sensitivity coefficient. Default: X & Y = 0.6
     pub mouse_sensitivity: Vector2<f32>,
@@ -52,10 +53,14 @@ pub struct FPSCameraConfig {
 
 #[derive(Debug, Reflect)]
 pub struct FirstPersonCameraController {
+    #[reflect]
     pub config: FPSCameraConfig,
 
+    #[reflect]
     yaw: f32,
+    #[reflect]
     pitch: f32,
+    #[reflect]
     smooth_roll: f32,
     bob_offset: Vector3<f32>,
     bob_phase: Vector3<f32>,
@@ -65,9 +70,12 @@ pub struct FirstPersonCameraController {
     jump_offset: f32,
     jump_bob_interp: f32,
     jump_bob_interp_t: f32,
+    #[reflect]
     is_grounded: bool,
+    #[reflect]
     zoom_factor: f32,
 
+    #[reflect]
     pub base_position: Vector3<f32>,
     interp_yaw: f32,
     interp_pitch: f32,

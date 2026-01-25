@@ -98,6 +98,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
+use syrillian::core::reflection::Reflect;
 
 new_key_type! { pub struct ComponentId; }
 
@@ -130,6 +131,22 @@ impl ComponentContext {
 pub struct CRef<C: Component + ?Sized> {
     pub(crate) data: Option<Rc<C>>,
     pub(crate) ctx: Rc<ComponentContext>,
+}
+
+impl<C: Component + Reflect> Reflect for CRef<C> {
+    fn field_ref<'a, T: 'static>(this: &'a Self, name: &str) -> Option<&'a T>
+    where
+        Self: Sized + 'static,
+    {
+        Reflect::field_ref(this.get_mut(), name)
+    }
+
+    fn field_mut<'a, T: 'static>(this: &'a mut Self, name: &str) -> Option<&'a mut T>
+    where
+        Self: Sized + 'static,
+    {
+        Reflect::field_mut(this.get_mut(), name)
+    }
 }
 
 impl<C: Component + ?Sized> Clone for CRef<C> {
