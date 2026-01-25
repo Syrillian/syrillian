@@ -275,6 +275,11 @@ impl<C: Component + ?Sized> CRef<C> {
     pub fn parent(&self) -> GameObjectId {
         self.ctx.parent()
     }
+
+    #[allow(clippy::mut_from_ref)]
+    pub fn get_mut(&self) -> &mut C {
+        unsafe { &mut *(&raw const **self.data.as_ref().unwrap_unchecked() as *mut _) }
+    }
 }
 
 impl CRef<dyn Component> {

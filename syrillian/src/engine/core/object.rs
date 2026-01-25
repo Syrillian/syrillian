@@ -296,6 +296,8 @@ pub struct GameObject {
     pub name: String,
     /// Whether the object is still alive inside the world.
     pub(crate) alive: Cell<bool>,
+    /// Whether the object components will be called or the object is inactive
+    pub(crate) enabled: Cell<bool>,
     /// Game objects that are direct children of this object.
     pub(crate) children: Vec<GameObjectId>,
     /// Parent game object.
@@ -316,6 +318,18 @@ pub struct GameObject {
 }
 
 impl GameObject {
+    pub fn enable(&self) {
+        self.enabled.set(true);
+    }
+
+    pub fn disable(&self) {
+        self.enabled.set(false);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
+    }
+    
     /// Returns whether this object is still alive inside the world.
     pub fn is_alive(&self) -> bool {
         self.alive.get()

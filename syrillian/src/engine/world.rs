@@ -430,6 +430,7 @@ impl World {
             id: GameObjectId::null(),
             name: name.into(),
             alive: Cell::new(true),
+            enabled: Cell::new(true),
             children: vec![],
             parent: None,
             owning_world: self,
@@ -620,7 +621,11 @@ impl World {
         F: Fn(&mut dyn Component, &mut World),
     {
         let world = unsafe { &mut *(self as *mut World) };
-        self.components.values_mut().for_each(|c| func(c, world))
+        self.objects
+            .values()
+            .filter(|o| o.enabled.get())
+            .flat_map(|o| &o.components)
+            .for_each(|c| func(c.get_mut(), world))
     }
 
     /// Runs possible physics update if the timestep time has elapsed yet
