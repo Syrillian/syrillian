@@ -76,7 +76,7 @@ fn check_typed() {
 
 #[test]
 fn component_reflection() {
-    let info_pre = syrillian::components::component_type_info(TypeId::of::<MyComponent>())
+    let info_pre = syrillian::core::reflection::type_info_of::<MyComponent>()
         .expect("component type should be registered");
     assert_eq!(info_pre.type_id, TypeId::of::<MyComponent>());
     assert_eq!(info_pre.type_name, std::any::type_name::<MyComponent>());
@@ -86,18 +86,19 @@ fn component_reflection() {
     let mut obj = world.new_object("Test");
 
     let comp = obj.add_component::<MyComponent>();
-    let info = comp.type_info();
+    let info = comp
+        .type_info()
+        .expect("component type should be registered");
 
     assert_eq!(info.type_id, TypeId::of::<MyComponent>());
     assert_eq!(info.type_name, std::any::type_name::<MyComponent>());
     assert_eq!(info.short_name, "MyComponent");
-    assert_eq!(comp.type_name(), info.type_name);
     assert_eq!(info, info_pre);
 
     let typed = comp.typed_id();
     assert_eq!(typed.type_name(), Some(info.type_name));
 
-    let registry = syrillian::components::component_type_info(TypeId::of::<MyComponent>())
+    let registry = syrillian::core::reflection::type_info_of::<MyComponent>()
         .expect("component type should be registered");
     assert_eq!(registry, info);
 }

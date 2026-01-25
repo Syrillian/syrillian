@@ -16,6 +16,7 @@ pub struct AudioEmitter {
     asset_handle: Option<HSound>,
     sound_handle: Option<StaticSoundHandle>,
     track_handle: Option<SpatialTrackHandle>,
+    #[reflect]
     looping: bool,
     play_triggered: bool,
 }

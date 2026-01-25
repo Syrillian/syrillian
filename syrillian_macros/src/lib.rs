@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::Error;
 use syn::spanned::Spanned;
+use syn::{Data, Error, Field, Fields, Meta};
 
 #[proc_macro_derive(UniformIndex)]
 pub fn uniform_index(input: TokenStream) -> TokenStream {
@@ -104,7 +104,7 @@ pub fn syrillian_app(input: TokenStream) -> TokenStream {
     }.into()
 }
 
-#[proc_macro_derive(Reflect)]
+#[proc_macro_derive(Reflect, attributes(reflect))]
 pub fn reflect_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
 
@@ -119,25 +119,69 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
 
     let type_ident = &input.ident;
 
+    let Data::Struct(input) = input.data else {
+        return Error::new(
+            input.ident.span(),
+            "Reflect cannot be derived for non-named-struct components",
+        )
+            .to_compile_error()
+            .into();
+    };
+
+    let mut reflected = Vec::new();
+
+    if let Fields::Named(fields) = input.fields {
+        for field in &fields.named {
+            if !should_reflect(&field) {
+                continue;
+            }
+
+            let field_ident = field.ident.as_ref().expect("Named fields have names");
+            let field_type = &field.ty;
+
+            reflected.push(quote! {
+                ::syrillian::core::reflection::ReflectedField {
+                    name: stringify!( #field_ident ),
+                    offset: std::mem::offset_of!( #type_ident, #field_ident ),
+                    type_id: std::any::TypeId::of::<#field_type>(),
+                }
+            });
+        }
+    };
+
     let registration = quote! {
         ::syrillian::inventory::submit! {
-            ::syrillian::components::ComponentTypeInfo {
-                type_id: ::std::any::TypeId::of::<#type_ident>(),
-                type_name: concat!(module_path!(), "::", stringify!(#type_ident)),
-                short_name: stringify!(#type_ident),
-            }
+            <#type_ident as ::syrillian::core::reflection::Reflect>::DATA
         }
     };
 
     let reflect_impl = quote! {
-        impl ::syrillian::components::Reflect for #type_ident {}
+        impl ::syrillian::core::reflection::Reflect for #type_ident {
+            const DATA: ::syrillian::core::reflection::ReflectedTypeInfo = ::syrillian::core::reflection::ReflectedTypeInfo {
+                type_id: std::any::TypeId::of::<#type_ident>(),
+                type_name: concat!(module_path!(), "::", stringify!(#type_ident)),
+                short_name: stringify!(#type_ident),
+                fields: &[#( #reflected ),*],
+            };
+        }
     };
 
     quote! {
-        #registration
         #reflect_impl
+        #registration
     }
         .into()
+}
+
+fn should_reflect(field: &Field) -> bool {
+    for attr in &field.attrs {
+        if let Meta::Path(path) = &attr.meta {
+            if path.segments.iter().any(|s| s.ident == "reflect") {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 #[proc_macro_attribute]

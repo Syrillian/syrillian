@@ -9,6 +9,7 @@ pub(super) mod component_context_inference;
 pub mod component_storage;
 pub mod object;
 pub mod object_extensions;
+pub mod reflection;
 pub mod transform;
 pub mod vertex;
 
