@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::spanned::Spanned;
 use syn::Error;
+use syn::spanned::Spanned;
 
 #[proc_macro_derive(UniformIndex)]
 pub fn uniform_index(input: TokenStream) -> TokenStream {

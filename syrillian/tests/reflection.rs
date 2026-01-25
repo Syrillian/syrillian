@@ -16,7 +16,9 @@ fn function_reflection() {
     assert_eq!(info.full_name, full_name);
     assert!(info.signature.contains("fn reflected_function"));
 
-    assert!(function_infos()
-        .iter()
-        .any(|entry| entry.full_name == full_name));
+    assert!(
+        function_infos()
+            .iter()
+            .any(|entry| entry.full_name == full_name)
+    );
 }
