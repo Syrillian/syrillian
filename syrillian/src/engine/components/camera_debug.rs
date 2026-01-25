@@ -6,8 +6,8 @@ use crate::{World, proxy_data_mut};
 use itertools::Itertools;
 use nalgebra::{Point3, Vector3, Vector4};
 use rapier3d::geometry::Ray;
-use web_time::{Duration, Instant};
 use syrillian_macros::Reflect;
+use web_time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
 pub struct DebugRay {
