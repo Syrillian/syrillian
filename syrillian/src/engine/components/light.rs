@@ -1,11 +1,17 @@
 use crate::World;
 use crate::components::Component;
+use crate::core::reflection::{Reflect, ReflectedTypeInfo};
 use crate::rendering::CPUDrawCtx;
 use crate::rendering::lights::{Light, LightProxy, LightType};
 use crate::utils::FloatMathExt;
+use std::any::TypeId;
 use std::marker::PhantomData;
+use std::mem::offset_of;
+use syrillian::core::reflection::ReflectedField;
 
 pub trait LightTypeTrait: Send + Sync {
+    const NAME: &str;
+    const FULL_NAME: &str;
     fn type_id() -> LightType;
 }
 
@@ -30,47 +36,53 @@ pub type PointLightComponent = LightComponent<Point>;
 pub type SunLightComponent = LightComponent<Sun>;
 pub type SpotLightComponent = LightComponent<Spot>;
 
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<PointLightComponent>(),
-        type_name: concat!(module_path!(), "::", "PointLightComponent"),
-        short_name: "PointLightComponent",
-    }
+impl<T: LightTypeTrait> Reflect for LightComponent<T> {
+    const DATA: ReflectedTypeInfo = ReflectedTypeInfo {
+        type_id: TypeId::of::<Self>(),
+        type_name: T::FULL_NAME,
+        short_name: T::NAME,
+        fields: &[
+            ReflectedField {
+                name: "inner_angle_t",
+                offset: offset_of!(Self, inner_angle_t),
+                type_id: TypeId::of::<f32>(),
+            },
+            ReflectedField {
+                name: "outer_angle_t",
+                offset: offset_of!(Self, outer_angle_t),
+                type_id: TypeId::of::<f32>(),
+            },
+            ReflectedField {
+                name: "tween_enabled",
+                offset: offset_of!(Self, tween_enabled),
+                type_id: TypeId::of::<bool>(),
+            },
+        ],
+    };
 }
-
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<SunLightComponent>(),
-        type_name: concat!(module_path!(), "::", "SunLightComponent"),
-        short_name: "SunLightComponent",
-    }
-}
-
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<SpotLightComponent>(),
-        type_name: concat!(module_path!(), "::", "SpotLightComponent"),
-        short_name: "SpotLightComponent",
-    }
-}
-
-impl crate::components::Reflect for PointLightComponent {}
-impl crate::components::Reflect for SunLightComponent {}
-impl crate::components::Reflect for SpotLightComponent {}
 
 impl LightTypeTrait for Sun {
+    const NAME: &str = "SunLightComponent";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "SunLightComponent");
+
     fn type_id() -> LightType {
         LightType::Sun
     }
 }
 
 impl LightTypeTrait for Point {
+    const NAME: &str = "PointLightComponent";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "PointLightComponent");
+
     fn type_id() -> LightType {
         LightType::Point
     }
 }
 
 impl LightTypeTrait for Spot {
+    const NAME: &str = "SpotLightComponent";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "SpotLightComponent");
+
     fn type_id() -> LightType {
         LightType::Spot
     }

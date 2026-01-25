@@ -1,5 +1,9 @@
-use std::{f32, marker::PhantomData};
-
+use crate::core::reflection::{Reflect, ReflectedField, ReflectedTypeInfo};
+use crate::{
+    World,
+    components::{Component, RigidBodyComponent},
+    core::GameObjectId,
+};
 use nalgebra::{Point3, Unit, Vector3};
 use rapier3d::{
     math::{Isometry, Vector},
@@ -10,13 +14,10 @@ use rapier3d::{
     },
 };
 use snafu::{Snafu, ensure};
+use std::any::TypeId;
+use std::mem::offset_of;
+use std::{f32, marker::PhantomData};
 use tracing::warn;
-
-use crate::{
-    World,
-    components::{Component, RigidBodyComponent},
-    core::GameObjectId,
-};
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Err)))]
@@ -31,6 +32,9 @@ pub enum JointError {
 
 pub trait JointTypeTrait: Send + Sync + 'static {
     type Config: Default + Clone + Send + Sync;
+
+    const NAME: &'static str;
+    const FULL_NAME: &'static str;
 
     fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint;
 }
@@ -112,6 +116,9 @@ impl Default for SpringConfig {
 impl JointTypeTrait for Fixed {
     type Config = FixedConfig;
 
+    const NAME: &str = "FixedJoint";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "FixedJoint");
+
     fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
         FixedJointBuilder::new()
             .local_anchor1(anchor1)
@@ -125,6 +132,9 @@ impl JointTypeTrait for Fixed {
 
 impl JointTypeTrait for Revolute {
     type Config = RevoluteConfig;
+
+    const NAME: &str = "RevoluteJoint";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "RevoluteJoint");
 
     fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
         let mut b = RevoluteJointBuilder::new(config.axis)
@@ -142,6 +152,9 @@ impl JointTypeTrait for Revolute {
 impl JointTypeTrait for Prismatic {
     type Config = PrismaticConfig;
 
+    const NAME: &str = "PrismaticJoint";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "PrismaticJoint");
+
     fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
         let mut b = PrismaticJointBuilder::new(config.axis)
             .local_anchor1(anchor1)
@@ -158,6 +171,9 @@ impl JointTypeTrait for Prismatic {
 impl JointTypeTrait for Spherical {
     type Config = SphericalConfig;
 
+    const NAME: &str = "SphericalJoint";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "SphericalJoint");
+
     fn build(_: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
         SphericalJointBuilder::new()
             .local_anchor1(anchor1)
@@ -170,6 +186,9 @@ impl JointTypeTrait for Spherical {
 impl JointTypeTrait for Rope {
     type Config = RopeConfig;
 
+    const NAME: &str = "RopeJoint";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "RopeJoint");
+
     fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
         RopeJointBuilder::new(config.max_distance)
             .local_anchor1(anchor1)
@@ -181,6 +200,9 @@ impl JointTypeTrait for Rope {
 
 impl JointTypeTrait for Spring {
     type Config = SpringConfig;
+
+    const NAME: &str = "SpringJoint";
+    const FULL_NAME: &str = concat!(module_path!(), "::", "SpringJoint");
 
     fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
         SpringJointBuilder::new(config.rest_length, config.stiffness, config.damping)
@@ -210,60 +232,37 @@ pub type SphericalJoint = JointComponent<Spherical>;
 pub type RopeJoint = JointComponent<Rope>;
 pub type SpringJoint = JointComponent<Spring>;
 
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<FixedJoint>(),
-        type_name: concat!(module_path!(), "::", "FixedJoint"),
-        short_name: "FixedJoint",
-    }
+impl<T: JointTypeTrait> Reflect for JointComponent<T> {
+    const DATA: ReflectedTypeInfo = ReflectedTypeInfo {
+        type_id: TypeId::of::<Self>(),
+        type_name: T::FULL_NAME,
+        short_name: T::NAME,
+        fields: &[
+            ReflectedField {
+                name: "broken",
+                offset: offset_of!(Self, broken),
+                type_id: TypeId::of::<bool>(),
+            },
+            ReflectedField {
+                name: "break_force",
+                offset: offset_of!(Self, break_force),
+                type_id: TypeId::of::<Option<bool>>(),
+            },
+            ReflectedField {
+                name: "break_torque",
+                offset: offset_of!(Self, break_torque),
+                type_id: TypeId::of::<Option<bool>>(),
+            },
+        ],
+    };
 }
 
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<RevoluteJoint>(),
-        type_name: concat!(module_path!(), "::", "RevoluteJoint"),
-        short_name: "RevoluteJoint",
-    }
-}
-
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<PrismaticJoint>(),
-        type_name: concat!(module_path!(), "::", "PrismaticJoint"),
-        short_name: "PrismaticJoint",
-    }
-}
-
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<SphericalJoint>(),
-        type_name: concat!(module_path!(), "::", "SphericalJoint"),
-        short_name: "SphericalJoint",
-    }
-}
-
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<RopeJoint>(),
-        type_name: concat!(module_path!(), "::", "RopeJoint"),
-        short_name: "RopeJoint",
-    }
-}
-
-inventory::submit! {
-    crate::components::ComponentTypeInfo {
-        type_id: ::std::any::TypeId::of::<SpringJoint>(),
-        type_name: concat!(module_path!(), "::", "SpringJoint"),
-        short_name: "SpringJoint",
-    }
-}
-
-impl crate::components::Reflect for FixedJoint {}
-impl crate::components::Reflect for RevoluteJoint {}
-impl crate::components::Reflect for PrismaticJoint {}
-impl crate::components::Reflect for SphericalJoint {}
-impl crate::components::Reflect for RopeJoint {}
-impl crate::components::Reflect for SpringJoint {}
+inventory::submit! { FixedJoint::DATA }
+inventory::submit! { RevoluteJoint::DATA }
+inventory::submit! { PrismaticJoint::DATA }
+inventory::submit! { SphericalJoint::DATA }
+inventory::submit! { RopeJoint::DATA }
+inventory::submit! { SpringJoint::DATA }
 
 impl<T: JointTypeTrait> Default for JointComponent<T> {
     fn default() -> Self {

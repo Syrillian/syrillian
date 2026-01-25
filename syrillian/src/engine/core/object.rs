@@ -329,7 +329,7 @@ impl GameObject {
     pub fn is_enabled(&self) -> bool {
         self.enabled.get()
     }
-    
+
     /// Returns whether this object is still alive inside the world.
     pub fn is_alive(&self) -> bool {
         self.alive.get()
