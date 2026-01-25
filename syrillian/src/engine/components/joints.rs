@@ -14,7 +14,7 @@ use tracing::warn;
 
 use crate::{
     World,
-    components::{Component, NewComponent, RigidBodyComponent},
+    components::{Component, RigidBodyComponent},
     core::GameObjectId,
 };
 
@@ -192,7 +192,6 @@ impl JointTypeTrait for Spring {
 }
 
 pub struct JointComponent<T: JointTypeTrait> {
-    parent: GameObjectId,
     pub connected: Option<GameObjectId>,
     handle: Option<ImpulseJointHandle>,
     anchor1: Point3<f32>,
@@ -266,10 +265,9 @@ impl crate::components::Reflect for SphericalJoint {}
 impl crate::components::Reflect for RopeJoint {}
 impl crate::components::Reflect for SpringJoint {}
 
-impl<T: JointTypeTrait> NewComponent for JointComponent<T> {
-    fn new(parent: GameObjectId) -> Self {
+impl<T: JointTypeTrait> Default for JointComponent<T> {
+    fn default() -> Self {
         Self {
-            parent,
             connected: None,
             handle: None,
             anchor1: Point3::origin(),
@@ -306,22 +304,24 @@ impl<T: JointTypeTrait> JointComponent<T> {
     pub fn try_connect_to(&mut self, body: GameObjectId) -> Result<(), JointError> {
         ensure!(body.exists(), InvalidConnectorErr);
 
-        let self_rb = self
-            .parent
+        let parent = self.parent();
+
+        let self_rb = parent
             .get_component::<RigidBodyComponent>()
             .ok_or(JointError::NoParentRigidBody)?
-            .body_handle;
+            .body_handle
+            .ok_or(JointError::NoParentRigidBody)?;
 
         let other_rb = body
             .get_component::<RigidBodyComponent>()
             .ok_or(JointError::NoConnectorRigidBody)?
-            .body_handle;
+            .body_handle
+            .ok_or(JointError::NoConnectorRigidBody)?;
 
         let joint = T::build(&self.config, self.anchor1, self.anchor2);
 
         self.handle = Some(
-            self.parent
-                .world()
+            self.world()
                 .physics
                 .impulse_joint_set
                 .insert(self_rb, other_rb, joint, true),
@@ -367,7 +367,6 @@ impl<T: JointTypeTrait> JointComponent<T> {
     pub fn joint_data(&self) -> Option<&GenericJoint> {
         Some(
             &self
-                .parent
                 .world()
                 .physics
                 .impulse_joint_set
@@ -456,7 +455,7 @@ impl<T: JointTypeTrait> JointComponent<T> {
     // physics queires
 
     fn bodies(&self) -> Option<(&RigidBody, &RigidBody)> {
-        let world = self.parent.world();
+        let world = self.world();
         let jd = world.physics.impulse_joint_set.get(self.handle?)?;
         let rb1 = world.physics.rigid_body_set.get(jd.body1)?;
         let rb2 = world.physics.rigid_body_set.get(jd.body2)?;

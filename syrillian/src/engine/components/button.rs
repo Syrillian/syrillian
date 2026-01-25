@@ -1,28 +1,18 @@
 use crate::Reflect;
 use crate::World;
-use crate::components::{Component, NewComponent};
-use crate::core::{EventType, GameObjectId};
+use crate::components::Component;
+use crate::core::EventType;
 
 type ButtonClickHandler = Box<dyn FnMut(&mut World) + 'static>;
 
-#[derive(Debug, Reflect)]
+#[derive(Default, Reflect)]
 pub struct Button {
-    parent: GameObjectId,
     click_handler: Vec<ButtonClickHandler>,
-}
-
-impl NewComponent for Button {
-    fn new(parent: GameObjectId) -> Self {
-        Self {
-            parent,
-            click_handler: Vec::new(),
-        }
-    }
 }
 
 impl Component for Button {
     fn init(&mut self, world: &mut World) {
-        self.parent.notify_for(world, EventType::CLICK);
+        self.parent().notify_for(world, EventType::CLICK);
     }
 
     fn on_click(&mut self, world: &mut World) {

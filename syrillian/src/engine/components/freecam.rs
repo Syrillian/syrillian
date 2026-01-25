@@ -1,7 +1,6 @@
 use crate::Reflect;
 use crate::World;
-use crate::components::{CameraComponent, Component, NewComponent};
-use crate::core::GameObjectId;
+use crate::components::{CameraComponent, Component};
 use crate::input::InputManager;
 use crate::windowing::RenderTargetId;
 use gilrs::{Axis, Button};
@@ -13,17 +12,15 @@ use winit::keyboard::KeyCode;
 pub struct FreecamController {
     pub move_speed: f32,
     pub look_sensitivity: f32,
-    parent: GameObjectId,
     pub yaw: f32,
     pub pitch: f32,
 }
 
-impl NewComponent for FreecamController {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for FreecamController {
+    fn default() -> Self {
         FreecamController {
             move_speed: 12.0f32,
             look_sensitivity: 0.12f32,
-            parent,
             yaw: 0.0,
             pitch: 0.0,
         }
@@ -33,7 +30,7 @@ impl NewComponent for FreecamController {
 impl Component for FreecamController {
     fn update(&mut self, world: &mut World) {
         let target = self
-            .parent
+            .parent()
             .get_component::<CameraComponent>()
             .map(|c| c.render_target())
             .unwrap_or(RenderTargetId::PRIMARY);
@@ -56,7 +53,7 @@ impl Component for FreecamController {
 
 impl FreecamController {
     fn update_movement(&mut self, delta_time: f32, input: &InputManager) {
-        let transform = &mut self.parent.transform;
+        let transform = &mut self.parent().transform;
         let mut fb_movement: f32 = 0.;
         if input.is_key_pressed(KeyCode::KeyW) {
             fb_movement += 1.;
@@ -120,7 +117,7 @@ impl FreecamController {
     }
 
     fn update_view(&mut self, input: &InputManager) {
-        let transform = &mut self.parent.transform;
+        let transform = &mut self.parent().transform;
 
         let gamepad_delta = Vector2::new(
             -input.gamepad.axis(Axis::RightStickX),

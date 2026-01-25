@@ -1,7 +1,7 @@
 use crate::Reflect;
 use crate::World;
-use crate::components::{CameraComponent, Component, NewComponent};
-use crate::core::{GameObjectId, Transform};
+use crate::components::{CameraComponent, Component};
+use crate::core::Transform;
 use crate::input::InputManager;
 use crate::utils::FloatMathExt;
 use crate::windowing::RenderTargetId;
@@ -52,7 +52,6 @@ pub struct FPSCameraConfig {
 
 #[derive(Debug, Reflect)]
 pub struct FirstPersonCameraController {
-    parent: GameObjectId,
     pub config: FPSCameraConfig,
 
     yaw: f32,
@@ -103,10 +102,9 @@ impl Default for FPSCameraConfig {
     }
 }
 
-impl NewComponent for FirstPersonCameraController {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for FirstPersonCameraController {
+    fn default() -> Self {
         FirstPersonCameraController {
-            parent,
             config: FPSCameraConfig::default(),
             yaw: 0.0,
             pitch: 0.0,
@@ -134,18 +132,17 @@ impl NewComponent for FirstPersonCameraController {
 
 impl Component for FirstPersonCameraController {
     fn init(&mut self, _world: &mut World) {
-        self.base_position = *self.parent.transform.local_position();
+        self.base_position = *self.parent().transform.local_position();
     }
 
     fn update(&mut self, world: &mut World) {
-        let target = self
-            .parent
+        let mut parent = self.parent();
+        let target = parent
             .get_component::<CameraComponent>()
             .map(|c| c.render_target())
             .unwrap_or(RenderTargetId::PRIMARY);
         world.input.set_active_target(target);
 
-        let mut parent = self.parent;
         let transform = &mut parent.transform;
         let delta_time = world.delta_time().as_secs_f32();
 
@@ -267,7 +264,7 @@ impl FirstPersonCameraController {
             .bob_offset
             .lerp(&Vector3::zeros(), self.config.smoothing_speed * delta_time);
 
-        if let Some(mut parent) = self.parent.parent {
+        if let Some(mut parent) = *self.parent().parent() {
             parent.transform.set_local_rotation(yaw_rot);
         }
     }
@@ -334,7 +331,7 @@ impl FirstPersonCameraController {
     }
 
     fn update_zoom(&mut self) {
-        let Some(mut camera) = self.parent.get_component::<CameraComponent>() else {
+        let Some(mut camera) = self.parent().get_component::<CameraComponent>() else {
             warn!("Camera component not found");
             return;
         };

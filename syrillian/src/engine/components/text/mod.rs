@@ -1,7 +1,6 @@
 use crate::World;
 use crate::assets::HFont;
-use crate::components::{Component, NewComponent};
-use crate::core::GameObjectId;
+use crate::components::Component;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::proxies::text_proxy::{TextProxy, ThreeD, TwoD};
 use crate::rendering::strobe::{TextAlignment, UiTextDraw};
@@ -14,7 +13,6 @@ use syrillian_macros::Reflect;
 #[derive(Debug, Clone, Reflect)]
 pub struct Text2D {
     proxy: TextProxy<2, TwoD>,
-    parent: GameObjectId,
 }
 
 impl Text2D {
@@ -41,7 +39,7 @@ impl Text2D {
             color: self.proxy.color(),
             rainbow: self.proxy.rainbow_mode(),
             text: self.proxy.text().to_string(),
-            object_hash: self.parent.object_hash(),
+            object_hash: self.parent().object_hash(),
         }
     }
 
@@ -63,11 +61,10 @@ impl Text2D {
     }
 }
 
-impl NewComponent for Text2D {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for Text2D {
+    fn default() -> Self {
         Self {
             proxy: TextProxy::new("".to_string(), HFont::DEFAULT, 100.0),
-            parent,
         }
     }
 }

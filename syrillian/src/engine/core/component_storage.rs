@@ -1,5 +1,6 @@
 use crate::components::{CRef, Component, ComponentId, TypedComponentId};
 use crate::core::GameObjectId;
+use crate::core::component_context_inference::ComponentContextInference;
 use slotmap::SlotMap;
 use slotmap::basic::Values;
 use std::any::{Any, TypeId};
@@ -177,6 +178,8 @@ impl ComponentStorage {
     pub(crate) fn add<C: Component>(&mut self, component: C, parent: GameObjectId) -> CRef<C> {
         let comp = Rc::new(component);
 
+        let comp_ptr = Rc::as_ptr(&comp);
+
         let store = self._get_or_insert_mut();
         let id = store.insert_with_key(|id| {
             let tid = TypedComponentId::from_typed::<C>(id);
@@ -185,6 +188,8 @@ impl ComponentStorage {
 
         let tid = TypedComponentId::from_typed::<C>(id);
         let cref = store.get(id).expect("Element was just inserted").clone();
+
+        ComponentContextInference::tl_insert(comp_ptr, cref.ctx.clone());
 
         self.len += 1;
         self.fresh.push(tid);
@@ -211,6 +216,10 @@ impl ComponentStorage {
         debug_assert_ne!(self.len, 0);
 
         self.len = self.len.saturating_sub(1);
+
+        if let Some(comp) = comp.and_then(|c| c.data) {
+            ComponentContextInference::tl_remove(Rc::as_ptr(&comp) as *const ());
+        }
     }
 
     pub const fn len(&self) -> usize {

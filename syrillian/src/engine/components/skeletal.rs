@@ -1,7 +1,7 @@
 use crate::Reflect;
 use crate::World;
-use crate::components::{Component, MeshRenderer, NewComponent};
-use crate::core::{Bones, GameObjectId};
+use crate::components::{Component, MeshRenderer};
+use crate::core::Bones;
 use crate::utils::{ExtraMatrixMath, MATRIX4_ID};
 use itertools::izip;
 use nalgebra::{Matrix4, Rotation3, Scale3, Vector3};
@@ -10,7 +10,6 @@ use tracing::warn;
 
 #[derive(Debug, Reflect)]
 pub struct SkeletalComponent {
-    parent: GameObjectId,
     bones_static: Bones,
     skin_transform: Vec<Matrix4<f32>>,
     skin_rotation: Vec<Matrix4<f32>>,
@@ -21,10 +20,9 @@ pub struct SkeletalComponent {
     dirty: bool,
 }
 
-impl NewComponent for SkeletalComponent {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for SkeletalComponent {
+    fn default() -> Self {
         Self {
-            parent,
             bones_static: Bones::none(),
             skin_transform: Vec::new(),
             skin_rotation: Vec::new(),
@@ -39,7 +37,7 @@ impl NewComponent for SkeletalComponent {
 
 impl Component for SkeletalComponent {
     fn init(&mut self, world: &mut World) {
-        let Some(renderer) = self.parent.get_component::<MeshRenderer>() else {
+        let Some(renderer) = self.parent().get_component::<MeshRenderer>() else {
             warn!("No Mesh Renderer found on Skeletal Object");
             return;
         };

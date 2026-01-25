@@ -6,20 +6,18 @@
 //! To make a component:
 //! ```rust
 //! use nalgebra::Vector3;
-//! use syrillian::components::{Component, NewComponent};
+//! use syrillian::components::{Component};
 //! use syrillian::core::GameObjectId;
 //! use syrillian::World;
 //!
 //! pub struct Gravity {
 //!     force: f32,
-//!     parent: GameObjectId,
 //! }
 //!
-//! impl NewComponent for Gravity {
-//!     fn new(parent: GameObjectId) -> Self {
+//! impl Default for Gravity {
+//!     fn default() -> Self {
 //!         Gravity {
 //!             force: 8.91,
-//!             parent,
 //!         }
 //!     }
 //! }
@@ -30,7 +28,7 @@
 //!
 //!         let movement = Vector3::new(0.0, self.force * delta_time, 0.0);
 //!
-//!         let transform = &mut self.parent.transform;
+//!         let transform = &mut self.parent().transform;
 //!         transform.translate(movement);
 //!     }
 //! }
@@ -85,6 +83,7 @@ pub use camera_debug::*;
 
 use crate::World;
 use crate::core::GameObjectId;
+use crate::core::component_context_inference::ComponentContextInference;
 use crate::rendering::lights::LightProxy;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::{CPUDrawCtx, UiContext};
@@ -99,7 +98,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::{Arc, Once, OnceLock};
+use std::sync::{Once, OnceLock};
 
 new_key_type! { pub struct ComponentId; }
 
@@ -167,8 +166,6 @@ pub struct ComponentContext {
     pub(crate) parent: GameObjectId,
 }
 
-pub type AComponentContext = Arc<ComponentContext>;
-
 impl ComponentContext {
     pub(crate) fn new(tid: TypedComponentId, parent: GameObjectId) -> Self {
         Self { tid, parent }
@@ -183,6 +180,10 @@ impl ComponentContext {
 
     pub fn parent(&self) -> GameObjectId {
         self.parent
+    }
+
+    pub fn world(&self) -> &'static mut World {
+        self.parent.world()
     }
 }
 
@@ -373,7 +374,7 @@ impl<C: Component> CWeak<C> {
 
 impl<C: Component> Default for CWeak<C> {
     fn default() -> Self {
-        CWeak(ComponentId::default(), PhantomData)
+        CWeak::null()
     }
 }
 
@@ -426,15 +427,15 @@ impl TypedComponentId {
 /// ```rust
 /// use nalgebra::Vector3;
 /// use syrillian::World;
-/// use syrillian::components::{AComponentContext, Component, ComponentContext, NewComponent};
+/// use syrillian::components::{Component, ComponentContext};
 /// use syrillian::core::GameObjectId;
 ///
 /// struct MyComponent {
 ///     parent: GameObjectId,
 /// }
 ///
-/// impl NewComponent for MyComponent {
-///     fn new(parent: GameObjectId) -> Self
+/// impl Default for MyComponent {
+///     fn default() -> Self
 ///     {
 ///         Self { parent }
 ///     }
@@ -497,15 +498,39 @@ pub trait Component: Any {
 
     // Gets called when the component is about to be deleted
     fn delete(&mut self, world: &mut World) {}
-}
 
-/// Either you'll have to implement this, or Default
-pub trait NewComponent: Component {
-    fn new(parent: GameObjectId) -> Self;
-}
+    fn parent_opt(&self) -> Option<GameObjectId>
+    where
+        Self: Sized,
+    {
+        ComponentContextInference::tl_find(self as *const _ as *const ()).map(|ctx| ctx.parent)
+    }
 
-impl<D: Default + Component> NewComponent for D {
-    fn new(_parent: GameObjectId) -> Self {
-        Self::default()
+    fn world_opt(&self) -> Option<&'static mut World>
+    where
+        Self: Sized,
+    {
+        use syrillian::core::GOComponentExt;
+        ComponentContextInference::tl_find(self as *const _).map(|ctx| ctx.world())
+    }
+
+    /// Will panic when Component is manually instantiated instead of adding it to a game object
+    #[track_caller]
+    fn parent(&self) -> GameObjectId
+    where
+        Self: Sized,
+    {
+        self.parent_opt()
+            .expect("Tried to get component parent, but component wasn't managed by a world")
+    }
+
+    /// Will panic when Component is manually instantiated instead of adding it to a game object
+    #[track_caller]
+    fn world(&self) -> &'static mut World
+    where
+        Self: Sized,
+    {
+        self.world_opt()
+            .expect("Tried to get component world, but component wasn't managed by a world")
     }
 }

@@ -1,4 +1,4 @@
-use crate::components::{CRef, Component, NewComponent, TypedComponentId};
+use crate::components::{CRef, Component, TypedComponentId};
 use crate::core::Transform;
 use crate::ensure_aligned;
 use crate::world::World;
@@ -403,17 +403,16 @@ impl GameObject {
     /// and returns the component ID.
     pub fn add_component<C>(&mut self) -> CRef<C>
     where
-        C: NewComponent + 'static,
+        C: Component + Default + 'static,
     {
         assert!(
             self.is_alive(),
             "cannot add a component to an object that has been deleted"
         );
         let world = self.world();
-        let mut comp: C = C::new(self.id);
-        comp.init(world);
+        let comp: C = C::default();
+        let mut new_comp = world.components.add(comp, self.id);
 
-        let new_comp = world.components.add(comp, self.id);
         if self
             .components
             .iter()
@@ -424,13 +423,15 @@ impl GameObject {
 
         let new_comp2 = new_comp.clone();
         self.components.push(new_comp.as_dyn());
+
+        new_comp.init(world);
         new_comp2
     }
 
     /// Adds a new [`Component`] of type `C` to all children of this game object.
     pub fn add_child_components<C>(&mut self)
     where
-        C: NewComponent + 'static,
+        C: Component + Default + 'static,
     {
         if !self.is_alive() {
             return;
@@ -444,7 +445,7 @@ impl GameObject {
     /// function `f` to each newly added component.
     pub fn add_child_components_then<C>(&mut self, f: impl Fn(&mut C))
     where
-        C: NewComponent + 'static,
+        C: Component + Default + 'static,
     {
         if !self.is_alive() {
             return;

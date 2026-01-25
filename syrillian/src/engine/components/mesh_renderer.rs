@@ -1,6 +1,6 @@
 use crate::assets::HMaterial;
-use crate::components::{Component, NewComponent, SkeletalComponent};
-use crate::core::{Bone, GameObjectId, Vertex3D};
+use crate::components::{Component, SkeletalComponent};
+use crate::core::{Bone, Vertex3D};
 use crate::engine::assets::HMesh;
 use crate::engine::rendering::CPUDrawCtx;
 use crate::rendering::proxies::SceneProxy;
@@ -60,18 +60,16 @@ pub struct DebugVertexNormal {
 
 #[derive(Debug, Reflect)]
 pub struct MeshRenderer {
-    parent: GameObjectId,
     mesh: HMesh,
     materials: Vec<HMaterial>,
     dirty_mesh: bool,
     dirty_materials: bool,
 }
 
-impl NewComponent for MeshRenderer {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for MeshRenderer {
+    fn default() -> Self {
         // TODO: Null Asset Handles
         MeshRenderer {
-            parent,
             mesh: HMesh::UNIT_CUBE,
             materials: vec![],
             dirty_mesh: false,
@@ -100,7 +98,7 @@ impl Component for MeshRenderer {
     }
 
     fn update_proxy(&mut self, world: &World, mut ctx: CPUDrawCtx) {
-        if let Some(mut skel) = self.parent.get_component::<SkeletalComponent>()
+        if let Some(mut skel) = self.parent().get_component::<SkeletalComponent>()
             && skel.update_palette()
         {
             let palette = skel.palette().to_vec();

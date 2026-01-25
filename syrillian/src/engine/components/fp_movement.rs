@@ -1,10 +1,8 @@
 use crate::Reflect;
 use crate::World;
 use crate::components::{
-    CRef, CWeak, CameraComponent, Component, FirstPersonCameraController, NewComponent,
-    RigidBodyComponent,
+    CRef, CWeak, CameraComponent, Component, FirstPersonCameraController, RigidBodyComponent,
 };
-use crate::core::GameObjectId;
 use crate::windowing::RenderTargetId;
 use gilrs::Axis;
 use nalgebra::Vector3;
@@ -15,7 +13,6 @@ use winit::keyboard::KeyCode;
 
 #[derive(Debug, Reflect)]
 pub struct FirstPersonMovementController {
-    parent: GameObjectId,
     pub move_speed: f32,
     pub jump_factor: f32,
     rigid_body: CWeak<RigidBodyComponent>,
@@ -28,10 +25,9 @@ pub struct FirstPersonMovementController {
     feet_height: f32,
 }
 
-impl NewComponent for FirstPersonMovementController {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for FirstPersonMovementController {
+    fn default() -> Self {
         FirstPersonMovementController {
-            parent,
             move_speed: 5.0,
             jump_factor: 100.0,
             rigid_body: CWeak::null(),
@@ -48,7 +44,7 @@ impl NewComponent for FirstPersonMovementController {
 
 impl Component for FirstPersonMovementController {
     fn init(&mut self, world: &mut World) {
-        let mut rigid = self.parent.get_component::<RigidBodyComponent>();
+        let mut rigid = self.parent().get_component::<RigidBodyComponent>();
         if let Some(rigid) = &mut rigid
             && let Some(rigid) = rigid.body_mut()
         {
@@ -58,7 +54,7 @@ impl Component for FirstPersonMovementController {
         self.rigid_body = rigid.map(CRef::downgrade).unwrap_or_default();
 
         self.camera_controller = self
-            .parent
+            .parent()
             .get_child_component::<FirstPersonCameraController>()
             .map(CRef::downgrade)
             .unwrap_or_default();
@@ -71,7 +67,7 @@ impl Component for FirstPersonMovementController {
         self.update_grounded(world);
 
         let target = self
-            .parent
+            .parent()
             .get_component::<CameraComponent>()
             .map(|c| c.render_target())
             .unwrap_or(RenderTargetId::PRIMARY);
@@ -150,7 +146,7 @@ impl FirstPersonMovementController {
         let mut position = *body.position();
         position.translation.y += self.feet_height + 0.05;
         const DIR: Vector3<f32> = Vector3::new(0.0, -1.0, 0.0);
-        let filter = QueryFilter::new().exclude_rigid_body(rigid_body.body_handle);
+        let filter = QueryFilter::new().exclude_rigid_body(rigid_body.handle());
 
         self.is_grounded = world
             .physics
@@ -163,6 +159,7 @@ impl FirstPersonMovementController {
         world: &World,
         body: &RigidBody,
     ) -> (f32, f32, f32, f32) {
+        let parent = self.parent();
         let mut speed_factor = self.move_speed;
 
         if world.input.is_sprinting() {
@@ -173,34 +170,34 @@ impl FirstPersonMovementController {
 
         let mut fb_movement: f32 = 0.;
         if world.input.is_key_pressed(KeyCode::KeyW) {
-            target_velocity += self.parent.transform.forward();
+            target_velocity += parent.transform.forward();
             fb_movement += 1.;
         }
 
         if world.input.is_key_pressed(KeyCode::KeyS) {
-            target_velocity -= self.parent.transform.forward();
+            target_velocity -= parent.transform.forward();
             fb_movement -= 1.;
         }
 
         let mut lr_movement: f32 = 0.;
         if world.input.is_key_pressed(KeyCode::KeyA) {
-            target_velocity -= self.parent.transform.right();
+            target_velocity -= parent.transform.right();
             lr_movement -= 1.;
         }
 
         if world.input.is_key_pressed(KeyCode::KeyD) {
-            target_velocity += self.parent.transform.right();
+            target_velocity += parent.transform.right();
             lr_movement += 1.;
         }
 
         let axis_x = world.input.gamepad.axis(Axis::LeftStickX);
         let axis_y = world.input.gamepad.axis(Axis::LeftStickY);
         if fb_movement.abs() < f32::EPSILON {
-            target_velocity += self.parent.transform.forward() * axis_y;
+            target_velocity += parent.transform.forward() * axis_y;
             fb_movement = axis_y;
         }
         if lr_movement.abs() < f32::EPSILON {
-            target_velocity += self.parent.transform.right() * axis_x;
+            target_velocity += parent.transform.right() * axis_x;
             lr_movement = axis_x;
         }
 

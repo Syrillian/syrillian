@@ -1,6 +1,5 @@
 use crate::World;
-use crate::components::{Component, NewComponent};
-use crate::core::GameObjectId;
+use crate::components::Component;
 use crate::engine::assets::HMaterial;
 use crate::rendering::UiContext;
 use crate::rendering::strobe::ImageScalingMode;
@@ -15,7 +14,6 @@ pub struct Image {
     scaling: ImageScalingMode,
     translation: Matrix4<f32>,
     draw_order: u32,
-    pub parent: GameObjectId,
     render_target: RenderTargetId,
 }
 
@@ -72,16 +70,14 @@ impl Image {
             draw_order: self.draw_order(),
             material: self.material(),
             scaling: self.scaling_mode(),
-            object_hash: self.parent.object_hash(),
+            object_hash: self.parent().object_hash(),
         }
     }
 }
 
-impl NewComponent for Image {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for Image {
+    fn default() -> Self {
         Image {
-            parent,
-
             material: HMaterial::FALLBACK,
             scaling: ImageScalingMode::Absolute {
                 left: 0.0,

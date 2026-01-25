@@ -1,6 +1,5 @@
 use crate::World;
-use crate::components::{Component, NewComponent};
-use crate::core::GameObjectId;
+use crate::components::Component;
 use crate::rendering::CPUDrawCtx;
 use crate::rendering::lights::{Light, LightProxy, LightType};
 use crate::utils::FloatMathExt;
@@ -15,8 +14,6 @@ pub struct Sun;
 pub struct Spot;
 
 pub struct LightComponent<L: LightTypeTrait + 'static> {
-    parent: GameObjectId,
-
     target_inner_angle: f32,
     target_outer_angle: f32,
     pub inner_angle_t: f32,
@@ -79,8 +76,8 @@ impl LightTypeTrait for Spot {
     }
 }
 
-impl<L: LightTypeTrait + 'static> NewComponent for LightComponent<L> {
-    fn new(parent: GameObjectId) -> Self {
+impl<L: LightTypeTrait + 'static> Default for LightComponent<L> {
+    fn default() -> Self {
         const DEFAULT_INNER_ANGLE: f32 = 5.0f32.to_radians();
         const DEFAULT_OUTER_ANGLE: f32 = 30.0f32.to_radians();
 
@@ -95,14 +92,7 @@ impl<L: LightTypeTrait + 'static> NewComponent for LightComponent<L> {
             local_proxy.intensity = 1000.0;
         }
 
-        local_proxy.position = parent.transform.position();
-        local_proxy.direction = parent.transform.forward();
-        local_proxy.up = parent.transform.up();
-        local_proxy.view_mat = parent.transform.view_matrix_rigid().to_matrix();
-
         LightComponent {
-            parent,
-
             target_inner_angle: DEFAULT_INNER_ANGLE,
             target_outer_angle: DEFAULT_OUTER_ANGLE,
             inner_angle_t: 1.0,
@@ -118,12 +108,21 @@ impl<L: LightTypeTrait + 'static> NewComponent for LightComponent<L> {
 }
 
 impl<L: LightTypeTrait + 'static> Component for LightComponent<L> {
+    fn init(&mut self, _world: &mut World) {
+        let parent = self.parent();
+        self.local_proxy.position = parent.transform.position();
+        self.local_proxy.direction = parent.transform.forward();
+        self.local_proxy.up = parent.transform.up();
+        self.local_proxy.view_mat = parent.transform.view_matrix_rigid().to_matrix();
+    }
+
     fn late_update(&mut self, world: &mut World) {
-        if self.parent.transform.is_dirty() {
-            self.local_proxy.position = self.parent.transform.position();
-            self.local_proxy.direction = self.parent.transform.forward();
-            self.local_proxy.up = self.parent.transform.up();
-            self.local_proxy.view_mat = self.parent.transform.view_matrix_rigid().to_matrix();
+        let parent = self.parent();
+        if parent.transform.is_dirty() {
+            self.local_proxy.position = parent.transform.position();
+            self.local_proxy.direction = parent.transform.forward();
+            self.local_proxy.up = parent.transform.up();
+            self.local_proxy.view_mat = parent.transform.view_matrix_rigid().to_matrix();
             self.dirty = true;
         }
 

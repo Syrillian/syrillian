@@ -1,5 +1,5 @@
 use crate::World;
-use crate::components::{Component, NewComponent, SkeletalComponent};
+use crate::components::{Component, SkeletalComponent};
 use crate::core::GameObjectId;
 use crate::utils::ExtraMatrixMath;
 use crate::utils::animation::{
@@ -9,13 +9,11 @@ use crate::utils::animation::{
 use nalgebra::{UnitQuaternion, Vector3};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use tracing::warn;
 use syrillian_macros::Reflect;
+use tracing::warn;
 
-#[derive(Reflect)]
+#[derive(Default, Reflect)]
 pub struct AnimationComponent {
-    parent: GameObjectId,
-
     // Multiple clips (by name)
     clips: Vec<AnimationClip>,
     clip_indices: Vec<ClipIndex>,
@@ -28,18 +26,6 @@ pub struct AnimationComponent {
 
 /// Position, Rotation, Scale
 type SkeletonLocals = (Vector3<f32>, UnitQuaternion<f32>, Vector3<f32>);
-
-impl NewComponent for AnimationComponent {
-    fn new(parent: GameObjectId) -> Self {
-        Self {
-            parent,
-            clips: Vec::new(),
-            clip_indices: Vec::new(),
-            current: None,
-            bindings: Vec::new(),
-        }
-    }
-}
 
 impl Component for AnimationComponent {
     fn update(&mut self, world: &mut World) {
@@ -83,10 +69,10 @@ impl AnimationComponent {
         self.bindings.reserve(self.clips.len());
 
         let mut map_nodes = HashMap::<String, GameObjectId>::new();
-        collect_subtree_by_name(self.parent, &mut map_nodes);
+        collect_subtree_by_name(self.parent(), &mut map_nodes);
 
         let mut bone_map = HashMap::<String, Vec<(GameObjectId, usize)>>::new();
-        let mut stack = vec![self.parent];
+        let mut stack = vec![self.parent()];
         while let Some(go) = stack.pop() {
             if let Some(skel) = go.get_component::<SkeletalComponent>() {
                 for (i, name) in skel.bones().names.iter().enumerate() {
@@ -148,7 +134,7 @@ impl AnimationComponent {
 
     pub fn play_index(&mut self, index: usize, looping: bool, speed: f32, weight: f32) {
         if index >= self.clips.len() {
-            warn!("No clip #{index} found in {}", self.parent.name);
+            warn!("No clip #{index} found in {}", self.parent().name);
             return;
         }
 

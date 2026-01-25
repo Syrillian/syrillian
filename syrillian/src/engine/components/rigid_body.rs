@@ -1,23 +1,22 @@
 use crate::Reflect;
 use crate::World;
-use crate::components::{Component, NewComponent};
-use crate::core::GameObjectId;
+use crate::components::Component;
 use crate::utils::math::QuaternionEuler;
 use nalgebra::{Isometry3, Translation3};
 use rapier3d::prelude::*;
 use syrillian_utils::debug_panic;
 
-#[derive(Debug, Reflect)]
+#[derive(Debug, Default, Reflect)]
 pub struct RigidBodyComponent {
-    parent: GameObjectId,
-    pub body_handle: RigidBodyHandle,
+    pub body_handle: Option<RigidBodyHandle>,
     kinematic: bool,
     prev_iso: Isometry3<f32>,
     curr_iso: Isometry3<f32>,
 }
 
-impl NewComponent for RigidBodyComponent {
-    fn new(parent: GameObjectId) -> Self {
+impl Component for RigidBodyComponent {
+    fn init(&mut self, _world: &mut World) {
+        let parent = self.parent();
         let initial_translation = parent.transform.position();
         let initial_rotation = parent.transform.rotation().euler_vector();
         let rigid_body = RigidBodyBuilder::dynamic()
@@ -26,77 +25,80 @@ impl NewComponent for RigidBodyComponent {
             .rotation(initial_rotation)
             .build();
 
-        let body_handle = World::instance().physics.rigid_body_set.insert(rigid_body);
-
-        RigidBodyComponent {
-            parent,
-            body_handle,
-            kinematic: false,
-            prev_iso: Isometry3::default(),
-            curr_iso: Isometry3::default(),
-        }
+        let body_handle = self.world().physics.rigid_body_set.insert(rigid_body);
+        self.body_handle = Some(body_handle);
     }
-}
 
-impl Component for RigidBodyComponent {
     fn pre_fixed_update(&mut self, _world: &mut World) {
-        let rb = World::instance()
-            .physics
-            .rigid_body_set
-            .get_mut(self.body_handle);
-        if let Some(rb) = rb {
-            if rb.is_dynamic() && self.parent.transform.is_dirty() {
-                rb.set_translation(self.parent.transform.position(), false);
-                rb.set_rotation(self.parent.transform.rotation(), false);
-            } else if rb.is_kinematic() {
-                rb.set_next_kinematic_translation(self.parent.transform.position());
-                rb.set_next_kinematic_rotation(self.parent.transform.rotation());
-            }
-        } else {
+        let parent = self.parent();
+
+        let Some(rb) = self.body_mut() else {
             debug_panic!("de-synced - remake_rigid_body();");
+            return;
+        };
+
+        if rb.is_dynamic() && parent.transform.is_dirty() {
+            rb.set_translation(parent.transform.position(), false);
+            rb.set_rotation(parent.transform.rotation(), false);
+        } else if rb.is_kinematic() {
+            rb.set_next_kinematic_translation(parent.transform.position());
+            rb.set_next_kinematic_rotation(parent.transform.rotation());
         }
     }
 
-    fn fixed_update(&mut self, world: &mut World) {
-        let rb = world.physics.rigid_body_set.get_mut(self.body_handle);
-        if let Some(rb) = rb {
-            self.prev_iso = self.curr_iso;
-            self.curr_iso =
-                Isometry3::from_parts(Translation3::from(*rb.translation()), *rb.rotation());
-            if rb.is_dynamic() {
-                self.parent.transform.set_position_vec(*rb.translation());
-                if rb.is_rotation_locked().iter().all(|l| !l) {
-                    self.parent.transform.set_rotation(*rb.rotation());
-                }
+    fn fixed_update(&mut self, _world: &mut World) {
+        let mut parent = self.parent();
+        let Some(rb) = self.body_mut() else {
+            debug_panic!("de-synced - remake_rigid_body();");
+            return;
+        };
+
+        if rb.is_dynamic() {
+            parent.transform.set_position_vec(*rb.translation());
+            if rb.is_rotation_locked().iter().all(|l| !l) {
+                parent.transform.set_rotation(*rb.rotation());
             }
         }
+
+        let new_iso = Isometry3::from_parts(Translation3::from(*rb.translation()), *rb.rotation());
+        self.curr_iso = new_iso;
+        self.prev_iso = self.curr_iso;
     }
 
     fn delete(&mut self, world: &mut World) {
-        world.physics.rigid_body_set.remove(
-            self.body_handle,
-            &mut world.physics.island_manager,
-            &mut world.physics.collider_set,
-            &mut world.physics.impulse_joint_set,
-            &mut world.physics.multibody_joint_set,
-            false,
-        );
+        if let Some(handle) = self.body_handle.take() {
+            world.physics.rigid_body_set.remove(
+                handle,
+                &mut world.physics.island_manager,
+                &mut world.physics.collider_set,
+                &mut world.physics.impulse_joint_set,
+                &mut world.physics.multibody_joint_set,
+                false,
+            );
+        }
     }
 }
 
 impl RigidBodyComponent {
+    pub(crate) fn handle(&self) -> RigidBodyHandle {
+        self.body_handle
+            .expect("Handle should be initialized in init")
+    }
+
+    #[allow(unused)]
+    pub(crate) fn handle_opt(&self) -> Option<RigidBodyHandle> {
+        self.body_handle
+    }
+
     pub fn body(&self) -> Option<&RigidBody> {
-        World::instance()
-            .physics
-            .rigid_body_set
-            .get(self.body_handle)
+        self.world().physics.rigid_body_set.get(self.body_handle?)
     }
 
     pub fn body_mut(&mut self) -> Option<&mut RigidBody> {
-        World::instance()
+        self.world()
             .physics
             .rigid_body_set
-            .get_mut(self.body_handle)
+            .get_mut(self.body_handle?)
     }
 
     pub fn set_kinematic(&mut self, kinematic: bool) {

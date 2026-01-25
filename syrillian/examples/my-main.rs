@@ -9,7 +9,7 @@ use kira::effect::reverb::ReverbBuilder;
 use kira::track::SpatialTrackBuilder;
 use nalgebra::UnitQuaternion;
 use rapier3d::parry::query::Ray;
-use rapier3d::prelude::QueryFilter;
+use rapier3d::prelude::{ColliderHandle, QueryFilter};
 use std::error::Error;
 use syrillian::assets::scene_loader::SceneLoader;
 use syrillian::assets::{HMaterial, HSound, Sound, StoreType};
@@ -84,8 +84,6 @@ impl Default for MyMain {
 
 impl AppState for MyMain {
     fn init(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
-        dbg!(syrillian::components::component_type_infos());
-
         world.spawn(&City);
 
         let materials = Self::build_dynamic_materials(world);
@@ -396,7 +394,9 @@ impl MyMain {
             let Some(collider) = self.player.get_component::<Collider3D>() else {
                 return;
             };
-            let player_collider = collider.phys_handle;
+            let player_collider = collider
+                .phys_handle
+                .unwrap_or_else(|| ColliderHandle::invalid());
             let ray = Ray::new(
                 camera_obj.transform.position().into(),
                 camera_obj.transform.forward(),

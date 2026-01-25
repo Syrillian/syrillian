@@ -1,14 +1,13 @@
 use crate::Reflect;
 use crate::World;
 use crate::components::ui_rect::UiRectLayout;
-use crate::components::{Component, NewComponent, UiRect};
+use crate::components::{Component, UiRect};
 use crate::core::GameObjectId;
 use nalgebra::Vector2;
 
 /// Basic container for 2D UI elements.
 #[derive(Debug, Reflect)]
 pub struct Panel {
-    parent: GameObjectId,
     padding: Vector2<f32>,
 }
 
@@ -18,10 +17,9 @@ impl Panel {
     }
 }
 
-impl NewComponent for Panel {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for Panel {
+    fn default() -> Self {
         Panel {
-            parent,
             padding: Vector2::new(5.0, 5.0),
         }
     }
@@ -29,7 +27,7 @@ impl NewComponent for Panel {
 
 impl Component for Panel {
     fn update(&mut self, world: &mut World) {
-        let Some(mut rect) = self.parent.get_component::<UiRect>() else {
+        let Some(mut rect) = self.parent().get_component::<UiRect>() else {
             return;
         };
 
@@ -42,7 +40,7 @@ impl Component for Panel {
 
         rect.apply_to_components(world, &mut container_layout);
 
-        layout_children(self.parent.children(), &container_layout, world);
+        layout_children(self.parent().children(), &container_layout, world);
     }
 }
 

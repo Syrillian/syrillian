@@ -1,6 +1,6 @@
 use crate::Reflect;
 use crate::World;
-use crate::components::{Component, NewComponent};
+use crate::components::Component;
 use crate::core::GameObjectId;
 use crate::utils::FloatMathExt;
 use crate::windowing::RenderTargetId;
@@ -17,7 +17,6 @@ pub struct CameraComponent {
     far: f32,
     width: f32,
     height: f32,
-    parent: GameObjectId,
     pub zoom_speed: f32,
     projection_dirty: bool,
     render_target: RenderTargetId,
@@ -90,7 +89,7 @@ impl CameraComponent {
     pub fn click_ray(&self, x: f32, y: f32) -> Ray {
         let eye = self.mouse_eye_dir(x, y);
 
-        let cam_to_world = self.parent.transform.view_matrix_rigid().to_matrix();
+        let cam_to_world = self.parent().transform.view_matrix_rigid().to_matrix();
 
         let dir_world = (cam_to_world * eye).xyz().normalize();
         let origin = cam_to_world.transform_point(&Point3::origin());
@@ -135,7 +134,7 @@ impl CameraComponent {
     pub fn push_debug_ray(&mut self, ray: Ray, max_toi: f32) {
         use crate::components::CameraDebug;
 
-        let Some(mut debug) = self.parent.get_component::<CameraDebug>() else {
+        let Some(mut debug) = self.parent().get_component::<CameraDebug>() else {
             tracing::warn!("No camera debug drawable found!");
             return;
         };
@@ -144,13 +143,10 @@ impl CameraComponent {
     }
 }
 
-impl NewComponent for CameraComponent {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for CameraComponent {
+    fn default() -> Self {
         let projection = Perspective3::new(800.0 / 600.0, 60f32.to_radians(), 0.01, 1000.0);
         let projection_inverse = projection.inverse();
-
-        #[cfg(debug_assertions)]
-        add_debug_drawable(parent);
 
         CameraComponent {
             projection,
@@ -162,7 +158,6 @@ impl NewComponent for CameraComponent {
             far: 1000.0,
             width: 800.0,
             height: 600.0,
-            parent,
             projection_dirty: true,
             render_target: RenderTargetId::PRIMARY,
         }
@@ -170,6 +165,11 @@ impl NewComponent for CameraComponent {
 }
 
 impl Component for CameraComponent {
+    #[cfg(debug_assertions)]
+    fn init(&mut self, _world: &mut World) {
+        add_debug_drawable(self.parent());
+    }
+
     fn update(&mut self, world: &mut World) {
         let delta_time = world.delta_time().as_secs_f32();
 

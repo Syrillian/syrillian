@@ -1,24 +1,17 @@
 use nalgebra::Vector3;
 use std::any::TypeId;
-use syrillian::World;
-use syrillian::components::{Component, NewComponent};
-use syrillian::core::GameObjectId;
 use syrillian::Reflect;
+use syrillian::World;
+use syrillian::components::Component;
 
-#[derive(Debug, Reflect)]
-struct MyComponent {
-    parent: GameObjectId,
-}
-
-impl NewComponent for MyComponent {
-    fn new(parent: GameObjectId) -> Self {
-        Self { parent }
-    }
-}
+#[derive(Debug, Default, Reflect)]
+struct MyComponent;
 
 impl Component for MyComponent {
     fn init(&mut self, _world: &mut World) {
-        self.parent.transform.translate(Vector3::new(1.0, 0.0, 0.0));
+        self.parent()
+            .transform
+            .translate(Vector3::new(1.0, 0.0, 0.0));
     }
 }
 
@@ -83,9 +76,8 @@ fn check_typed() {
 
 #[test]
 fn component_reflection() {
-    let info_pre =
-        syrillian::components::component_type_info(TypeId::of::<MyComponent>())
-            .expect("component type should be registered");
+    let info_pre = syrillian::components::component_type_info(TypeId::of::<MyComponent>())
+        .expect("component type should be registered");
     assert_eq!(info_pre.type_id, TypeId::of::<MyComponent>());
     assert_eq!(info_pre.type_name, std::any::type_name::<MyComponent>());
     assert_eq!(info_pre.short_name, "MyComponent");

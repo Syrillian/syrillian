@@ -1,6 +1,5 @@
 use crate::World;
-use crate::components::{Component, Image, NewComponent, Text2D};
-use crate::core::GameObjectId;
+use crate::components::{Component, Image, Text2D};
 use crate::rendering::strobe::ImageScalingMode;
 use crate::windowing::RenderTargetId;
 use nalgebra::Vector2;
@@ -41,7 +40,6 @@ pub struct UiRect {
     size: UiSize,
     pub depth: f32,
     render_target: RenderTargetId,
-    parent: GameObjectId,
 }
 
 impl UiRect {
@@ -121,7 +119,7 @@ impl UiRect {
     }
 
     pub fn apply_to_components(&mut self, _world: &mut World, layout: &mut UiRectLayout) {
-        for component in self.parent.iter_dyn_components() {
+        for component in self.parent().iter_dyn_components() {
             if let Some(mut image) = component.as_a::<Image>() {
                 let screen_h = layout.screen.y.max(1.0);
 
@@ -160,10 +158,9 @@ impl UiRect {
     }
 }
 
-impl NewComponent for UiRect {
-    fn new(parent: GameObjectId) -> Self {
+impl Default for UiRect {
+    fn default() -> Self {
         Self {
-            parent,
             anchor: Vector2::new(0.0, 0.0),
             pivot: Vector2::new(0.0, 0.0),
             offset: Vector2::zeros(),
@@ -184,7 +181,6 @@ mod tests {
     use super::*;
     use crate::windowing::RenderTargetId;
     use nalgebra::{Translation3, Vector2};
-    use slotmap::Key;
     use winit::dpi::PhysicalSize;
 
     fn world_with_viewport() -> Box<World> {
@@ -195,7 +191,7 @@ mod tests {
 
     #[test]
     fn layout_in_region_resolves_anchor_and_pivot() {
-        let mut rect = UiRect::new(GameObjectId::null());
+        let mut rect = UiRect::default();
         rect.set_anchor(Vector2::new(0.5, 0.5));
         rect.set_pivot(Vector2::new(1.0, 1.0));
         rect.set_offset(Vector2::new(10.0, -5.0));

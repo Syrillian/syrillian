@@ -2,7 +2,7 @@ use crate::components::joints::{
     Fixed, JointComponent, JointTypeTrait, Prismatic, Revolute, Rope, Spring,
 };
 use crate::components::light::{LightComponent, LightTypeTrait};
-use crate::components::{Collider3D, NewComponent, RigidBodyComponent, RotateComponent};
+use crate::components::{Collider3D, Component, RigidBodyComponent, RotateComponent};
 use crate::core::{GameObject, GameObjectId};
 use crate::rendering::lights::Light;
 use nalgebra::{Point3, Unit, Vector3};
@@ -18,7 +18,7 @@ pub trait GameObjectExt {
     fn non_uniform_scale(&mut self, x: f32, y: f32, z: f32) -> &mut Self;
 }
 
-pub trait GOComponentExt<'a>: NewComponent {
+pub trait GOComponentExt<'a>: Component + Default {
     type Outer: Deref<Target = GameObject> + DerefMut;
 
     fn build_component(&'a mut self, obj: &'a mut GameObject) -> Self::Outer;

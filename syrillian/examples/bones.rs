@@ -6,8 +6,7 @@
 use nalgebra::{UnitQuaternion, Vector3};
 use std::error::Error;
 use syrillian::assets::scene_loader::SceneLoader;
-use syrillian::components::{Component, NewComponent, SkeletalComponent};
-use syrillian::core::GameObjectId;
+use syrillian::components::{Component, SkeletalComponent};
 use syrillian::{AppState, World};
 use syrillian_macros::SyrillianApp;
 
@@ -51,20 +50,19 @@ impl AppState for BonesExample {
 }
 
 pub struct BoneChainWave {
-    parent: GameObjectId,
     t: f32,
 }
 
-impl NewComponent for BoneChainWave {
-    fn new(parent: GameObjectId) -> Self {
-        Self { parent, t: 0.0 }
+impl Default for BoneChainWave {
+    fn default() -> Self {
+        Self { t: 0.0 }
     }
 }
 
 impl Component for BoneChainWave {
     fn update(&mut self, world: &mut World) {
         self.t += world.delta_time().as_secs_f32() * 2.0;
-        if let Some(mut skel) = self.parent.get_component::<SkeletalComponent>() {
+        if let Some(mut skel) = self.parent().get_component::<SkeletalComponent>() {
             let n = skel.bone_count();
             for i in 0..n {
                 let phase = self.t + i as f32 * 0.35;

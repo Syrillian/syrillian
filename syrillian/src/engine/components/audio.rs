@@ -1,22 +1,18 @@
 use crate::Reflect;
 use crate::World;
 use crate::assets::HSound;
-use crate::components::{Component, NewComponent};
-use crate::core::GameObjectId;
+use crate::components::Component;
 use kira::Tween;
 use kira::sound::PlaybackState;
 use kira::sound::static_sound::StaticSoundHandle;
 use kira::track::{SpatialTrackBuilder, SpatialTrackHandle};
 use tracing::{trace, warn};
 
-#[derive(Debug, Reflect)]
-pub struct AudioReceiver {
-    parent: GameObjectId,
-}
+#[derive(Debug, Default, Reflect)]
+pub struct AudioReceiver;
 
-#[derive(Debug, Reflect)]
+#[derive(Debug, Default, Reflect)]
 pub struct AudioEmitter {
-    parent: GameObjectId,
     asset_handle: Option<HSound>,
     sound_handle: Option<StaticSoundHandle>,
     track_handle: Option<SpatialTrackHandle>,
@@ -24,33 +20,22 @@ pub struct AudioEmitter {
     play_triggered: bool,
 }
 
-impl NewComponent for AudioEmitter {
-    fn new(parent: GameObjectId) -> Self {
-        Self {
-            parent,
-            asset_handle: None,
-            sound_handle: None,
-            track_handle: None,
-            looping: false,
-            play_triggered: false,
-        }
-    }
-}
-
 impl Component for AudioEmitter {
     fn init(&mut self, world: &mut World) {
         trace!("Initializing new Spatial Track");
-        self.track_handle = world
-            .audio
-            .add_spatial_track(self.parent.transform.position(), SpatialTrackBuilder::new());
+        self.track_handle = world.audio.add_spatial_track(
+            self.parent().transform.position(),
+            SpatialTrackBuilder::new(),
+        );
     }
 
     fn update(&mut self, world: &mut World) {
+        let position = self.parent().transform.position();
+
         let Some(track) = self.track_handle.as_mut() else {
             return;
         };
 
-        let position = self.parent.transform.position();
         track.set_position(position, Tween::default());
 
         if self.play_triggered || (self.looping && !self.is_playing()) {
@@ -136,7 +121,7 @@ impl AudioEmitter {
     }
 
     pub fn set_track(&mut self, world: &mut World, track: SpatialTrackBuilder) -> &mut Self {
-        let pos = self.parent.transform.position();
+        let pos = self.parent().transform.position();
         self.track_handle = world.audio.add_spatial_track(pos, track);
         if self.track_handle.is_none() {
             warn!("Spatial track limit reached");
@@ -145,15 +130,9 @@ impl AudioEmitter {
     }
 }
 
-impl NewComponent for AudioReceiver {
-    fn new(parent: GameObjectId) -> Self {
-        Self { parent }
-    }
-}
-
 impl Component for AudioReceiver {
     fn update(&mut self, world: &mut World) {
-        let transform = &self.parent.transform;
+        let transform = &self.parent().transform;
 
         world.audio.set_receiver_position(transform.position());
         world.audio.set_receiver_orientation(*transform.rotation());

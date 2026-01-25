@@ -1,6 +1,6 @@
 use self::ColliderError::{DesyncedCollider, InvalidMesh, InvalidMeshRef, NoMeshRenderer};
 use crate::World;
-use crate::components::{Component, MeshRenderer, NewComponent, RigidBodyComponent};
+use crate::components::{Component, MeshRenderer, RigidBodyComponent};
 use crate::core::GameObjectId;
 use crate::engine::assets::{HMesh, Mesh};
 use nalgebra::{Point3, Vector3};
@@ -27,9 +27,8 @@ use syrillian_utils::debug_panic;
 
 #[derive(Debug, Reflect)]
 pub struct Collider3D {
-    pub phys_handle: ColliderHandle,
+    pub phys_handle: Option<ColliderHandle>,
     linked_to_body: Option<RigidBodyHandle>,
-    parent: GameObjectId,
     shape_kind: ColliderShapeKind,
     last_scale: Vector3<f32>,
 
@@ -65,21 +64,13 @@ pub enum ColliderError {
     InvalidMesh,
 }
 
-impl NewComponent for Collider3D {
-    fn new(parent: GameObjectId) -> Self {
-        let world = World::instance();
-
-        let scale = Collider3D::sanitize_scale(parent.transform.scale());
-        let shape = Self::build_cuboid_shape(scale);
-        let collider = Self::default_collider(parent, shape);
-        let phys_handle = world.physics.collider_set.insert(collider.clone());
-
-        let mut component = Collider3D {
-            phys_handle,
+impl Default for Collider3D {
+    fn default() -> Self {
+        Collider3D {
+            phys_handle: None,
             linked_to_body: None,
-            parent,
             shape_kind: ColliderShapeKind::Cuboid,
-            last_scale: scale,
+            last_scale: Vector3::new(1.0, 1.0, 1.0),
 
             #[cfg(debug_assertions)]
             enable_debug_render: true,
@@ -87,15 +78,21 @@ impl NewComponent for Collider3D {
             debug_collider_mesh: None,
             #[cfg(debug_assertions)]
             was_debug_enabled: true,
-        };
-
-        component.sync_with_transform_world(world, true);
-
-        component
+        }
     }
 }
 
 impl Component for Collider3D {
+    fn init(&mut self, world: &mut World) {
+        let parent = self.parent();
+        let scale = Collider3D::sanitize_scale(parent.transform.scale());
+        let shape = Self::build_cuboid_shape(scale);
+        let collider = Self::default_collider(parent, shape);
+        let phys_handle = world.physics.collider_set.insert(collider.clone());
+
+        self.phys_handle = Some(phys_handle);
+        self.sync_with_transform_world(world, true);
+    }
     #[cfg(debug_assertions)]
     fn update(&mut self, world: &mut World) {
         if self.debug_collider_mesh.is_none() {
@@ -106,11 +103,13 @@ impl Component for Collider3D {
     }
 
     fn fixed_update(&mut self, world: &mut World) {
-        if let Some(body_comp) = (*self.parent).get_component::<RigidBodyComponent>()
+        if let Some(body_comp) = (*self.parent()).get_component::<RigidBodyComponent>()
             && self.linked_to_body.is_none()
+            && let Some(body_handle) = body_comp.body_handle
         {
-            self.link_to_rigid_body(world, Some(body_comp.body_handle));
-            if let Some(collider) = world.physics.collider_set.get_mut(self.phys_handle) {
+            self.link_to_rigid_body(world, Some(body_handle));
+
+            if let Some(collider) = world.physics.collider_set.get_mut(self.handle()) {
                 collider.set_translation(Vector3::identity());
                 collider.set_rotation(Rotation::identity());
             }
@@ -156,7 +155,7 @@ impl Component for Collider3D {
 
     fn delete(&mut self, world: &mut World) {
         world.physics.collider_set.remove(
-            self.phys_handle,
+            self.handle(),
             &mut world.physics.island_manager,
             &mut world.physics.rigid_body_set,
             false,
@@ -192,7 +191,7 @@ impl Collider3D {
     }
 
     fn sync_with_transform_world(&mut self, world: &mut World, force_pose: bool) {
-        let scale = self.parent.transform.scale();
+        let scale = self.parent().transform.scale();
         let new_shape = ((scale - self.last_scale).norm() > f32::EPSILON)
             .then(|| self.build_shape_for_scale_world(world, scale));
 
@@ -210,22 +209,22 @@ impl Collider3D {
         }
 
         if force_pose || self.linked_to_body.is_none() {
-            collider.set_translation(self.parent.transform.position());
-            collider.set_rotation(self.parent.transform.rotation());
+            collider.set_translation(self.parent().transform.position());
+            collider.set_rotation(self.parent().transform.rotation());
         }
 
         self.last_scale = scale;
     }
 
     pub fn collider(&self) -> Option<&Collider> {
-        World::instance().physics.collider_set.get(self.phys_handle)
+        World::instance().physics.collider_set.get(self.handle())
     }
 
     pub fn collider_mut(&self) -> Option<&mut Collider> {
         World::instance()
             .physics
             .collider_set
-            .get_mut(self.phys_handle)
+            .get_mut(self.handle())
     }
 
     fn default_collider(parent: GameObjectId, shape: SharedShape) -> Collider {
@@ -238,7 +237,7 @@ impl Collider3D {
 
     pub fn link_to_rigid_body(&mut self, world: &mut World, h_body: Option<RigidBodyHandle>) {
         world.physics.collider_set.set_parent(
-            self.phys_handle,
+            self.handle(),
             h_body,
             &mut world.physics.rigid_body_set,
         );
@@ -261,15 +260,15 @@ impl Collider3D {
     }
 
     pub fn try_use_mesh(&mut self) -> Result<(), ColliderError> {
-        let world = World::instance();
+        let parent = self.parent();
+        let world = self.world();
 
-        let mesh_renderer = self
-            .parent
+        let mesh_renderer = parent
             .get_component::<MeshRenderer>()
             .ok_or(NoMeshRenderer)?;
 
         let handle = mesh_renderer.mesh();
-        let scale = Self::sanitize_scale(self.parent.transform.scale());
+        let scale = Self::sanitize_scale(self.parent().transform.scale());
         let shape = {
             let mesh = world.assets.meshes.try_get(handle).ok_or(InvalidMeshRef)?;
             SharedShape::mesh_with_scale(&mesh, scale).ok_or(InvalidMesh)?
@@ -278,7 +277,7 @@ impl Collider3D {
         world
             .physics
             .collider_set
-            .get_mut(self.phys_handle)
+            .get_mut(self.handle())
             .ok_or(DesyncedCollider)?
             .set_shape(shape);
 
@@ -336,11 +335,16 @@ impl Collider3D {
             mat[(2, 3)] = iso.translation.vector.z;
             mat
         } else {
-            self.parent
+            self.parent()
                 .transform
                 .global_transform_matrix()
                 .to_homogeneous()
         }
+    }
+
+    fn handle(&self) -> ColliderHandle {
+        self.phys_handle
+            .expect("Handle should be initialized in init")
     }
 }
 
