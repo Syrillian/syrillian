@@ -13,7 +13,7 @@ use rapier3d::prelude::{ColliderHandle, QueryFilter};
 use std::error::Error;
 use syrillian::assets::{HMaterial, HSound, Sound, StoreType};
 use syrillian::assets::{Material, Shader};
-use syrillian::components::CRef;
+use syrillian::components::{CRef, CameraComponent};
 use syrillian::core::reflection::ReflectSerialize;
 use syrillian::core::reflection::serializer::JsonSerializer;
 use syrillian::core::{GameObjectExt, GameObjectId, GameObjectRef};
@@ -26,7 +26,7 @@ use syrillian::utils::FrameCounter;
 use syrillian::{AppRuntime, AppState, World};
 use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab};
 use syrillian_components::{
-    AudioEmitter, CameraComponent, Collider3D, FirstPersonCameraController, FreecamController,
+    AudioEmitter, Collider3D, FirstPersonCameraController, FreecamController,
     PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
     SpringJoint, Text3D,
 };

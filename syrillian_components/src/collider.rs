@@ -20,11 +20,7 @@ use syrillian::math::{Matrix4, Vector4};
 #[cfg(debug_assertions)]
 use syrillian::proxy_data_mut;
 #[cfg(debug_assertions)]
-use syrillian::rendering::proxies::DebugSceneProxy;
-#[cfg(debug_assertions)]
 use syrillian::rendering::proxies::SceneProxy;
-#[cfg(debug_assertions)]
-use syrillian::rendering::{CPUDrawCtx, DebugRenderer};
 
 #[derive(Debug, Reflect)]
 pub struct Collider3D {
@@ -121,6 +117,8 @@ impl Component for Collider3D {
 
     #[cfg(debug_assertions)]
     fn create_render_proxy(&mut self, _world: &World) -> Option<Box<dyn SceneProxy>> {
+        use syrillian::rendering::proxies::DebugSceneProxy;
+
         let Some(mesh) = self.debug_collider_mesh else {
             debug_panic!("Debug mode is enabled but no collider mesh was made in update");
             return None;
@@ -136,7 +134,9 @@ impl Component for Collider3D {
     }
 
     #[cfg(debug_assertions)]
-    fn update_proxy(&mut self, _world: &World, mut ctx: CPUDrawCtx) {
+    fn update_proxy(&mut self, _world: &World, mut ctx: syrillian::rendering::CPUDrawCtx) {
+        use syrillian::rendering::{DebugRenderer, proxies::DebugSceneProxy};
+
         if !DebugRenderer::collider_mesh() && self.was_debug_enabled {
             ctx.disable_proxy();
             self.was_debug_enabled = false;

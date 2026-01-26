@@ -1,7 +1,6 @@
-use crate::CameraComponent;
 use syrillian::Reflect;
 use syrillian::World;
-use syrillian::components::Component;
+use syrillian::components::{CameraComponent, Component};
 use syrillian::core::Transform;
 use syrillian::input::Axis;
 use syrillian::input::InputManager;

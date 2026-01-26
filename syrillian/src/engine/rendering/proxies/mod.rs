@@ -1,3 +1,4 @@
+use crate::assets::AssetStore;
 use crate::components::TypedComponentId;
 use crate::core::BoundingSphere;
 use crate::core::ObjectHash;
@@ -15,7 +16,6 @@ pub mod debug_proxy;
 pub use mesh_proxy::*;
 pub use text_proxy::*;
 
-use crate::assets::AssetStore;
 #[cfg(debug_assertions)]
 pub use debug_proxy::*;
 

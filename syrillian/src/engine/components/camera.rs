@@ -1,11 +1,15 @@
 use crate::World;
 use crate::components::Component;
-use crate::core::GameObjectId;
 use crate::math::{Matrix4, Perspective3, Point3, Vector2, Vector4};
 use crate::physics::rapier3d::geometry::Ray;
 use crate::utils::FloatMathExt;
 use crate::windowing::RenderTargetId;
-use crate::{Reflect, tracing};
+use crate::Reflect;
+
+#[cfg(debug_assertions)]
+use crate::tracing;
+#[cfg(debug_assertions)]
+use crate::core::GameObjectId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]

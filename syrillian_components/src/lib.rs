@@ -74,9 +74,5 @@ pub use panel::Panel;
 pub use rigid_body::RigidBodyComponent;
 pub use rotate::RotateComponent;
 pub use skeletal::SkeletalComponent;
-pub use syrillian::engine::components::camera::CameraComponent;
 pub use text::{Text2D, Text3D};
 pub use ui_rect::UiRect;
-
-#[cfg(debug_assertions)]
-pub use syrillian::engine::components::camera_debug::*;
