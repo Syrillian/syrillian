@@ -1,171 +1,175 @@
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/337033d4547044cf96a1584bf82b1ce8)](https://app.codacy.com/gh/Kek5chen/syrillian/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![codecov](https://codecov.io/github/kek5chen/syrillian/graph/badge.svg?token=QORLO7MO2I)](https://codecov.io/github/kek5chen/syrillian)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/Kek5chen/syrillian)
-[![Discord](https://img.shields.io/discord/1401869988796698696?style=flat&label=Discord)](https://discord.gg/hZWycSwSm4)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/337033d4547044cf96a1584bf82b1ce8)](https://app.codacy.com/gh/Syrillian/syrillian/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![codecov](https://codecov.io/github/Syrillian/syrillian/graph/badge.svg?token=QORLO7MO2I)](https://codecov.io/github/Syrillian/syrillian)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/Syrillian/syrillian)
+[![Discord](https://img.shields.io/discord/1401869988796698696?style=flat\&label=Discord)](https://discord.gg/hZWycSwSm4)
 
 # Syrillian Engine
 
-Syrillian Engine is a Rust-based, real-time, mainly 3D game engine, focusing on flexibility, modularity, and a
-straightforward,
-entity-component-driven workflow.
+Syrillian is a **magically simple 2D & 3D game engine in Rust**. Built to feel *frictionless* while staying flexible. ✨ \
+The goal is straightforward: **simple high-level code, less boilerplate, more support**.
 
-It's designed to be frictionless and extensible. We aim to provide a robust foundation for building modern 3D
-applications, cross-platform rendering pipelines, and visually pleasing gameplay.
+If you like Rust because it’s high-level, clean, and safe, Syrillian tries to match that.
 
 ---
 
-## Syrillian's doing it different
+## Always simple, powerful when you need it 🚀
 
-**This project is trying to be uniquely simple and frictionless**.
+Syrillian is intentionally opinionated about one thing: **Building your world should feel great!**
 
-Syrillian aims to show how *flexible* Rust can be as a general programming language. With the milestone to provide
-a **simple, iteration-strong game engine**, which people **have fun** making games with. The goal is to look beyond the
-boundaries so that users can simply focus on **frictionless development that feels like magic**, *not like fighting a
-language.*
+That means:
 
-The goal is that even new developers, and people familiar with other languages, have a comfortable dip into the Rust
-game-dev atmosphere and the growing Syrillian ecosystem!
-
----
-
-### Showroom
-
-**Feel free to add your own expositions here :)**
-
-![rabbit_hires](https://github.com/user-attachments/assets/19a0f25d-c1f3-44e7-b9a4-93a7865087ff)
-
-*An animated rabbit, roaming in the scene \*click to view the video\**
+* You can "just start" without learning hundreds of concepts first.
+* Everything should look like simple, high-level Rust code.
+* You shouldn’t need ages to get a window, a camera, and a cube.
+* You should feel great settling into Syrillian, coming from Unity or Unreal Engine.
 
 ---
 
-![](https://i.ibb.co/F9gywNk/Screenshot-2025-08-04-at-12-37-22.png)
+## WIP (Work in Progress) 🚧
 
-*Picking up a physics-enabled cube with an animated shader, which is emitting a
-lightsource* [From this Example](./examples/my-main.rs)
+Syrillian is still actively evolving. Expect ongoing progress, occasional breaking changes, and a few “this will get nicer soon” spots as the API and features settle.
+
+If you like the direction (especially the focus on simplicity), a ⭐ on the repo genuinely helps a lot. It makes the project more visible and keeps momentum going. Thanks for supporting it!
+
+This project scopes far beyond what's usually done or expected in Rust to get all the simplicity and the cleanest Developer Interface possible.
+
+A dedicated GUI editor is also underway.
 
 ---
 
-## Features
+## Quickstart
 
-- Simple "Just get it started" approach. High focus on user-side simplicity, and even fresh rust users should feel
-  welcome.
-- Lots of preset (components, prefabs, compatibility)!
-- Mesh and Physics, Visual debugging features.
-- Game Objects that are *builder extensible*. Providing a fluid object creation and behavior specification workflow.
-- The open-source internals that make this project possible:
-    - Physics Integration provided by [rapier](https://github.com/dimforge/rapier)
-    - Dynamic Graphics Abstraction provided by [wgpu](https://github.com/gfx-rs/wgpu) (DirectX, Vulkan, Metal,
-      WebGL)
-
-## Getting Started
-
-### Prerequisites
-
-- Have a modern Rust Toolchain installed.
-- Have a GPU
-
-### Building & Running
-
-#### Use as a library in your own game
-
-1. Add it as a dependency to your cargo project:
+### Use Syrillian as a library
 
 ```bash
 cargo add syrillian
 ```
 
-#### Development Setup or Try it out
+### Try the repo examples
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Kek5chen/syrillian.git
-   cd syrillian
-   ```
+```bash
+git clone https://github.com/Syrillian/syrillian.git
+cd syrillian
 
-2. Build the engine library:
-   ```bash
-   cargo build
-   ```
+cargo run --example my-main
+```
 
-3. Try out a demo example, included in the repository:
-   ```bash
-   cargo run --example my-main
-   ```
+You’ll get a window with a pre-made rendered scene, we use for testing new features.
 
-**NixOS** *Development Flakes are provided with the project.*
+(NixOS folks: there are development flakes in the repo.)
 
-If successful, a window should appear, displaying a rendered scene.
+---
 
-### Minimal Setup
+## The "Hello, Cube!" example 🧊
 
-We, optionally, provide the
-[SyrillianApp Proc Macro](https://docs.rs/syrillian_macros/latest/syrillian_macros/derive.SyrillianApp.html).
-
-Usage example:
+This is the kind of setup Syrillian aims for: clear, tiny, and easy to extend.
 
 ```rust
-// make sure to get your imports and dependencies right, (for the dependencies, syrillian, env_logger, log), (for the imports use std::Error, and necessary modules from syrillian)
-// The macro will provide you with a simple main runtime and (optional) logging
+use std::error::Error;
+
+use syrillian::{AppState, CubePrefab, World};
+use syrillian::SyrillianApp;
+use syrillian_components::CubePrefab;
+
 #[derive(Debug, Default, SyrillianApp)]
 struct YourGame;
 
 impl AppState for YourGame {
-    // will be called once
     fn init(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
-        world.set_window_title("Example App");
+        world.set_window_title("Syrillian: hello cube");
 
         world.new_camera();
-        world.spawn(&CubePrefab::default()).at(0, 0, -10); // Spawn Cube at (0, 0, -10).
-        world.print_objects(); // Print Scene Hierarchy to Console
 
+        // Spawn a couple cubes in a row.
+        for x in -2..=2 {
+            world.spawn(&CubePrefab::default()).at(x * 2, 0, -10);
+        }
+
+        world.print_objects(); // scene hierarchy to console
         Ok(())
     }
 
-    // use the update function if you are making updates to the game state every frame
-    fn update(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
+    fn update(&mut self, _world: &mut World) -> Result<(), Box<dyn Error>> {
+        // Per-frame game logic goes here.
         Ok(())
     }
-
-    // there's also "late_update", and more...
 }
 ```
 
-It's simple... Really!
+Yes. This is the only code in the project to get a working application.\
+That’s it.\
+You’ve got ✨ a runtime, a multi-threaded world and renderer, and a scene you can iterate on ✨
 
-### Roadmap & Contributing
+---
 
-The whole feature map has moved into
-[GitHub Issues](https://github.com/Kek5chen/syrillian/issues?q=state%3Aopen%20label%3Aepic)
+## What you get out of the box ✅
 
-Contributions are welcome! If you find a bug or have a feature request:
+Syrillian tries hard to ship useful tools so you can focus on game code:
 
-1. Open an issue describing the problem or feature.
-2. Discuss solutions or improvements.
-3. Optionally, submit a pull request with your changes. Very welcome!
+* A **"just get it started"** workflow with a heavy focus on user-side simplicity.
+* A growing set of **presets** (components / prefabs / compatibility helpers).
+* **Meshes + physics**, plus visual debugging features.
+* Game objects that are **builder-extensible**, so spawning + configuring stays smooth.
+* Solid open-source foundations:
+    * Physics integration via **Rapier**
+    * Rendering abstraction via **wgpu** (Vulkan / Metal / DirectX + web via wgpu)
+    * Clean windowing and native input via **winit**
+    * Controller support by **gilrs**
 
-Ensure your code follows Rust’s formatting and clippy checks:
+---
+
+## Showroom
+
+![rabbit\_hires](https://github.com/user-attachments/assets/19a0f25d-c1f3-44e7-b9a4-93a7865087ff)
+
+*An animated rabbit, in a multi-light scene.*
+
+---
+
+![](https://i.ibb.co/F9gywNk/Screenshot-2025-08-04-at-12-37-22.png)
+
+*Picking up a physics-enabled cube with an animated shader that emits a light source.*
+From this example: [./examples/my-main.rs](./examples/my-main.rs)
+
+*You can request your own visuals too*
+
+---
+
+## Roadmap & contributing 🤝
+
+Planning lives in GitHub Issues (including epics):
+[Issues here](https://github.com/Syrillian/syrillian/issues?q=state%3Aopen%20label%3Aepic)
+
+Contributions are welcome, especially anything that improves the "simple, fun, frictionless" feel:
+
+1. Open an issue (bug, idea, API rant, feature request; all welcome).
+2. Discuss options and direction.
+3. Send a PR if you want.
+
+Before pushing, please run:
 
 ```bash
 cargo fmt
-cargo clippy
+cargo clippy --workspace --all-targets --features derive
+cargo test --workspace
 ```
 
-### History
+---
 
-This project started as a hobby project - a big personal gem - and had poured hundreds of hours of solo-development
-into it before catching onto the first early contributors.
-This project is not monetized or developed to be monetized.
+## History
 
-**Any help**, getting this project [better, stable, improved, ..] is very welcome, and we'll try to show or explain
-anything that's not clear. Even feedback or rants on the user-facing API are more than welcome. We wish to provide
-patterns that make the engine as simple to use as possible.
+This started as a hobby project (a personal gem), with hundreds of hours of solo development before early contributors showed up. It’s not monetized, and it’s not built for monetization.
 
-**Join the community on [Discord](https://discord.gg/hZWycSwSm4).**
+If you possess the ability to make it **better, more stable, and easier to use** come join us.
 
-### License
+Community: **join us on Discord** 👉 [https://discord.gg/hZWycSwSm4](https://discord.gg/hZWycSwSm4)
+
+---
+
+## License
 
 Syrillian Engine is distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-Syrillian Engine ❤️ Building the backbone of your next great 3D experience.
+Syrillian Engine ❤️ Building the backbone of your next great 2D & 3D experiences.
