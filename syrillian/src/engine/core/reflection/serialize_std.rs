@@ -11,7 +11,7 @@ impl<T: ReflectSerialize> ReflectSerialize for Vec<T> {
 
 impl<K, V: ReflectSerialize> ReflectSerialize for HashMap<K, V>
 where
-        for<'a> String: From<&'a K>,
+    for<'a> String: From<&'a K>,
 {
     fn serialize(this: &Self) -> Value {
         let map = this

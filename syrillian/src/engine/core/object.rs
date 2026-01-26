@@ -485,7 +485,7 @@ impl GameObject {
     }
 
     /// Add a collection of custom properties to this object
-    pub fn add_properties<T: IntoIterator<Item=(String, Value)>>(&mut self, properties: T) {
+    pub fn add_properties<T: IntoIterator<Item = (String, Value)>>(&mut self, properties: T) {
         self.custom_properties.extend(properties);
     }
 

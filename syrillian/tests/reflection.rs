@@ -41,6 +41,6 @@ fn field_reflection() {
 
     assert_eq!(joint.config.max_distance, 5.0);
 
-    let config: &RopeConfig = Reflect::field_ref(&mut joint, "config").unwrap();
+    let config: &RopeConfig = Reflect::field_ref(&joint, "config").unwrap();
     assert_eq!(config.max_distance, 5.0);
 }
