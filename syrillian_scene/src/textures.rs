@@ -1,11 +1,11 @@
 use super::gltf_loader::GltfScene;
+use gltf::image::Format;
+use std::collections::HashMap;
 use syrillian::World;
 use syrillian::assets::{HMaterial, HShader, HTexture, Material, StoreType, Texture};
-use gltf::image::Format;
 use syrillian::math::Vector3;
-use std::collections::HashMap;
-use syrillian::utils::debug_panic;
 use syrillian::rendering::TextureFormat;
+use syrillian::utils::debug_panic;
 
 /// Loads all materials defined in the glTF scene and stores them in the asset store.
 pub(super) fn load_materials(scene: &GltfScene, world: &mut World) -> HashMap<u32, HMaterial> {

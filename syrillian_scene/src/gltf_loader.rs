@@ -1,3 +1,6 @@
+pub use crate::meshes::MeshData;
+use crate::utils::json_to_syrillian_value;
+use crate::{meshes, textures};
 use gltf::animation::util::ReadOutputs;
 use gltf::khr_lights_punctual::Kind;
 use gltf::{self, Document, Node};
@@ -15,9 +18,6 @@ use syrillian_components::{
     AnimationComponent, MeshRenderer, PointLightComponent, SkeletalComponent, SpotLightComponent,
     SunLightComponent,
 };
-use crate::{meshes, textures};
-pub use crate::meshes::MeshData;
-use crate::utils::json_to_syrillian_value;
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Err)))]

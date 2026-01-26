@@ -1,14 +1,14 @@
+use crate::joints::{Fixed, JointComponent, JointTypeTrait, Prismatic, Revolute, Rope, Spring};
+use crate::light::{LightComponent, LightTypeTrait};
+use crate::{Collider3D, RigidBodyComponent, RotateComponent};
 use std::ops::{Deref, DerefMut};
 use syrillian::core::{GOComponentExt, GameObject, GameObjectId};
-use syrillian::math::{Point3, Vector3};
 use syrillian::math::nalgebra::Unit;
+use syrillian::math::{Point3, Vector3};
 use syrillian::physics::rapier3d::dynamics::RigidBody;
 use syrillian::physics::rapier3d::geometry::Collider;
 use syrillian::physics::rapier3d::math::Isometry;
 use syrillian::rendering::lights::Light;
-use crate::{Collider3D, RigidBodyComponent, RotateComponent};
-use crate::joints::{Fixed, JointComponent, JointTypeTrait, Prismatic, Revolute, Rope, Spring};
-use crate::light::{LightComponent, LightTypeTrait};
 
 pub struct GOColliderExt<'a>(&'a mut Collider, &'a mut GameObject);
 pub struct GORigidBodyExt<'a>(&'a mut RigidBody, &'a mut GameObject);

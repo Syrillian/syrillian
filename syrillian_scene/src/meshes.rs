@@ -1,13 +1,13 @@
 use super::bones::build_bones_from_skin;
-use syrillian::assets::Mesh;
-use syrillian::core::{Bones, Vertex3D};
+use crate::gltf_loader::GltfScene;
 use gltf::mesh;
 use gltf::{self, Node};
 use itertools::izip;
-use syrillian::math::{Vector2, Vector3};
 use std::collections::HashMap;
+use syrillian::assets::Mesh;
+use syrillian::core::{Bones, Vertex3D};
+use syrillian::math::{Vector2, Vector3};
 use syrillian::tracing::warn;
-use crate::gltf_loader::GltfScene;
 
 /// Mesh and associated material indices for each sub-mesh range.
 pub type MeshData = Option<(Mesh, Vec<u32>)>;

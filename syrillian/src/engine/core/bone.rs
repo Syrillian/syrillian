@@ -1,4 +1,4 @@
-use crate::{ensure_aligned, MAX_BONES};
+use crate::{MAX_BONES, ensure_aligned};
 use nalgebra::Matrix4;
 use std::collections::HashMap;
 
@@ -92,4 +92,3 @@ impl BoneData {
         bytemuck::cast_slice(&self.bones)
     }
 }
-

@@ -1,15 +1,15 @@
+use std::any::TypeId;
+use std::marker::PhantomData;
+use std::mem::offset_of;
 use syrillian::World;
 use syrillian::components::Component;
+use syrillian::core::reflection::ReflectedField;
 use syrillian::core::reflection::{
     PartialReflect, ReflectedTypeActions, ReflectedTypeInfo, serialize_as,
 };
 use syrillian::rendering::CPUDrawCtx;
 use syrillian::rendering::lights::{Light, LightProxy, LightType};
 use syrillian::utils::FloatMathExt;
-use std::any::TypeId;
-use std::marker::PhantomData;
-use std::mem::offset_of;
-use syrillian::core::reflection::ReflectedField;
 
 pub trait LightTypeTrait: Send + Sync {
     const NAME: &str;

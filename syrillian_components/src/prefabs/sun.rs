@@ -1,5 +1,5 @@
-use syrillian::World;
 use crate::SunLightComponent;
+use syrillian::World;
 use syrillian::core::GameObjectId;
 use syrillian::prefabs::Prefab;
 

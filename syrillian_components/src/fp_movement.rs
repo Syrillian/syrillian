@@ -1,16 +1,14 @@
+use crate::{FirstPersonCameraController, RigidBodyComponent};
+use num_traits::Zero;
 use syrillian::Reflect;
 use syrillian::World;
-use syrillian::components::{
-    CRef, CWeak, CameraComponent, Component,
-};
-use syrillian::windowing::RenderTargetId;
+use syrillian::components::{CRef, CWeak, CameraComponent, Component};
 use syrillian::gilrs::Axis;
+use syrillian::input::KeyCode;
 use syrillian::math::Vector3;
-use num_traits::Zero;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::warn;
-use syrillian::input::KeyCode;
-use crate::{FirstPersonCameraController, RigidBodyComponent};
+use syrillian::windowing::RenderTargetId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]

@@ -2,9 +2,9 @@ use itertools::iproduct;
 use nalgebra::Vector3;
 use std::error::Error;
 use syrillian::assets::{Material, StoreType};
-use syrillian_components::{FreecamController, MeshRenderer};
-use syrillian_components::prefabs::SunPrefab;
 use syrillian::{AppState, World};
+use syrillian_components::prefabs::SunPrefab;
+use syrillian_components::{FreecamController, MeshRenderer};
 use syrillian_macros::SyrillianApp;
 
 #[derive(Debug, Default, SyrillianApp)]

@@ -1,6 +1,6 @@
+use crate::MeshRenderer;
 use syrillian::World;
 use syrillian::assets::{HMaterial, HMesh};
-use crate::MeshRenderer;
 use syrillian::core::GameObjectId;
 use syrillian::prefabs::Prefab;
 

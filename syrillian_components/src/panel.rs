@@ -82,14 +82,14 @@ fn layout_children(children: &[GameObjectId], parent_layout: &UiRectLayout, worl
 
 #[cfg(test)]
 mod tests {
-    use more_asserts::assert_lt;
-    use syrillian::{PhysicalSize, World};
-    use syrillian::components::Component;
     use crate::ui_rect::UiSize;
     use crate::{Image, Panel, Text2D, UiRect};
+    use more_asserts::assert_lt;
+    use syrillian::components::Component;
     use syrillian::math::Vector2;
     use syrillian::strobe::ImageScalingMode;
     use syrillian::windowing::RenderTargetId;
+    use syrillian::{PhysicalSize, World};
 
     fn world_with_viewport() -> Box<World> {
         let (mut world, ..) = World::fresh();

@@ -145,8 +145,7 @@ impl UiRect {
 
                 image.set_draw_order(layout.draw_order);
 
-                let translation =
-                    Translation3::new(0.0, 0.0, layout.depth).to_homogeneous();
+                let translation = Translation3::new(0.0, 0.0, layout.depth).to_homogeneous();
                 image.set_translation(translation);
 
                 layout.draw_order += 1;
@@ -183,7 +182,7 @@ impl Component for UiRect {}
 mod tests {
     use super::*;
     use syrillian::math::{Translation3, Vector2};
-    use syrillian::windowing::{RenderTargetId, PhysicalSize};
+    use syrillian::windowing::{PhysicalSize, RenderTargetId};
 
     fn world_with_viewport() -> Box<World> {
         let (mut world, ..) = World::fresh();

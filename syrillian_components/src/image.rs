@@ -1,12 +1,12 @@
+use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::engine::assets::HMaterial;
+use syrillian::math::Matrix4;
 use syrillian::rendering::UiContext;
 use syrillian::rendering::strobe::ImageScalingMode;
 use syrillian::strobe::UiImageDraw;
 use syrillian::windowing::RenderTargetId;
-use syrillian::math::Matrix4;
-use syrillian::Reflect;
 
 #[derive(Debug, Reflect)]
 pub struct Image {

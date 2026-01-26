@@ -11,32 +11,32 @@ use nalgebra::UnitQuaternion;
 use rapier3d::parry::query::Ray;
 use rapier3d::prelude::{ColliderHandle, QueryFilter};
 use std::error::Error;
-use syrillian_scene::SceneLoader;
 use syrillian::assets::{HMaterial, HSound, Sound, StoreType};
 use syrillian::assets::{Material, Shader};
-use syrillian_components::{
-    AudioEmitter, CameraComponent, Collider3D, FirstPersonCameraController, FreecamController,
-    PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
-    SpringJoint, Text3D,
-};
+use syrillian::components::CRef;
 use syrillian::core::reflection::ReflectSerialize;
 use syrillian::core::reflection::serializer::JsonSerializer;
 use syrillian::core::{GameObjectExt, GameObjectId, GameObjectRef};
-use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab};
+use syrillian::prefabs::Prefab;
 #[cfg(debug_assertions)]
 use syrillian::rendering::DebugRenderer;
 use syrillian::rendering::lights::Light;
 use syrillian::strobe::TextAlignment;
 use syrillian::utils::FrameCounter;
 use syrillian::{AppRuntime, AppState, World};
+use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab};
+use syrillian_components::{
+    AudioEmitter, CameraComponent, Collider3D, FirstPersonCameraController, FreecamController,
+    PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
+    SpringJoint, Text3D,
+};
+use syrillian_scene::SceneLoader;
 use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
-use syrillian::components::CRef;
-use syrillian::prefabs::Prefab;
 // const NECO_IMAGE: &[u8; 1293] = include_bytes!("assets/neco.jpg");
 
 const SHADER1: &str = include_str!("dynamic_shader/shader.wgsl");

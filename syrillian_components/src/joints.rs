@@ -1,3 +1,4 @@
+use crate::RigidBodyComponent;
 use snafu::{Snafu, ensure};
 use std::any::TypeId;
 use std::mem::offset_of;
@@ -18,7 +19,6 @@ use syrillian::physics::rapier3d::{
 };
 use syrillian::tracing::warn;
 use syrillian::{World, components::Component, core::GameObjectId};
-use crate::RigidBodyComponent;
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Err)))]

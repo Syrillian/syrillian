@@ -1,6 +1,6 @@
 use crate::assets::{AssetStore, HFont, HShader};
-use crate::core::bone::BoneData;
 use crate::core::ModelUniform;
+use crate::core::bone::BoneData;
 #[cfg(debug_assertions)]
 use crate::rendering::DebugRenderer;
 use crate::rendering::glyph::{GlyphRenderData, generate_glyph_geometry_stream};

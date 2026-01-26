@@ -2,12 +2,12 @@
 
 use std::error::Error;
 
-use syrillian_scene::SceneLoader;
-use syrillian_components::RotateComponent;
 use syrillian::utils::frame_counter::FrameCounter;
 use syrillian::world::World;
 use syrillian::{AppState, ENGINE_STR};
+use syrillian_components::RotateComponent;
 use syrillian_macros::SyrillianApp;
+use syrillian_scene::SceneLoader;
 
 #[derive(Debug, Default, SyrillianApp)]
 struct ParentingAndObjectTypes {

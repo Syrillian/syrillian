@@ -6,5 +6,5 @@
 mod camera;
 mod prefab;
 
-pub use prefab::Prefab;
 pub use camera::CameraPrefab;
+pub use prefab::Prefab;

@@ -2,7 +2,7 @@
 //!
 //! Components implement behavior ranging from camera control to physics. If it's dynamic,
 //! it's probably a component.
-//! 
+//!
 //! You can find some preset / built-in components in the syrillian_components crate
 //!
 //! To make a component:
@@ -48,12 +48,12 @@ pub use camera_debug::*;
 use crate::World;
 use crate::core::GameObjectId;
 use crate::core::component_context_inference::ComponentContextInference;
-use crate::core::reflection::{type_info, ReflectedTypeInfo, Value};
+use crate::core::reflection::{ReflectedTypeInfo, Value, type_info};
 use crate::rendering::lights::LightProxy;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::{CPUDrawCtx, UiContext};
 use delegate::delegate;
-use slotmap::{new_key_type, Key};
+use slotmap::{Key, new_key_type};
 use std::any::{Any, TypeId};
 use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};

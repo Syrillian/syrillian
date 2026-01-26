@@ -1,14 +1,14 @@
-use syrillian::components::Component;
+use crate::CameraComponent;
 use syrillian::Reflect;
 use syrillian::World;
-use crate::CameraComponent;
+use syrillian::components::Component;
 use syrillian::core::Transform;
+use syrillian::input::Axis;
 use syrillian::input::InputManager;
+use syrillian::math::{UnitQuaternion, Vector2, Vector3};
+use syrillian::tracing::warn;
 use syrillian::utils::FloatMathExt;
 use syrillian::windowing::RenderTargetId;
-use syrillian::math::{UnitQuaternion, Vector2, Vector3};
-use syrillian::input::Axis;
-use syrillian::tracing::warn;
 
 /// All tweakable parameters for the FPS Camera
 #[derive(Debug, Clone, Reflect)]

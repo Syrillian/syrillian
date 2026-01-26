@@ -1,11 +1,11 @@
-use syrillian::Reflect;
-use syrillian::World;
-use syrillian::assets::HSound;
-use syrillian::components::Component;
 use kira::Tween;
 use kira::sound::PlaybackState;
 use kira::sound::static_sound::StaticSoundHandle;
 use kira::track::{SpatialTrackBuilder, SpatialTrackHandle};
+use syrillian::Reflect;
+use syrillian::World;
+use syrillian::assets::HSound;
+use syrillian::components::Component;
 use syrillian::tracing::{trace, warn};
 
 #[derive(Debug, Default, Reflect)]
