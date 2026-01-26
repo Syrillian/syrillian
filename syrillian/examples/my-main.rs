@@ -20,6 +20,8 @@ use syrillian::components::{
     PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
     SpringJoint, Text3D,
 };
+use syrillian::core::reflection::ReflectSerialize;
+use syrillian::core::reflection::serializer::JsonSerializer;
 use syrillian::core::{GameObjectExt, GameObjectId, GameObjectRef};
 use syrillian::prefabs::{CubePrefab, FirstPersonPlayerPrefab, Prefab};
 #[cfg(debug_assertions)]
@@ -34,7 +36,6 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
-
 // const NECO_IMAGE: &[u8; 1293] = include_bytes!("assets/neco.jpg");
 
 const SHADER1: &str = include_str!("dynamic_shader/shader.wgsl");
@@ -106,7 +107,9 @@ impl AppState for MyMain {
         self.viewport_camera = Some(camera.clone());
         // world.set_active_camera_for_target(RenderTargetId::PRIMARY, camera);
 
-        world.print_objects();
+        let serialized = ReflectSerialize::serialize(world);
+        let serialized = JsonSerializer::value_to_string(&serialized);
+        println!("{serialized}");
 
         Ok(())
     }

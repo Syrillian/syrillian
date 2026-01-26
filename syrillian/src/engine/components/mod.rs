@@ -84,7 +84,7 @@ pub use camera_debug::*;
 use crate::World;
 use crate::core::GameObjectId;
 use crate::core::component_context_inference::ComponentContextInference;
-use crate::core::reflection::{ReflectedTypeInfo, type_info};
+use crate::core::reflection::{ReflectedTypeInfo, Value, type_info};
 use crate::rendering::lights::LightProxy;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::{CPUDrawCtx, UiContext};
@@ -98,7 +98,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use syrillian::core::reflection::Reflect;
+use syrillian::core::reflection::{Reflect, ReflectSerialize};
 
 new_key_type! { pub struct ComponentId; }
 
@@ -146,6 +146,47 @@ impl<C: Component + Reflect> Reflect for CRef<C> {
         Self: Sized + 'static,
     {
         Reflect::field_mut(this.get_mut(), name)
+    }
+}
+//
+// impl Reflect for CRef<dyn Component> {
+//     fn field_ref<'a, T: 'static>(this: &'a Self, name: &str) -> Option<&'a T>
+//     where
+//         Self: Sized + 'static,
+//     {
+//         let type_info = type_info(this.ctx.tid.0)?;
+//         let field = type_info.fields.iter().find(|f| f.name == name)?;
+//         if field.type_id != TypeId::of::<T>() {
+//             return None;
+//         }
+//         let base = unsafe { *(this.get_mut() as *mut _ as *mut *mut u8) };
+//         Some(unsafe { &*(base.byte_add(field.offset) as *const T) })
+//     }
+//
+//     fn field_mut<'a, T: 'static>(this: &'a mut Self, name: &str) -> Option<&'a mut T>
+//     where
+//         Self: Sized + 'static,
+//     {
+//         let type_info = type_info(this.ctx.tid.0)?;
+//         let field = type_info.fields.iter().find(|f| f.name == name)?;
+//         if field.type_id != TypeId::of::<T>() {
+//             return None;
+//         }
+//         let base = unsafe { std::ptr::from_mut(this.get_mut()).cast::<u8>() };
+//         Some(unsafe { &mut *(base.byte_add(field.offset) as *mut T) })
+//     }
+// }
+
+impl ReflectSerialize for CRef<dyn Component> {
+    fn serialize(this: &Self) -> Value
+    where
+        Self: Sized,
+    {
+        let Some(type_info) = type_info(this.ctx.tid.0) else {
+            return Value::None;
+        };
+        let base = std::ptr::from_mut(this.get_mut()).cast::<u8>();
+        (type_info.actions.serialize)(base)
     }
 }
 
@@ -367,11 +408,11 @@ impl TypedComponentId {
     }
 
     pub fn type_name(&self) -> Option<&'static str> {
-        self.type_info().map(|info| info.type_name)
+        self.type_info().map(|info| info.full_path)
     }
 
     pub fn short_name(&self) -> Option<&'static str> {
-        self.type_info().map(|info| info.short_name)
+        self.type_info().map(|info| info.name)
     }
 
     pub(crate) fn null<C: Component + ?Sized>() -> TypedComponentId {

@@ -1,13 +1,17 @@
 use crate::core::GameObjectId;
 use nalgebra::{Affine3, Isometry3, Point, Scale3, Translation3, UnitQuaternion, Vector3};
 use num_traits::AsPrimitive;
+use syrillian_macros::Reflect;
 
 /// Stores the translation, rotation and scale of a [`GameObject`](crate::core::GameObject).
 ///
 /// The transform keeps precomputed matrices for each component so that
 /// operations such as retrieving the final model matrix are fast.
 #[repr(C)]
+#[derive(Reflect)]
+#[reflect_all]
 pub struct Transform {
+    #[dont_reflect]
     pub(crate) owner: GameObjectId,
 
     pos: Vector3<f32>,
@@ -19,6 +23,7 @@ pub struct Transform {
     invert_position: bool,
     compound_pos_first: bool,
 
+    #[dont_reflect]
     is_dirty: bool,
 }
 

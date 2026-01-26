@@ -1,6 +1,8 @@
 use crate::World;
 use crate::components::Component;
-use crate::core::reflection::{PartialReflect, ReflectedTypeInfo};
+use crate::core::reflection::{
+    PartialReflect, ReflectedTypeActions, ReflectedTypeInfo, serialize_as,
+};
 use crate::rendering::CPUDrawCtx;
 use crate::rendering::lights::{Light, LightProxy, LightType};
 use crate::utils::FloatMathExt;
@@ -39,8 +41,8 @@ pub type SpotLightComponent = LightComponent<Spot>;
 impl<T: LightTypeTrait> PartialReflect for LightComponent<T> {
     const DATA: ReflectedTypeInfo = ReflectedTypeInfo {
         type_id: TypeId::of::<Self>(),
-        type_name: T::FULL_NAME,
-        short_name: T::NAME,
+        full_path: T::FULL_NAME,
+        name: T::NAME,
         fields: &[
             ReflectedField {
                 name: "inner_angle_t",
@@ -58,6 +60,9 @@ impl<T: LightTypeTrait> PartialReflect for LightComponent<T> {
                 type_id: TypeId::of::<bool>(),
             },
         ],
+        actions: ReflectedTypeActions {
+            serialize: serialize_as::<Self>,
+        },
     };
 }
 

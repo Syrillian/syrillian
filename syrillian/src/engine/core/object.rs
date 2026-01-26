@@ -1,5 +1,6 @@
 use crate::components::{CRef, Component, TypedComponentId};
 use crate::core::Transform;
+use crate::core::reflection::Value;
 use crate::ensure_aligned;
 use crate::world::World;
 use itertools::Itertools;
@@ -12,6 +13,7 @@ use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::ptr::null_mut;
+use syrillian_macros::Reflect;
 use syrillian_utils::debug_panic;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -289,16 +291,20 @@ impl GameObjectWeak {
 /// It keeps track of its parent-child relationships, applied
 /// transformation, and attached components. If a game object has
 /// no parent, it is a root-level game object within the world.
+#[derive(Reflect)]
 pub struct GameObject {
     /// A unique identifier for this object within the world.
     pub id: GameObjectId,
     /// The name of the object (not required to be unique).
+    #[reflect]
     pub name: String,
     /// Whether the object is still alive inside the world.
     pub(crate) alive: Cell<bool>,
     /// Whether the object components will be called or the object is inactive
+    #[reflect]
     pub(crate) enabled: Cell<bool>,
     /// Game objects that are direct children of this object.
+    #[reflect]
     pub(crate) children: Vec<GameObjectId>,
     /// Parent game object.
     /// If `None`, this object is a root-level game object.
@@ -306,11 +312,14 @@ pub struct GameObject {
     /// The world this object belongs to
     pub(crate) owning_world: *mut World,
     /// The transformation applied to the object.
+    #[reflect]
     pub transform: Transform,
     /// Components attached to this object.
+    #[reflect]
     pub(crate) components: Vec<CRef<dyn Component>>,
     /// Custom Property Data (Keys & Values)
-    pub(crate) custom_properties: HashMap<String, serde_json::Value>,
+    #[reflect]
+    pub(crate) custom_properties: HashMap<String, Value>,
     /// Events this object is registered for.
     pub(crate) event_mask: Cell<EventType>,
     /// Unique hash used for picking and lookup.
@@ -471,20 +480,17 @@ impl GameObject {
     }
 
     /// Add a custom property to this object
-    pub fn add_property(&mut self, key: impl Into<String>, value: serde_json::Value) {
+    pub fn add_property(&mut self, key: impl Into<String>, value: Value) {
         self.custom_properties.insert(key.into(), value);
     }
 
     /// Add a collection of custom properties to this object
-    pub fn add_properties<T: IntoIterator<Item = (String, serde_json::Value)>>(
-        &mut self,
-        properties: T,
-    ) {
+    pub fn add_properties<T: IntoIterator<Item=(String, Value)>>(&mut self, properties: T) {
         self.custom_properties.extend(properties);
     }
 
     /// Retrieve a custom property in this object by the given key
-    pub fn property(&self, key: &str) -> Option<&serde_json::Value> {
+    pub fn property(&self, key: &str) -> Option<&Value> {
         self.custom_properties.get(key)
     }
 
@@ -494,12 +500,12 @@ impl GameObject {
     }
 
     /// Retrieve all custom properties of this object
-    pub fn properties(&self) -> &HashMap<String, serde_json::Value> {
+    pub fn properties(&self) -> &HashMap<String, Value> {
         &self.custom_properties
     }
 
     /// Remove property from this object by the given key
-    pub fn remove_property(&mut self, key: &str) -> Option<serde_json::Value> {
+    pub fn remove_property(&mut self, key: &str) -> Option<Value> {
         self.custom_properties.remove(key)
     }
 

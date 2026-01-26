@@ -79,8 +79,8 @@ fn component_reflection() {
     let info_pre = syrillian::core::reflection::type_info_of::<MyComponent>()
         .expect("component type should be registered");
     assert_eq!(info_pre.type_id, TypeId::of::<MyComponent>());
-    assert_eq!(info_pre.type_name, std::any::type_name::<MyComponent>());
-    assert_eq!(info_pre.short_name, "MyComponent");
+    assert_eq!(info_pre.full_path, std::any::type_name::<MyComponent>());
+    assert_eq!(info_pre.name, "MyComponent");
 
     let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
     let mut obj = world.new_object("Test");
@@ -91,14 +91,9 @@ fn component_reflection() {
         .expect("component type should be registered");
 
     assert_eq!(info.type_id, TypeId::of::<MyComponent>());
-    assert_eq!(info.type_name, std::any::type_name::<MyComponent>());
-    assert_eq!(info.short_name, "MyComponent");
-    assert_eq!(info, info_pre);
+    assert_eq!(info.full_path, std::any::type_name::<MyComponent>());
+    assert_eq!(info.name, "MyComponent");
 
     let typed = comp.typed_id();
-    assert_eq!(typed.type_name(), Some(info.type_name));
-
-    let registry = syrillian::core::reflection::type_info_of::<MyComponent>()
-        .expect("component type should be registered");
-    assert_eq!(registry, info);
+    assert_eq!(typed.type_name(), Some(info.full_path));
 }

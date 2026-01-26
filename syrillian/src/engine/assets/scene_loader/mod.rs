@@ -4,7 +4,7 @@ use crate::components::{
     AnimationComponent, MeshRenderer, PointLightComponent, SkeletalComponent, SpotLightComponent,
     SunLightComponent,
 };
-use crate::core::GameObjectId;
+use crate::core::{GameObjectId, reflection};
 use crate::rendering::lights::Light;
 use crate::utils::animation::{AnimationClip, Channel, TransformKeys};
 use gltf::animation::util::ReadOutputs;
@@ -143,7 +143,11 @@ impl SceneLoader {
 
         if let Some(extras) = node.extras() {
             match serde_json::de::from_str::<serde_json::Value>(extras.get()) {
-                Ok(serde_json::Value::Object(props)) => obj.add_properties(props),
+                Ok(serde_json::Value::Object(props)) => obj.add_properties(
+                    props
+                        .into_iter()
+                        .map(|(k, v)| (k, reflection::Value::Serde(v))),
+                ),
                 Ok(_) => trace!(
                     "Ignored custom property that was not a map when loading node into an object"
                 ),

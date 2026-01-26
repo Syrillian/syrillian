@@ -3,9 +3,12 @@ use crate::core::GameObjectId;
 use nalgebra::Vector3;
 use rapier3d::parry::query::{DefaultQueryDispatcher, ShapeCastOptions};
 use rapier3d::prelude::*;
+use syrillian_macros::Reflect;
 use web_time::{Duration, Instant};
 
+#[derive(Reflect)]
 pub struct PhysicsManager {
+    #[reflect]
     pub gravity: Vector3<f32>,
     pub rigid_body_set: RigidBodySet,
     pub collider_set: ColliderSet,
@@ -20,6 +23,7 @@ pub struct PhysicsManager {
     pub physics_hooks: (),
     pub event_handler: (),
     pub last_update: Instant,
+    #[reflect]
     pub timestep: Duration,
     pub alpha: f32,
 }

@@ -32,8 +32,10 @@ use std::sync::Arc;
 use tracing::info;
 use web_time::{Duration, Instant};
 
+use crate::core::reflection::Value;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
+use syrillian_macros::Reflect;
 use winit::dpi::PhysicalSize;
 use winit::event::MouseButton;
 
@@ -154,12 +156,14 @@ impl WorldChannels {
 /// Bind a world to the current thread with [`World::bind_thread`] (done automatically in
 /// [`World::new`]) to access it through [`World::instance`]. Multiple worlds can live
 /// on different threads simultaneously.
+#[derive(Reflect)]
 pub struct World {
     /// Collection of all game objects indexed by their unique ID
     pub objects: SlotMap<GameObjectId, Box<GameObject>>,
     /// Collection of all components indexed by their unique ID
     pub components: ComponentStorage,
     /// Root-level game objects that have no parent
+    #[reflect]
     pub children: Vec<GameObjectId>,
     /// Strong references keeping objects alive
     object_ref_counts: HashMap<GameObjectId, usize>,
@@ -172,6 +176,7 @@ pub struct World {
     /// The currently active camera used for rendering
     main_active_camera: CWeak<CameraComponent>,
     /// Physics simulation system
+    #[reflect]
     pub physics: PhysicsManager,
     /// Input management system
     pub input: InputManager,
@@ -872,11 +877,7 @@ impl World {
     }
 
     /// Find all objects that contain a property with the given key and value
-    pub fn find_objects_with_property_value(
-        &self,
-        key: &str,
-        value: &serde_json::Value,
-    ) -> Vec<GameObjectId> {
+    pub fn find_objects_with_property_value(&self, key: &str, value: &Value) -> Vec<GameObjectId> {
         self.objects
             .iter()
             .filter_map(|(id, o)| (o.is_alive() && o.property(key)? == value).then_some(id))

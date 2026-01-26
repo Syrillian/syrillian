@@ -161,8 +161,11 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
         impl ::syrillian::core::reflection::PartialReflect for #type_ident {
             const DATA: ::syrillian::core::reflection::ReflectedTypeInfo = ::syrillian::core::reflection::ReflectedTypeInfo {
                 type_id: std::any::TypeId::of::<#type_ident>(),
-                type_name: concat!(module_path!(), "::", stringify!(#type_ident)),
-                short_name: stringify!(#type_ident),
+                full_path: concat!(module_path!(), "::", stringify!(#type_ident)),
+                name: stringify!(#type_ident),
+                actions: ::syrillian::core::reflection::ReflectedTypeActions {
+                    serialize: ::syrillian::core::reflection::serialize_as::<Self>,
+                },
                 fields: &[#( #reflected ),*],
             };
         }
