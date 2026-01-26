@@ -26,9 +26,8 @@ use syrillian::utils::FrameCounter;
 use syrillian::{AppRuntime, AppState, World};
 use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab};
 use syrillian_components::{
-    AudioEmitter, Collider3D, FirstPersonCameraController, FreecamController,
-    PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
-    SpringJoint, Text3D,
+    AudioEmitter, Collider3D, FirstPersonCameraController, FreecamController, PointLightComponent,
+    RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent, SpringJoint, Text3D,
 };
 use syrillian_scene::SceneLoader;
 use tracing::{error, info};
