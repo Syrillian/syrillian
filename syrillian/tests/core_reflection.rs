@@ -73,7 +73,8 @@ fn reflected_fields_and_struct_serialization() {
     if let Some(a_mut) = <Demo as Reflect>::field_mut::<u32>(&mut demo, "a") {
         *a_mut = 12;
     }
-    assert_eq!(demo.a, 12);
+    let a_after = <Demo as Reflect>::field_ref::<u32>(&demo, "a").copied();
+    assert_eq!(a_after, Some(12));
 
     let serialized = JsonSerializer::serialize_to_string(&demo);
     assert_eq!(serialized, "{\"a\":12,\"b\":1.5}");
