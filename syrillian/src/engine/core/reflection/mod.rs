@@ -96,6 +96,11 @@ pub fn type_infos() -> Vec<ReflectedTypeInfo> {
     type_registry().iter().map(|entry| *entry).collect()
 }
 
+/// # Safety
+///
+/// This function should be safe as it checks type, and has runtime type information about the
+///   concerning elements type. Though types can be injected manually, and this could lead to
+///   undefined behavior.
 pub unsafe fn field<R, T>(this: &R, name: &str) -> Option<*const T>
 where
     R: Sized + Reflect + 'static,

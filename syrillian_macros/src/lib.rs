@@ -113,8 +113,8 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
             input.generics.span(),
             "Reflect cannot be derived for generic components",
         )
-            .to_compile_error()
-            .into();
+        .to_compile_error()
+        .into();
     }
 
     let reflect_all = has_attr(&input.attrs, "reflect_all");
@@ -126,8 +126,8 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
             input.ident.span(),
             "Reflect cannot be derived for non-named-struct components",
         )
-            .to_compile_error()
-            .into();
+        .to_compile_error()
+        .into();
     };
 
     let mut reflected = Vec::new();
@@ -175,7 +175,7 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
         #reflect_impl
         #registration
     }
-        .into()
+    .into()
 }
 
 fn has_attr(attrs: &[Attribute], name: &str) -> bool {
@@ -216,7 +216,7 @@ pub fn reflect_fn(attr: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
     }
-        .into()
+    .into()
 }
 
 // TODO: macro-ize some things related to proxy data / scene proxies and in general

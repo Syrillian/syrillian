@@ -397,9 +397,7 @@ impl MyMain {
             let Some(collider) = self.player.get_component::<Collider3D>() else {
                 return;
             };
-            let player_collider = collider
-                .phys_handle
-                .unwrap_or_else(|| ColliderHandle::invalid());
+            let player_collider = collider.phys_handle.unwrap_or_else(ColliderHandle::invalid);
             let ray = Ray::new(
                 camera_obj.transform.position().into(),
                 camera_obj.transform.forward(),
