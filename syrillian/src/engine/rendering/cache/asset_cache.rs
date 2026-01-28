@@ -14,7 +14,10 @@ use wgpu::BindGroupLayout;
 pub struct AssetCache {
     pub meshes: Cache<Mesh>,
     pub shaders: Cache<Shader>,
-    pub textures: Cache<Texture>,
+    pub textures: Cache<Texture2D>,
+    pub texture_arrays: Cache<Texture2DArray>,
+    pub render_textures: Cache<RenderTexture2D>,
+    pub render_texture_arrays: Cache<RenderTexture2DArray>,
     pub materials: Cache<Material>,
     pub bgls: Cache<BGL>,
     pub fonts: Cache<Font>,
@@ -32,6 +35,17 @@ impl AssetCache {
             meshes: Cache::new(store.meshes.clone(), device.clone(), queue.clone()),
             shaders: Cache::new(store.shaders.clone(), device.clone(), queue.clone()),
             textures: Cache::new(store.textures.clone(), device.clone(), queue.clone()),
+            texture_arrays: Cache::new(store.texture_arrays.clone(), device.clone(), queue.clone()),
+            render_textures: Cache::new(
+                store.render_textures.clone(),
+                device.clone(),
+                queue.clone(),
+            ),
+            render_texture_arrays: Cache::new(
+                store.render_texture_arrays.clone(),
+                device.clone(),
+                queue.clone(),
+            ),
             materials: Cache::new(store.materials.clone(), device.clone(), queue.clone()),
             bgls: Cache::new(store.bgls.clone(), device.clone(), queue.clone()),
             fonts: Cache::new(store.fonts.clone(), device.clone(), queue.clone()),
@@ -70,15 +84,27 @@ impl AssetCache {
         self.shaders.get(HShader::POST_PROCESS, self)
     }
 
-    pub fn texture(&self, handle: HTexture) -> Arc<GpuTexture> {
+    pub fn texture(&self, handle: HTexture2D) -> Arc<GpuTexture> {
         self.textures.get(handle, self)
     }
 
-    pub fn texture_fallback(&self) -> Arc<GpuTexture> {
-        self.textures.get(HTexture::FALLBACK_DIFFUSE, self)
+    pub fn texture_array(&self, handle: HTexture2DArray) -> Option<Arc<GpuTexture>> {
+        self.texture_arrays.try_get(handle, self)
     }
 
-    pub fn texture_opt(&self, handle: Option<HTexture>, alt: HTexture) -> Arc<GpuTexture> {
+    pub fn render_texture(&self, handle: HRenderTexture2D) -> Option<Arc<GpuTexture>> {
+        self.render_textures.try_get(handle, self)
+    }
+
+    pub fn render_texture_array(&self, handle: HRenderTexture2DArray) -> Option<Arc<GpuTexture>> {
+        self.render_texture_arrays.try_get(handle, self)
+    }
+
+    pub fn texture_fallback(&self) -> Arc<GpuTexture> {
+        self.textures.get(HTexture2D::FALLBACK_DIFFUSE, self)
+    }
+
+    pub fn texture_opt(&self, handle: Option<HTexture2D>, alt: HTexture2D) -> Arc<GpuTexture> {
         match handle {
             None => self.textures.get(alt, self),
             Some(handle) => self.textures.get(handle, self),
@@ -155,5 +181,53 @@ impl AssetCache {
 
     pub fn last_refresh(&self) -> Instant {
         *self.last_refresh.lock().unwrap()
+    }
+}
+
+impl AsRef<Store<Mesh>> for AssetCache {
+    fn as_ref(&self) -> &Store<Mesh> {
+        self.meshes.store()
+    }
+}
+
+impl AsRef<Store<Shader>> for AssetCache {
+    fn as_ref(&self) -> &Store<Shader> {
+        self.shaders.store()
+    }
+}
+
+impl AsRef<Store<Material>> for AssetCache {
+    fn as_ref(&self) -> &Store<Material> {
+        self.materials.store()
+    }
+}
+
+impl AsRef<Store<Texture2D>> for AssetCache {
+    fn as_ref(&self) -> &Store<Texture2D> {
+        self.textures.store()
+    }
+}
+
+impl AsRef<Store<Texture2DArray>> for AssetCache {
+    fn as_ref(&self) -> &Store<Texture2DArray> {
+        &self.store.texture_arrays
+    }
+}
+
+impl AsRef<Store<RenderTexture2D>> for AssetCache {
+    fn as_ref(&self) -> &Store<RenderTexture2D> {
+        &self.store.render_textures
+    }
+}
+
+impl AsRef<Store<RenderTexture2DArray>> for AssetCache {
+    fn as_ref(&self) -> &Store<RenderTexture2DArray> {
+        &self.store.render_texture_arrays
+    }
+}
+
+impl AsRef<Store<BGL>> for AssetCache {
+    fn as_ref(&self) -> &Store<BGL> {
+        self.bgls.store()
     }
 }

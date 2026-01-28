@@ -10,9 +10,9 @@ pub struct Material {
     pub name: String,
     #[builder(default = Vector3::new(0.7, 0.7, 0.7))]
     pub color: Vector3<f32>,
-    pub diffuse_texture: Option<HTexture>,
-    pub normal_texture: Option<HTexture>,
-    pub roughness_texture: Option<HTexture>,
+    pub diffuse_texture: Option<HTexture2D>,
+    pub normal_texture: Option<HTexture2D>,
+    pub roughness_texture: Option<HTexture2D>,
     #[builder(default = 0.5)]
     pub roughness: f32,
     #[builder(default = 0.0)]

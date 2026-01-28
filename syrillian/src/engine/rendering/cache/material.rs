@@ -1,5 +1,5 @@
 use crate::assets::HShader;
-use crate::engine::assets::{HTexture, Material};
+use crate::engine::assets::{HTexture2D, Material};
 use crate::engine::rendering::cache::{AssetCache, CacheType};
 use crate::engine::rendering::uniform::ShaderUniform;
 use crate::ensure_aligned;
@@ -77,7 +77,7 @@ impl CacheType for Material {
             params |= MaterialParams::use_roughness_texture;
         }
 
-        let diffuse = cache.texture_opt(self.diffuse_texture, HTexture::FALLBACK_DIFFUSE);
+        let diffuse = cache.texture_opt(self.diffuse_texture, HTexture2D::FALLBACK_DIFFUSE);
 
         let is_grayscale = diffuse.format == TextureFormat::Rg8Unorm;
         if is_grayscale {
@@ -103,8 +103,8 @@ impl CacheType for Material {
         };
 
         let mat_bgl = cache.bgl_material();
-        let normal = cache.texture_opt(self.normal_texture, HTexture::FALLBACK_NORMAL);
-        let roughness = cache.texture_opt(self.roughness_texture, HTexture::FALLBACK_ROUGHNESS);
+        let normal = cache.texture_opt(self.normal_texture, HTexture2D::FALLBACK_NORMAL);
+        let roughness = cache.texture_opt(self.roughness_texture, HTexture2D::FALLBACK_ROUGHNESS);
 
         // TODO: Add additional material mapping properties and such
         let uniform = ShaderUniform::<MaterialUniformIndex>::builder(&mat_bgl)

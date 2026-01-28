@@ -1,17 +1,16 @@
 use crate::{Image, Text2D};
-use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::math::{Translation3, Vector2};
 use syrillian::rendering::strobe::ImageScalingMode;
-use syrillian::windowing::RenderTargetId;
+use syrillian::{Reflect, ViewportId};
 
 #[derive(Debug, Clone)]
 pub struct UiRectLayout {
     pub top_left_px: Vector2<f32>,
     pub size_px: Vector2<f32>,
     pub screen: Vector2<f32>,
-    pub target: RenderTargetId,
+    pub target: ViewportId,
     pub depth: f32,
     pub draw_order: u32,
 }
@@ -42,7 +41,7 @@ pub struct UiRect {
     size: UiSize,
     pub depth: f32,
     #[dont_reflect]
-    render_target: RenderTargetId,
+    render_target: ViewportId,
 }
 
 impl UiRect {
@@ -86,11 +85,11 @@ impl UiRect {
         self.depth = depth;
     }
 
-    pub fn render_target(&self) -> RenderTargetId {
+    pub fn render_target(&self) -> ViewportId {
         self.render_target
     }
 
-    pub fn set_render_target(&mut self, target: RenderTargetId) {
+    pub fn set_render_target(&mut self, target: ViewportId) {
         self.render_target = target;
     }
 
@@ -171,7 +170,7 @@ impl Default for UiRect {
                 height: 100.0,
             },
             depth: 0.5,
-            render_target: RenderTargetId::PRIMARY,
+            render_target: ViewportId::PRIMARY,
         }
     }
 }
@@ -182,11 +181,11 @@ impl Component for UiRect {}
 mod tests {
     use super::*;
     use syrillian::math::{Translation3, Vector2};
-    use syrillian::windowing::{PhysicalSize, RenderTargetId};
+    use syrillian::windowing::PhysicalSize;
 
     fn world_with_viewport() -> Box<World> {
         let (mut world, ..) = World::fresh();
-        world.set_viewport_size(RenderTargetId::PRIMARY, PhysicalSize::new(800, 600));
+        world.set_viewport_size(ViewportId::PRIMARY, PhysicalSize::new(800, 600));
         world
     }
 
@@ -212,7 +211,7 @@ mod tests {
         assert_eq!(layout.size_px, Vector2::new(100.0, 100.0));
         assert_eq!(layout.top_left_px, Vector2::new(130.0, 25.0));
         assert_eq!(layout.screen, Vector2::new(800.0, 600.0));
-        assert_eq!(layout.target, RenderTargetId::PRIMARY);
+        assert_eq!(layout.target, ViewportId::PRIMARY);
         assert_eq!(layout.depth, rect.depth);
         assert_eq!(layout.draw_order, 0);
     }
@@ -280,7 +279,7 @@ mod tests {
             top_left_px: Vector2::new(10.0, 20.0),
             size_px: Vector2::zeros(),
             screen: Vector2::new(100.0, 100.0),
-            target: RenderTargetId::PRIMARY,
+            target: ViewportId::PRIMARY,
             depth: 0.5,
             draw_order: 3,
         };

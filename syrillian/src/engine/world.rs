@@ -4,7 +4,10 @@
 //! It maintains the scene graph, input state and physics simulation and
 //! offers utilities such as methods to create, find and remove game objects.
 
-use crate::assets::{BGL, Material, Mesh, Shader, Sound, Store, Texture};
+use crate::assets::{
+    BGL, Material, Mesh, RenderTexture2D, RenderTexture2DArray, Shader, Sound, Store, Texture2D,
+    Texture2DArray,
+};
 use crate::audio::AudioScene;
 use crate::components::{CRef, CWeak, CameraComponent, Component};
 use crate::core::component_storage::ComponentStorage;
@@ -20,7 +23,6 @@ use crate::rendering::picking::PickRequest;
 use crate::rendering::picking::PickResult;
 use crate::rendering::strobe::StrobeFrame;
 use crate::rendering::{CPUDrawCtx, UiContext};
-use crate::windowing::RenderTargetId;
 use nalgebra::Matrix4;
 use slotmap::{Key, SlotMap};
 use std::cell::Cell;
@@ -32,6 +34,7 @@ use std::sync::Arc;
 use tracing::info;
 use web_time::{Duration, Instant};
 
+use crate::ViewportId;
 use crate::core::reflection::Value;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
@@ -80,7 +83,7 @@ pub struct WorldChannels {
     pub render_tx: Sender<RenderMsg>,
     pub game_event_tx: Sender<GameAppEvent>,
     pub pick_result_rx: Receiver<PickResult>,
-    targets: HashMap<RenderTargetId, RenderTargets>,
+    viewports: HashMap<ViewportId, RenderTargets>,
     next_target_id: u64,
 }
 
@@ -92,7 +95,7 @@ impl WorldChannels {
     ) -> Self {
         let mut targets = HashMap::new();
         targets.insert(
-            RenderTargetId::PRIMARY,
+            ViewportId::PRIMARY,
             RenderTargets {
                 active_camera: CWeak::null(),
                 size: PhysicalSize::new(0, 0),
@@ -103,28 +106,28 @@ impl WorldChannels {
             render_tx,
             game_event_tx,
             pick_result_rx,
-            targets,
-            next_target_id: RenderTargetId::PRIMARY.get() + 1,
+            viewports: targets,
+            next_target_id: ViewportId::PRIMARY.get() + 1,
         }
     }
 
-    pub fn set_active_camera(&mut self, target: RenderTargetId, camera: CWeak<CameraComponent>) {
-        let entry = self.targets.entry(target).or_insert(RenderTargets {
+    pub fn set_active_camera(&mut self, target: ViewportId, camera: CWeak<CameraComponent>) {
+        let entry = self.viewports.entry(target).or_insert(RenderTargets {
             active_camera: CWeak::null(),
             size: PhysicalSize::new(0, 0),
         });
         entry.active_camera = camera;
     }
 
-    pub fn active_camera_for(&self, target: RenderTargetId) -> CWeak<CameraComponent> {
-        self.targets
+    pub fn active_camera_for(&self, target: ViewportId) -> CWeak<CameraComponent> {
+        self.viewports
             .get(&target)
             .map_or_else(CWeak::null, |t| t.active_camera)
     }
 
-    pub fn set_viewport_size(&mut self, target: RenderTargetId, size: PhysicalSize<u32>) {
+    pub fn set_viewport_size(&mut self, target: ViewportId, size: PhysicalSize<u32>) {
         let size = PhysicalSize::new(size.width.max(1), size.height.max(1));
-        let entry = self.targets.entry(target).or_insert(RenderTargets {
+        let entry = self.viewports.entry(target).or_insert(RenderTargets {
             active_camera: CWeak::null(),
             size,
         });
@@ -135,9 +138,9 @@ impl WorldChannels {
         &mut self,
         active_camera: CWeak<CameraComponent>,
         size: PhysicalSize<u32>,
-    ) -> RenderTargetId {
-        let target_id = RenderTargetId(self.next_target_id);
-        self.targets.insert(
+    ) -> ViewportId {
+        let target_id = ViewportId(self.next_target_id);
+        self.viewports.insert(
             target_id,
             RenderTargets {
                 active_camera,
@@ -479,33 +482,33 @@ impl World {
     }
 
     pub fn set_active_camera(&mut self, mut camera: CRef<CameraComponent>) {
-        camera.set_render_target(RenderTargetId::PRIMARY);
+        camera.set_render_target(ViewportId::PRIMARY);
         self.main_active_camera = camera.downgrade();
         self.channels
-            .set_active_camera(RenderTargetId::PRIMARY, self.main_active_camera);
+            .set_active_camera(ViewportId::PRIMARY, self.main_active_camera);
     }
 
     pub fn set_active_camera_for_target(
         &mut self,
-        target: RenderTargetId,
+        target: ViewportId,
         mut camera: CRef<CameraComponent>,
     ) {
         camera.set_render_target(target);
         self.channels.set_active_camera(target, camera.downgrade());
     }
 
-    fn active_camera_for_target(&self, target: RenderTargetId) -> Option<CWeak<CameraComponent>> {
+    fn active_camera_for_target(&self, target: ViewportId) -> Option<CWeak<CameraComponent>> {
         let target_cam = self.channels.active_camera_for(target);
         if target_cam.exists(self) {
             Some(target_cam)
-        } else if target == RenderTargetId::PRIMARY {
+        } else if target == ViewportId::PRIMARY {
             Some(self.main_active_camera)
         } else {
             None
         }
     }
 
-    pub fn set_viewport_size(&mut self, target: RenderTargetId, size: PhysicalSize<u32>) {
+    pub fn set_viewport_size(&mut self, target: ViewportId, size: PhysicalSize<u32>) {
         self.channels.set_viewport_size(target, size);
         if let Some(mut cam) = self
             .active_camera_for_target(target)
@@ -515,15 +518,15 @@ impl World {
         }
     }
 
-    pub fn viewport_size(&self, target: RenderTargetId) -> Option<PhysicalSize<u32>> {
-        self.channels.targets.get(&target).map(|t| t.size)
+    pub fn viewport_size(&self, target: ViewportId) -> Option<PhysicalSize<u32>> {
+        self.channels.viewports.get(&target).map(|t| t.size)
     }
 
-    pub fn create_window(&mut self) -> RenderTargetId {
+    pub fn create_window(&mut self) -> ViewportId {
         self.create_window_with_size(PhysicalSize::new(800, 600))
     }
 
-    pub fn create_window_with_size(&mut self, size: PhysicalSize<u32>) -> RenderTargetId {
+    pub fn create_window_with_size(&mut self, size: PhysicalSize<u32>) -> ViewportId {
         let target_id = self.channels.add_window(CWeak::null(), size);
         let _ = self
             .channels
@@ -700,7 +703,7 @@ impl World {
             }
         }
 
-        for target_id in self.channels.targets.keys().copied() {
+        for target_id in self.channels.viewports.keys().copied() {
             if let Some(mut camera) = self
                 .active_camera_for_target(target_id)
                 .and_then(|c| c.upgrade(self))
@@ -723,7 +726,7 @@ impl World {
     }
 
     fn push_camera_updates(
-        target_id: RenderTargetId,
+        target_id: ViewportId,
         batch: &mut Vec<RenderMsg>,
         active_camera: &mut CRef<CameraComponent>,
     ) {
@@ -884,22 +887,14 @@ impl World {
             .collect()
     }
 
-    pub fn capture_offscreen_texture(
-        &self,
-        target: RenderTargetId,
-        path: impl Into<PathBuf>,
-    ) -> bool {
+    pub fn capture_offscreen_texture(&self, target: ViewportId, path: impl Into<PathBuf>) -> bool {
         self.channels
             .render_tx
             .send(RenderMsg::CaptureOffscreenTexture(target, path.into()))
             .is_ok()
     }
 
-    pub fn capture_picking_texture(
-        &self,
-        target: RenderTargetId,
-        path: impl Into<PathBuf>,
-    ) -> bool {
+    pub fn capture_picking_texture(&self, target: ViewportId, path: impl Into<PathBuf>) -> bool {
         self.channels
             .render_tx
             .send(RenderMsg::CapturePickingTexture(target, path.into()))
@@ -964,10 +959,10 @@ impl World {
     }
 
     pub fn set_default_window_title(&mut self, title: String) {
-        self.set_window_title(RenderTargetId::PRIMARY, title);
+        self.set_window_title(ViewportId::PRIMARY, title);
     }
 
-    pub fn set_window_title(&mut self, target_id: RenderTargetId, title: String) {
+    pub fn set_window_title(&mut self, target_id: ViewportId, title: String) {
         let _ = self
             .channels
             .game_event_tx
@@ -1034,9 +1029,27 @@ impl AsRef<Store<Shader>> for World {
     }
 }
 
-impl AsRef<Store<Texture>> for World {
-    fn as_ref(&self) -> &Store<Texture> {
+impl AsRef<Store<Texture2D>> for World {
+    fn as_ref(&self) -> &Store<Texture2D> {
         &self.assets.textures
+    }
+}
+
+impl AsRef<Store<Texture2DArray>> for World {
+    fn as_ref(&self) -> &Store<Texture2DArray> {
+        &self.assets.texture_arrays
+    }
+}
+
+impl AsRef<Store<RenderTexture2D>> for World {
+    fn as_ref(&self) -> &Store<RenderTexture2D> {
+        &self.assets.render_textures
+    }
+}
+
+impl AsRef<Store<RenderTexture2DArray>> for World {
+    fn as_ref(&self) -> &Store<RenderTexture2DArray> {
+        &self.assets.render_texture_arrays
     }
 }
 

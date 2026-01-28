@@ -1,5 +1,4 @@
 use delegate::delegate;
-use syrillian::Reflect;
 use syrillian::World;
 use syrillian::assets::HFont;
 use syrillian::components::Component;
@@ -8,7 +7,7 @@ use syrillian::rendering::proxies::SceneProxy;
 use syrillian::rendering::proxies::text_proxy::{TextProxy, ThreeD, TwoD};
 use syrillian::rendering::strobe::{TextAlignment, UiTextDraw};
 use syrillian::rendering::{CPUDrawCtx, UiContext};
-use syrillian::windowing::RenderTargetId;
+use syrillian::{Reflect, ViewportId};
 
 #[derive(Debug, Clone, Reflect)]
 pub struct Text2D {
@@ -24,7 +23,7 @@ impl Text2D {
         self.proxy.draw_order()
     }
 
-    pub fn render_target(&self) -> RenderTargetId {
+    pub fn render_target(&self) -> ViewportId {
         self.proxy.render_target()
     }
 
@@ -56,7 +55,7 @@ impl Text2D {
             pub const fn set_size(&mut self, text_size: f32);
             pub const fn set_rainbow_mode(&mut self, enable: bool);
             pub fn set_draw_order(&mut self, order: u32);
-            pub fn set_render_target(&mut self, target: RenderTargetId);
+            pub fn set_render_target(&mut self, target: ViewportId);
         }
     }
 }
@@ -89,7 +88,7 @@ impl Text3D {
         self.proxy.draw_order()
     }
 
-    pub fn render_target(&self) -> RenderTargetId {
+    pub fn render_target(&self) -> ViewportId {
         self.proxy.render_target()
     }
 
@@ -106,7 +105,7 @@ impl Text3D {
             pub const fn set_size(&mut self, text_size: f32);
             pub const fn set_rainbow_mode(&mut self, enable: bool);
             pub fn set_draw_order(&mut self, order: u32);
-            pub fn set_render_target(&mut self, target: RenderTargetId);
+            pub fn set_render_target(&mut self, target: ViewportId);
         }
     }
 }

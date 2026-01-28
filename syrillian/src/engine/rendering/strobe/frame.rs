@@ -1,10 +1,10 @@
-use crate::RenderTargetId;
+use crate::ViewportId;
 use crate::strobe::ui_element::UiElement;
 use crate::strobe::{UiDrawContext, UiImageDraw, UiTextDraw};
 
 pub type CacheId = u64;
 
-pub struct UiDraw(CacheId, RenderTargetId, Box<dyn UiElement>);
+pub struct UiDraw(CacheId, ViewportId, Box<dyn UiElement>);
 
 #[derive(Default)]
 pub struct StrobeFrame {
@@ -12,11 +12,11 @@ pub struct StrobeFrame {
 }
 
 impl UiDraw {
-    pub fn image(cache_id: CacheId, target: RenderTargetId, image: Box<UiImageDraw>) -> Self {
+    pub fn image(cache_id: CacheId, target: ViewportId, image: Box<UiImageDraw>) -> Self {
         UiDraw(cache_id, target, image)
     }
 
-    pub fn text(cache_id: CacheId, target: RenderTargetId, text: Box<UiTextDraw>) -> Self {
+    pub fn text(cache_id: CacheId, target: ViewportId, text: Box<UiTextDraw>) -> Self {
         UiDraw(cache_id, target, text)
     }
 
@@ -24,7 +24,7 @@ impl UiDraw {
         self.0
     }
 
-    pub fn draw_target(&self) -> RenderTargetId {
+    pub fn draw_target(&self) -> ViewportId {
         self.1
     }
 

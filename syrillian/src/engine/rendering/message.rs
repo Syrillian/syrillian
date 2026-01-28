@@ -1,4 +1,5 @@
-use crate::assets::HTexture;
+use crate::ViewportId;
+use crate::assets::HTexture2D;
 use crate::components::TypedComponentId;
 use crate::core::ObjectHash;
 use crate::rendering::lights::LightProxy;
@@ -6,7 +7,6 @@ use crate::rendering::picking::PickRequest;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::render_data::CameraUniform;
 use crate::rendering::strobe::StrobeFrame;
-use crate::windowing::RenderTargetId;
 use nalgebra::Affine3;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
@@ -27,13 +27,13 @@ pub enum RenderMsg {
     UpdateTransform(TypedComponentId, Affine3<f32>),
     ProxyUpdate(TypedComponentId, ProxyUpdateCommand),
     LightProxyUpdate(TypedComponentId, LightProxyCommand),
-    UpdateActiveCamera(RenderTargetId, CameraUpdateCommand),
+    UpdateActiveCamera(ViewportId, CameraUpdateCommand),
     ProxyState(TypedComponentId, bool), // enabled
     PickRequest(PickRequest),
     CommandBatch(Vec<RenderMsg>),
-    CaptureOffscreenTexture(RenderTargetId, PathBuf),
-    CapturePickingTexture(RenderTargetId, PathBuf),
-    CaptureTexture(HTexture, PathBuf),
+    CaptureOffscreenTexture(ViewportId, PathBuf),
+    CapturePickingTexture(ViewportId, PathBuf),
+    CaptureTexture(HTexture2D, PathBuf),
     UpdateStrobe(StrobeFrame),
 }
 

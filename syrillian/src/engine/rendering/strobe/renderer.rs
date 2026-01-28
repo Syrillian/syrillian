@@ -1,5 +1,4 @@
 use super::{StrobeFrame, UiDraw};
-use crate::RenderTargetId;
 use crate::core::ModelUniform;
 use crate::core::bone::BoneData;
 use crate::rendering::cache::AssetCache;
@@ -13,13 +12,14 @@ use nalgebra::Matrix4;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::RwLock;
+use syrillian::ViewportId;
 use web_time::Instant;
 use wgpu::{BindGroup, BufferDescriptor, BufferUsages, RenderPass};
 use winit::dpi::PhysicalSize;
 
 #[derive(Default)]
 pub struct StrobeRenderer {
-    draws: HashMap<RenderTargetId, Vec<UiDraw>>,
+    draws: HashMap<ViewportId, Vec<UiDraw>>,
     image_cache: HashMap<CacheId, RuntimeMeshData>,
     text_cache: HashMap<CacheId, TextRenderData>,
 }
@@ -126,7 +126,7 @@ impl StrobeRenderer {
         }
     }
 
-    pub fn has_draws(&self, target: RenderTargetId) -> bool {
+    pub fn has_draws(&self, target: ViewportId) -> bool {
         self.draws.get(&target).is_some_and(|d| !d.is_empty())
     }
 
@@ -135,7 +135,7 @@ impl StrobeRenderer {
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
         state: &State,
-        target: RenderTargetId,
+        target: ViewportId,
         start_time: Instant,
         viewport_size: PhysicalSize<u32>,
     ) {

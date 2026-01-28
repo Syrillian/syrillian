@@ -2,13 +2,19 @@ use crate::components::Component;
 use crate::math::{Matrix4, Perspective3, Point3, Vector2, Vector4};
 use crate::physics::rapier3d::geometry::Ray;
 use crate::utils::FloatMathExt;
-use crate::windowing::RenderTargetId;
-use crate::{Reflect, World};
+use crate::{Reflect, ViewportId, World};
+use snafu::Snafu;
 
 #[cfg(debug_assertions)]
 use crate::core::GameObjectId;
 #[cfg(debug_assertions)]
 use crate::tracing;
+
+#[derive(Debug, Snafu)]
+pub enum CameraError {
+    #[snafu(display("The provided texture wasn't set to be renderable"))]
+    NoRenderTexture,
+}
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
@@ -26,7 +32,7 @@ pub struct CameraComponent {
     #[dont_reflect]
     projection_dirty: bool,
     #[dont_reflect]
-    render_target: RenderTargetId,
+    render_target: ViewportId,
 }
 
 impl CameraComponent {
@@ -129,11 +135,11 @@ impl CameraComponent {
         self.regenerate();
     }
 
-    pub fn render_target(&self) -> RenderTargetId {
+    pub fn render_target(&self) -> ViewportId {
         self.render_target
     }
 
-    pub fn set_render_target(&mut self, target: RenderTargetId) {
+    pub fn set_render_target(&mut self, target: ViewportId) {
         self.render_target = target;
     }
 
@@ -166,7 +172,7 @@ impl Default for CameraComponent {
             width: 800.0,
             height: 600.0,
             projection_dirty: true,
-            render_target: RenderTargetId::PRIMARY,
+            render_target: ViewportId::PRIMARY,
         }
     }
 }

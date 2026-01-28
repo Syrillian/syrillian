@@ -1,4 +1,3 @@
-use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::{CameraComponent, Component};
 use syrillian::core::Transform;
@@ -7,7 +6,7 @@ use syrillian::input::InputManager;
 use syrillian::math::{UnitQuaternion, Vector2, Vector3};
 use syrillian::tracing::warn;
 use syrillian::utils::FloatMathExt;
-use syrillian::windowing::RenderTargetId;
+use syrillian::{Reflect, ViewportId};
 
 /// All tweakable parameters for the FPS Camera
 #[derive(Debug, Clone, Reflect)]
@@ -148,7 +147,7 @@ impl Component for FirstPersonCameraController {
         let target = parent
             .get_component::<CameraComponent>()
             .map(|c| c.render_target())
-            .unwrap_or(RenderTargetId::PRIMARY);
+            .unwrap_or(ViewportId::PRIMARY);
         world.input.set_active_target(target);
 
         let transform = &mut parent.transform;

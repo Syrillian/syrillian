@@ -1,10 +1,9 @@
-use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::{CameraComponent, Component};
 use syrillian::input::InputManager;
 use syrillian::input::{Axis, Button, KeyCode, MouseButton};
 use syrillian::math::{UnitQuaternion, Vector2, Vector3};
-use syrillian::windowing::RenderTargetId;
+use syrillian::{Reflect, ViewportId};
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
@@ -32,7 +31,7 @@ impl Component for FreecamController {
             .parent()
             .get_component::<CameraComponent>()
             .map(|c| c.render_target())
-            .unwrap_or(RenderTargetId::PRIMARY);
+            .unwrap_or(ViewportId::PRIMARY);
         world.input.set_active_target(target);
 
         if !world.input.is_window_focused() || !world.input.is_button_pressed(MouseButton::Left) {

@@ -248,6 +248,10 @@ impl<T: StoreType> Store<T> {
         Some(item?.1)
     }
 
+    pub fn contains(&self, handle: H<T>) -> bool {
+        self.data.contains_key(&handle.into())
+    }
+
     pub fn items(&self) -> Iter<'_, AssetKey, T> {
         self.data.iter()
     }

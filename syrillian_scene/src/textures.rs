@@ -2,7 +2,7 @@ use super::gltf_loader::GltfScene;
 use gltf::image::Format;
 use std::collections::HashMap;
 use syrillian::World;
-use syrillian::assets::{HMaterial, HShader, HTexture, Material, StoreType, Texture};
+use syrillian::assets::{HMaterial, HShader, HTexture2D, Material, StoreType, Texture2D};
 use syrillian::math::Vector3;
 use syrillian::rendering::TextureFormat;
 use syrillian::utils::debug_panic;
@@ -52,7 +52,7 @@ pub(super) fn load_texture<'a, T>(
     scene: &'a GltfScene,
     world: &mut World,
     info: Option<T>,
-) -> Option<HTexture>
+) -> Option<HTexture2D>
 where
     T: AsRef<gltf::texture::Texture<'a>>,
 {
@@ -98,5 +98,5 @@ where
         width as usize * height as usize * format.block_copy_size(None).unwrap() as usize
     );
 
-    Some(Texture::load_pixels(data, width, height, format).store(world))
+    Some(Texture2D::load_pixels(data, width, height, format).store(world))
 }

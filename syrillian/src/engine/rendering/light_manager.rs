@@ -1,4 +1,4 @@
-use crate::assets::{HTexture, Ref, Store, StoreType, Texture};
+use crate::assets::{HRenderTexture2DArray, Ref, RenderTexture2DArray, Store, StoreType};
 use crate::components::TypedComponentId;
 use crate::rendering::AssetCache;
 #[cfg(debug_assertions)]
@@ -27,7 +27,7 @@ pub struct LightManager {
     uniform: ShaderUniform<LightUniformIndex>,
     shadow_uniform: ShaderUniform<ShadowUniformIndex>,
     empty_shadow_uniform: ShaderUniform<ShadowUniformIndex>,
-    pub(crate) shadow_texture: HTexture,
+    pub(crate) shadow_texture: HRenderTexture2DArray,
     pub(crate) _shadow_sampler: Sampler,
 }
 
@@ -133,13 +133,16 @@ impl LightManager {
         cmd(proxy);
     }
 
-    pub fn shadow_array<'a>(&self, assets: &'a Store<Texture>) -> Option<Ref<'a, Texture>> {
-        Some(assets.get(self.shadow_texture))
+    pub fn shadow_array<'a>(
+        &self,
+        assets: &'a Store<RenderTexture2DArray>,
+    ) -> Option<Ref<'a, RenderTexture2DArray>> {
+        assets.try_get(self.shadow_texture)
     }
 
-    pub fn shadow_layer(&self, cache: &AssetCache, layer: u32) -> TextureView {
-        let texture = &cache.texture(self.shadow_texture).texture;
-        texture.create_view(&TextureViewDescriptor {
+    pub fn shadow_layer(&self, cache: &AssetCache, layer: u32) -> Option<TextureView> {
+        let texture = &cache.render_texture_array(self.shadow_texture)?.texture;
+        Some(texture.create_view(&TextureViewDescriptor {
             label: Some("Shadow Map Layer"),
             format: Some(wgpu::TextureFormat::Depth32Float),
             dimension: Some(wgpu::TextureViewDimension::D2),
@@ -149,7 +152,7 @@ impl LightManager {
             base_array_layer: layer,
             array_layer_count: Some(1),
             usage: Some(TextureUsages::RENDER_ATTACHMENT),
-        })
+        }))
     }
 
     pub fn uniform(&self) -> &ShaderUniform<LightUniformIndex> {
@@ -175,12 +178,16 @@ impl LightManager {
     pub fn new(cache: &AssetCache, device: &Device) -> Self {
         const DUMMY_POINT_LIGHT: LightProxy = LightProxy::dummy();
 
-        let shadow_texture =
-            Texture::new_2d_shadow_map_array(48, 1024, 1024).store(&cache.textures.store());
-        let empty_shadow_texture =
-            Texture::new_2d_shadow_map_array(2, 1, 1).store(&cache.textures.store());
-        let texture = cache.textures.try_get(shadow_texture, cache).unwrap();
-        let empty_texture = cache.textures.try_get(empty_shadow_texture, cache).unwrap();
+        let shadow_texture = RenderTexture2DArray::new_shadow_map(48, 1024, 1024).store(&cache);
+        let empty_shadow_texture = RenderTexture2DArray::new_shadow_map(2, 1, 1).store(&cache);
+        let texture = cache
+            .render_texture_arrays
+            .try_get(shadow_texture, cache)
+            .unwrap();
+        let empty_texture = cache
+            .render_texture_arrays
+            .try_get(empty_shadow_texture, cache)
+            .unwrap();
 
         let bgl = cache.bgl_light();
         let count: u32 = 0;

@@ -2,7 +2,7 @@
 
 use std::error::Error;
 use syrillian::SyrillianApp;
-use syrillian::assets::{Material, StoreType, Texture};
+use syrillian::assets::{Material, StoreType, Texture2D};
 use syrillian::core::{GameObjectExt, GameObjectId};
 use syrillian::input::MouseButton;
 use syrillian::math::Vector3;
@@ -36,7 +36,7 @@ impl AppState for NecoArc {
     fn init(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
         world.new_camera();
 
-        let texture = Texture::load_image_from_memory(NECO_IMAGE)?.store(world);
+        let texture = Texture2D::load_image_from_memory(NECO_IMAGE)?.store(world);
 
         let material = world.assets.materials.add(
             Material::builder()

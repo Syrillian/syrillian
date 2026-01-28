@@ -1,5 +1,7 @@
+use crate::assets::Store;
 use crate::engine::assets::HandleName;
 use crate::engine::assets::generic_store::StoreType;
+use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -26,6 +28,18 @@ impl<T: StoreType> PartialEq for H<T> {
     }
 }
 impl<T: StoreType> Eq for H<T> {}
+
+impl<T: StoreType> PartialOrd for H<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: StoreType> Ord for H<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
 
 impl<T: StoreType> Hash for H<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -54,6 +68,10 @@ impl<T: StoreType> H<T> {
 
     pub fn is_builtin(&self) -> bool {
         T::is_builtin(*self)
+    }
+
+    pub fn exists<R: AsRef<Store<T>>>(&self, store: R) -> bool {
+        store.as_ref().contains(*self)
     }
 }
 

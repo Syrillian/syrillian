@@ -1,4 +1,4 @@
-use crate::assets::{AssetStore, HMaterial, HTexture, Material, Texture};
+use crate::assets::{AssetStore, HMaterial, HTexture2D, Material, Texture2D};
 use crate::rendering::AssetCache;
 use crate::rendering::glyph::GlyphBitmap;
 use etagere::{AtlasAllocator, size2};
@@ -45,7 +45,7 @@ pub struct MsdfAtlas {
 
     face_bytes: Arc<Vec<u8>>,
 
-    pub texture: HTexture,
+    pub texture: HTexture2D,
     pub material: HMaterial,
 }
 
@@ -70,7 +70,7 @@ impl MsdfAtlas {
         let stride = (width as usize) * 4;
         let pixels = vec![0u8; stride * height as usize];
 
-        let texture = Texture::load_pixels(
+        let texture = Texture2D::load_pixels(
             pixels.clone(),
             width,
             height,
@@ -142,7 +142,7 @@ impl MsdfAtlas {
         self.entries.read().unwrap().contains_key(&ch)
     }
 
-    pub fn texture(&self) -> HTexture {
+    pub fn texture(&self) -> HTexture2D {
         self.texture
     }
 

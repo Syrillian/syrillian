@@ -88,12 +88,11 @@ mod tests {
     use syrillian::components::Component;
     use syrillian::math::Vector2;
     use syrillian::strobe::ImageScalingMode;
-    use syrillian::windowing::RenderTargetId;
-    use syrillian::{PhysicalSize, World};
+    use syrillian::{PhysicalSize, ViewportId, World};
 
     fn world_with_viewport() -> Box<World> {
         let (mut world, ..) = World::fresh();
-        world.set_viewport_size(RenderTargetId::PRIMARY, PhysicalSize::new(800, 600));
+        world.set_viewport_size(ViewportId::PRIMARY, PhysicalSize::new(800, 600));
         world
     }
 

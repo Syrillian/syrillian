@@ -5,10 +5,10 @@
 //! It also provides debug drawing and post-processing utilities.
 
 use super::error::*;
-use crate::RenderTargetId;
+use crate::ViewportId;
 use crate::components::TypedComponentId;
 use crate::core::BoundingSphere;
-use crate::engine::assets::{AssetStore, HTexture};
+use crate::engine::assets::{AssetStore, HTexture2D};
 use crate::engine::rendering::FrameCtx;
 use crate::engine::rendering::cache::{AssetCache, GpuTexture};
 use crate::engine::rendering::offscreen_surface::OffscreenSurface;
@@ -255,8 +255,8 @@ pub struct Renderer {
     pub state: Box<State>,
     pub cache: AssetCache,
     shadow_render_data: RenderUniformData,
-    viewports: HashMap<RenderTargetId, RenderViewport>,
-    window_map: HashMap<WindowId, RenderTargetId>,
+    viewports: HashMap<ViewportId, RenderViewport>,
+    window_map: HashMap<WindowId, ViewportId>,
     game_rx: Receiver<RenderMsg>,
     proxies: HashMap<TypedComponentId, SceneProxyBinding>,
     sorted_proxies: Vec<(u32, TypedComponentId)>,
@@ -285,11 +285,11 @@ impl Renderer {
         main_window.request_redraw();
 
         let mut window_map = HashMap::new();
-        window_map.insert(main_window.id(), RenderTargetId::PRIMARY);
+        window_map.insert(main_window.id(), ViewportId::PRIMARY);
 
         let mut viewports = HashMap::new();
         viewports.insert(
-            RenderTargetId::PRIMARY,
+            ViewportId::PRIMARY,
             RenderViewport::new(main_window, surface, config, &state, &cache),
         );
 
@@ -310,7 +310,7 @@ impl Renderer {
         })
     }
 
-    fn take_pick_request(&mut self, target: RenderTargetId) -> Option<PickRequest> {
+    fn take_pick_request(&mut self, target: ViewportId) -> Option<PickRequest> {
         if let Some(idx) = self
             .pending_pick_requests
             .iter()
@@ -322,15 +322,15 @@ impl Renderer {
         }
     }
 
-    pub fn find_render_target_id(&self, window_id: &WindowId) -> Option<RenderTargetId> {
+    pub fn find_render_target_id(&self, window_id: &WindowId) -> Option<ViewportId> {
         self.window_map.get(window_id).copied()
     }
 
-    pub fn window(&self, viewport: RenderTargetId) -> Option<&Window> {
+    pub fn window(&self, viewport: ViewportId) -> Option<&Window> {
         self.viewports.get(&viewport).map(RenderViewport::window)
     }
 
-    pub fn window_mut(&mut self, viewport: RenderTargetId) -> Option<&mut Window> {
+    pub fn window_mut(&mut self, viewport: ViewportId) -> Option<&mut Window> {
         self.viewports
             .get_mut(&viewport)
             .map(RenderViewport::window_mut)
@@ -339,7 +339,7 @@ impl Renderer {
     /// Export the offscreen render target for a viewport as a PNG image.
     pub fn export_offscreen_png(
         &self,
-        target: RenderTargetId,
+        target: ViewportId,
         path: impl AsRef<std::path::Path>,
     ) -> Result<(), TextureExportError> {
         let viewport = self
@@ -363,7 +363,7 @@ impl Renderer {
     /// Export the picking buffer for a viewport as a PNG image.
     pub fn export_picking_png(
         &self,
-        target: RenderTargetId,
+        target: ViewportId,
         path: impl AsRef<std::path::Path>,
     ) -> Result<(), TextureExportError> {
         let viewport = self
@@ -405,7 +405,7 @@ impl Renderer {
     /// Export a cached texture handle to a PNG image.
     pub fn export_cached_texture_png(
         &self,
-        texture: HTexture,
+        texture: HTexture2D,
         path: impl AsRef<std::path::Path>,
     ) -> Result<(), TextureExportError> {
         let gpu_tex = self.cache.texture(texture);
@@ -426,7 +426,7 @@ impl Renderer {
         }
     }
 
-    pub fn resize(&mut self, target_id: RenderTargetId, new_size: PhysicalSize<u32>) -> bool {
+    pub fn resize(&mut self, target_id: ViewportId, new_size: PhysicalSize<u32>) -> bool {
         let Some(viewport) = self.viewports.get_mut(&target_id) else {
             warn!("Invalid Viewport {target_id:?} referenced");
             return false;
@@ -437,7 +437,7 @@ impl Renderer {
         true
     }
 
-    pub fn redraw(&mut self, target_id: RenderTargetId) -> bool {
+    pub fn redraw(&mut self, target_id: ViewportId) -> bool {
         let Some(mut viewport) = self.viewports.remove(&target_id) else {
             warn!("Invalid Viewport {target_id:?} referenced");
             return false;
@@ -473,7 +473,7 @@ impl Renderer {
     fn resort_proxies(&mut self) {
         let frustum = self
             .viewports
-            .get(&RenderTargetId::PRIMARY)
+            .get(&ViewportId::PRIMARY)
             .map(|vp| Frustum::from_matrix(&vp.render_data.camera_data.proj_view_mat));
 
         self.sorted_proxies =
@@ -481,11 +481,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    pub fn render_frame(
-        &mut self,
-        target_id: RenderTargetId,
-        viewport: &mut RenderViewport,
-    ) -> bool {
+    pub fn render_frame(&mut self, target_id: ViewportId, viewport: &mut RenderViewport) -> bool {
         let mut ctx = viewport.begin_render();
 
         let frustum = Frustum::from_matrix(&viewport.render_data.camera_data.proj_view_mat);
@@ -682,7 +678,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    fn render(&mut self, target_id: RenderTargetId, viewport: &RenderViewport, ctx: &mut FrameCtx) {
+    fn render(&mut self, target_id: ViewportId, viewport: &RenderViewport, ctx: &mut FrameCtx) {
         self.shadow_pass(ctx);
         self.main_pass(target_id, viewport, ctx);
     }
@@ -694,7 +690,7 @@ impl Renderer {
 
         let shadow_layers = self
             .lights
-            .shadow_array(self.cache.textures.store())
+            .shadow_array(&self.cache.store().render_texture_arrays)
             .unwrap()
             .array_layers;
         let light_count = self.lights.update_shadow_map_ids(shadow_layers);
@@ -753,7 +749,11 @@ impl Renderer {
                 label: Some("Shadow Pass Encoder"),
             });
 
-        let layer_view = self.lights.shadow_layer(&self.cache, layer);
+        let Some(layer_view) = self.lights.shadow_layer(&self.cache, layer) else {
+            debug_panic!("Shadow layer view {layer} was not found");
+            return;
+        };
+
         let pass = self.prepare_shadow_pass(&mut encoder, &layer_view);
 
         self.render_scene(
@@ -768,12 +768,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    fn main_pass(
-        &mut self,
-        target_id: RenderTargetId,
-        viewport: &RenderViewport,
-        ctx: &mut FrameCtx,
-    ) {
+    fn main_pass(&mut self, target_id: ViewportId, viewport: &RenderViewport, ctx: &mut FrameCtx) {
         let mut encoder = self
             .state
             .device
@@ -1032,7 +1027,7 @@ impl Renderer {
         }
     }
 
-    pub fn add_window(&mut self, target_id: RenderTargetId, window: Window) -> Result<()> {
+    pub fn add_window(&mut self, target_id: ViewportId, window: Window) -> Result<()> {
         if self.viewports.contains_key(&target_id) {
             warn!(
                 "Viewport #{:?} already exists; ignoring duplicate add",

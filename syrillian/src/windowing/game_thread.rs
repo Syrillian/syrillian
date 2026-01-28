@@ -1,6 +1,6 @@
 use crate::assets::AssetStore;
 use crate::world::{World, WorldChannels};
-use crate::{AppState, RenderTargetId};
+use crate::{AppState, ViewportId};
 use crossbeam_channel::{Receiver, SendError, Sender, TryRecvError, unbounded};
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument};
@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RenderEventTarget {
-    pub id: RenderTargetId,
+    pub id: ViewportId,
 }
 
 #[derive(Debug, Clone)]
@@ -28,14 +28,14 @@ pub enum RenderAppEvent {
 
 #[derive(Debug, Clone)]
 pub enum GameAppEvent {
-    UpdateWindowTitle(RenderTargetId, String),
-    SetCursorMode(RenderTargetId, bool, bool),
-    AddWindow(RenderTargetId, PhysicalSize<u32>),
+    UpdateWindowTitle(ViewportId, String),
+    SetCursorMode(ViewportId, bool, bool),
+    AddWindow(ViewportId, PhysicalSize<u32>),
     Shutdown,
 }
 
 impl GameAppEvent {
-    pub fn cursor_mode(target: RenderTargetId, locked: bool, visible: bool) -> GameAppEvent {
+    pub fn cursor_mode(target: ViewportId, locked: bool, visible: bool) -> GameAppEvent {
         Self::SetCursorMode(target, locked, visible)
     }
 }
@@ -112,14 +112,14 @@ impl<S: AppState> GameThread<S> {
     pub fn init(&self) -> bool {
         self.render_event_tx
             .send(RenderAppEvent::Init(RenderEventTarget {
-                id: RenderTargetId::PRIMARY,
+                id: ViewportId::PRIMARY,
             }))
             .is_ok()
     }
 
     pub fn input(
         &self,
-        target: RenderTargetId,
+        target: ViewportId,
         event: WindowEvent,
     ) -> Result<(), Box<SendError<RenderAppEvent>>> {
         self.render_event_tx
@@ -142,7 +142,7 @@ impl<S: AppState> GameThread<S> {
 
     pub fn resize(
         &self,
-        target: RenderTargetId,
+        target: ViewportId,
         size: PhysicalSize<u32>,
     ) -> Result<(), Box<SendError<RenderAppEvent>>> {
         self.render_event_tx
@@ -155,7 +155,7 @@ impl<S: AppState> GameThread<S> {
 
     // TODO: Think about if render frame and world should be linked
     #[instrument(skip_all)]
-    pub fn next_frame(&self, target: RenderTargetId) -> Result<(), Box<SendError<RenderAppEvent>>> {
+    pub fn next_frame(&self, target: ViewportId) -> Result<(), Box<SendError<RenderAppEvent>>> {
         self.render_event_tx
             .send(RenderAppEvent::StartFrame(RenderEventTarget { id: target }))
             .map_err(Box::new)
@@ -180,7 +180,7 @@ impl<S: AppState> GameThread<S> {
 
     pub fn input(
         &self,
-        target: RenderTargetId,
+        target: RenderTarget,
         event: WindowEvent,
     ) -> Result<(), SendError<RenderAppEvent>> {
         self.render_event_tx.send(RenderAppEvent::Input(
@@ -191,7 +191,7 @@ impl<S: AppState> GameThread<S> {
 
     pub fn device_event(
         &self,
-        target: RenderTargetId,
+        target: RenderTarget,
         device_id: DeviceId,
         event: DeviceEvent,
     ) -> Result<(), SendError<RenderAppEvent>> {
@@ -201,7 +201,7 @@ impl<S: AppState> GameThread<S> {
 
     pub fn resize(
         &self,
-        target: RenderTargetId,
+        target: RenderTarget,
         size: PhysicalSize<u32>,
     ) -> Result<(), SendError<RenderAppEvent>> {
         self.render_event_tx.send(RenderAppEvent::Resize(
@@ -211,7 +211,7 @@ impl<S: AppState> GameThread<S> {
     }
 
     // TODO: Think about if render frame and world should be linked
-    pub fn next_frame(&self, target: RenderTargetId) -> Result<(), SendError<RenderAppEvent>> {
+    pub fn next_frame(&self, target: RenderTarget) -> Result<(), SendError<RenderAppEvent>> {
         self.render_event_tx
             .send(RenderAppEvent::StartFrame(RenderEventTarget { id: target }))
     }
@@ -241,7 +241,7 @@ impl<S: AppState> GameThreadInner<S> {
 
             keep_running = match event {
                 RenderAppEvent::Init(target) => {
-                    if target.id == RenderTargetId::PRIMARY {
+                    if target.id == ViewportId::PRIMARY {
                         self.init()
                     } else {
                         true
@@ -264,7 +264,7 @@ impl<S: AppState> GameThreadInner<S> {
 
         if keep_running {
             if update_signaled {
-                self.world.input.set_active_target(RenderTargetId::PRIMARY);
+                self.world.input.set_active_target(ViewportId::PRIMARY);
                 keep_running = self.update();
             }
         } else {
@@ -283,7 +283,7 @@ impl<S: AppState> GameThreadInner<S> {
         true
     }
 
-    pub fn input(&mut self, target: RenderTargetId, event: WindowEvent) -> bool {
+    pub fn input(&mut self, target: ViewportId, event: WindowEvent) -> bool {
         self.world.input.set_active_target(target);
         self.world.input.process_event(target, &event);
 
@@ -296,7 +296,7 @@ impl<S: AppState> GameThreadInner<S> {
         true
     }
 
-    pub fn resize(&mut self, target: RenderTargetId, size: PhysicalSize<u32>) -> bool {
+    pub fn resize(&mut self, target: ViewportId, size: PhysicalSize<u32>) -> bool {
         self.world.set_viewport_size(target, size);
 
         true

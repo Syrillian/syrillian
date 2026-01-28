@@ -1,6 +1,7 @@
 use nalgebra::{Vector2, Vector3};
 use syrillian::assets::{
-    AssetStore, Font, HMaterial, HMesh, HShader, HTexture, Material, Mesh, Shader, Sound, Texture,
+    AssetStore, Font, HMaterial, HMesh, HShader, HTexture2D, Material, Mesh, Shader, Sound,
+    Texture2D,
 };
 use syrillian::core::Vertex3D;
 
@@ -66,7 +67,7 @@ fn test_shader_store() {
 fn test_texture_store() {
     let store = AssetStore::new();
     let pixels = vec![255, 0, 0, 255];
-    let texture = Texture::load_pixels(pixels, 1, 1, wgpu::TextureFormat::Rgba8UnormSrgb);
+    let texture = Texture2D::load_pixels(pixels, 1, 1, wgpu::TextureFormat::Rgba8UnormSrgb);
     let handle = store.textures.add(texture);
     let retrieved_texture = store.textures.try_get(handle);
     assert!(retrieved_texture.is_some());
@@ -156,9 +157,9 @@ fn test_predefined_shaders() {
 fn test_predefined_textures() {
     let store = AssetStore::new();
 
-    let _ = store.textures.try_get(HTexture::FALLBACK_DIFFUSE);
-    let _ = store.textures.try_get(HTexture::FALLBACK_NORMAL);
-    let _ = store.textures.try_get(HTexture::FALLBACK_ROUGHNESS);
+    let _ = store.textures.try_get(HTexture2D::FALLBACK_DIFFUSE);
+    let _ = store.textures.try_get(HTexture2D::FALLBACK_NORMAL);
+    let _ = store.textures.try_get(HTexture2D::FALLBACK_ROUGHNESS);
 }
 
 #[test]

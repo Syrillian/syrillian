@@ -1,4 +1,3 @@
-use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::engine::assets::HMaterial;
@@ -6,7 +5,7 @@ use syrillian::math::Matrix4;
 use syrillian::rendering::UiContext;
 use syrillian::rendering::strobe::ImageScalingMode;
 use syrillian::strobe::UiImageDraw;
-use syrillian::windowing::RenderTargetId;
+use syrillian::{Reflect, ViewportId};
 
 #[derive(Debug, Reflect)]
 pub struct Image {
@@ -16,7 +15,7 @@ pub struct Image {
     #[reflect]
     translation: Matrix4<f32>,
     draw_order: u32,
-    render_target: RenderTargetId,
+    render_target: ViewportId,
 }
 
 impl Image {
@@ -36,7 +35,7 @@ impl Image {
         self.material = material;
     }
 
-    pub fn set_render_target(&mut self, target: RenderTargetId) {
+    pub fn set_render_target(&mut self, target: ViewportId) {
         self.render_target = target;
     }
 
@@ -59,7 +58,7 @@ impl Image {
         self.draw_order
     }
 
-    pub fn render_target(&self) -> RenderTargetId {
+    pub fn render_target(&self) -> ViewportId {
         self.render_target
     }
 
@@ -89,7 +88,7 @@ impl Default for Image {
             },
             translation: Matrix4::identity(),
             draw_order: 0,
-            render_target: RenderTargetId::PRIMARY,
+            render_target: ViewportId::PRIMARY,
         }
     }
 }

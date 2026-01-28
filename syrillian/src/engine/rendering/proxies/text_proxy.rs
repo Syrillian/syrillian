@@ -11,8 +11,9 @@ use crate::rendering::strobe::TextAlignment;
 use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::{AssetCache, CPUDrawCtx, GPUDrawCtx, RenderPassType, Renderer};
 use crate::utils::hsv_to_rgb;
-use crate::windowing::RenderTargetId;
-use crate::{ensure_aligned, must_pipeline, proxy_data, proxy_data_mut, try_activate_shader};
+use crate::{
+    ViewportId, ensure_aligned, must_pipeline, proxy_data, proxy_data_mut, try_activate_shader,
+};
 use delegate::delegate;
 use etagere::euclid::approxeq::ApproxEq;
 use nalgebra::{Matrix4, Vector2, Vector3};
@@ -75,7 +76,7 @@ pub struct TextProxy<const D: u8, DIM: TextDim<D>> {
     draw_order: u32,
     order_dirty: bool,
 
-    render_target: RenderTargetId,
+    render_target: ViewportId,
 
     _dim: PhantomData<DIM>,
 }
@@ -106,7 +107,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             draw_order: 0,
             order_dirty: false,
 
-            render_target: RenderTargetId::PRIMARY,
+            render_target: ViewportId::PRIMARY,
 
             _dim: PhantomData,
         }
@@ -120,7 +121,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         self.order_dirty = true;
     }
 
-    pub fn set_render_target(&mut self, target: RenderTargetId) {
+    pub fn set_render_target(&mut self, target: ViewportId) {
         if self.render_target == target {
             return;
         }
@@ -133,7 +134,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             #[field]
             pub fn draw_order(&self) -> u32;
             #[field]
-            pub fn render_target(&self) -> RenderTargetId;
+            pub fn render_target(&self) -> ViewportId;
             #[field(&)]
             pub fn text(&self) -> &str;
             #[field]

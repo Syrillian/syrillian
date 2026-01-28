@@ -4,7 +4,7 @@ use crate::rendering::lights::LightProxy;
 use crate::rendering::message::RenderMsg;
 use crate::rendering::proxies::SceneProxy;
 use crate::strobe::{CacheId, UiDraw, UiImageDraw, UiTextDraw};
-use crate::{RenderTargetId, World};
+use crate::{ViewportId, World};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::RwLock;
 use wgpu::{BindGroup, RenderPass, TextureView};
@@ -82,14 +82,14 @@ impl UiContext {
         }
     }
 
-    pub fn text(&self, world: &mut World, target: RenderTargetId, text: UiTextDraw) {
+    pub fn text(&self, world: &mut World, target: ViewportId, text: UiTextDraw) {
         world
             .strobe
             .draws
             .push(UiDraw::text(self.current_id, target, Box::new(text)));
     }
 
-    pub fn image(&self, world: &mut World, target: RenderTargetId, image: UiImageDraw) {
+    pub fn image(&self, world: &mut World, target: ViewportId, image: UiImageDraw) {
         world
             .strobe
             .draws

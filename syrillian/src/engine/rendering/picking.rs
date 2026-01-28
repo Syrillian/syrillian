@@ -1,17 +1,17 @@
+use crate::ViewportId;
 use crate::core::ObjectHash;
-use crate::windowing::RenderTargetId;
 
 #[derive(Debug, Clone)]
 pub struct PickRequest {
     pub id: u64,
-    pub target: RenderTargetId,
+    pub target: ViewportId,
     pub position: (u32, u32),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PickResult {
     pub id: u64,
-    pub target: RenderTargetId,
+    pub target: ViewportId,
     pub hash: Option<ObjectHash>,
 }
 

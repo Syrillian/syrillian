@@ -1,4 +1,4 @@
-use crate::assets::{Font, HMaterial, HTexture};
+use crate::assets::{Font, HMaterial, HTexture2D};
 use crate::rendering::glyph::GlyphBitmap;
 use crate::rendering::msdf_atlas::{FontLineMetrics, GlyphAtlasEntry, MsdfAtlas};
 use crate::rendering::{AssetCache, CacheType};
@@ -91,7 +91,7 @@ impl FontAtlas {
     pub fn atlas(&self) -> HMaterial {
         self.atlas.read().unwrap().material()
     }
-    pub fn texture(&self) -> HTexture {
+    pub fn texture(&self) -> HTexture2D {
         self.atlas.read().unwrap().texture()
     }
     pub fn metrics(&self) -> FontLineMetrics {

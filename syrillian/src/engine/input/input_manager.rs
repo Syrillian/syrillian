@@ -1,6 +1,6 @@
+use crate::ViewportId;
 use crate::game_thread::GameAppEvent;
 use crate::input::gamepad_manager::GamePadManager;
-use crate::windowing::RenderTargetId;
 use crossbeam_channel::Sender;
 use nalgebra::Vector2;
 use num_traits::Zero;
@@ -27,8 +27,8 @@ struct InputState {
 #[derive(Debug)]
 pub struct InputManager {
     state: InputState,
-    focus: HashMap<RenderTargetId, bool>,
-    active_target: RenderTargetId,
+    focus: HashMap<ViewportId, bool>,
+    active_target: ViewportId,
     pub gamepad: GamePadManager,
     game_event_tx: Sender<GameAppEvent>,
 }
@@ -39,7 +39,7 @@ impl InputManager {
         InputManager {
             state: InputState::default(),
             focus: HashMap::default(),
-            active_target: RenderTargetId::PRIMARY,
+            active_target: ViewportId::PRIMARY,
             gamepad: GamePadManager::default(),
             game_event_tx,
         }
@@ -57,19 +57,19 @@ impl InputManager {
         &self.state
     }
 
-    pub fn set_active_target(&mut self, target: RenderTargetId) {
+    pub fn set_active_target(&mut self, target: ViewportId) {
         self.active_target = target;
     }
 
-    pub fn active_target(&self) -> RenderTargetId {
+    pub fn active_target(&self) -> ViewportId {
         self.active_target
     }
 
-    pub fn set_window_focus(&mut self, target: RenderTargetId, focused: bool) {
+    pub fn set_window_focus(&mut self, target: ViewportId, focused: bool) {
         self.focus.insert(target, focused);
     }
 
-    pub fn is_window_focused_for(&self, target: RenderTargetId) -> bool {
+    pub fn is_window_focused_for(&self, target: ViewportId) -> bool {
         *self.focus.get(&target).unwrap_or(&true)
     }
 
@@ -92,7 +92,7 @@ impl InputManager {
         self.state_mut().mouse_pos = new_pos;
     }
 
-    pub fn process_event(&mut self, target: RenderTargetId, event: &WindowEvent) {
+    pub fn process_event(&mut self, target: ViewportId, event: &WindowEvent) {
         if let WindowEvent::Focused(focused) = event {
             self.set_window_focus(target, *focused);
         }
