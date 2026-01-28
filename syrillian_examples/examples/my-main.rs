@@ -398,8 +398,8 @@ impl MyMain {
             };
             let player_collider = collider.phys_handle.unwrap_or_else(ColliderHandle::invalid);
             let ray = Ray::new(
-                camera_obj.transform.position().into(),
-                camera_obj.transform.forward().into(),
+                camera_obj.transform.position(),
+                camera_obj.transform.forward(),
             );
             let intersect = world.physics.cast_ray(
                 &ray,
@@ -454,10 +454,7 @@ impl MyMain {
                 rb.set_kinematic(true);
                 rb.body_mut()
                     .unwrap()
-                    .set_next_kinematic_position(Pose::from_parts(
-                        next_pos.into(),
-                        target_rotation,
-                    ));
+                    .set_next_kinematic_position(Pose::from_parts(next_pos, target_rotation));
             }
         }
     }
