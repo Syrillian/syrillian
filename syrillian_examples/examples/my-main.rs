@@ -15,7 +15,7 @@ use syrillian::core::reflection::serializer::JsonSerializer;
 use syrillian::core::{GameObjectExt, GameObjectId, GameObjectRef};
 use syrillian::input::Button;
 use syrillian::input::{KeyCode, MouseButton};
-use syrillian::math::UnitQuaternion;
+use syrillian::math::{Pose, Quat, Vec3};
 use syrillian::physics::Ray;
 use syrillian::physics::rapier3d::prelude::{ColliderHandle, QueryFilter};
 use syrillian::prefabs::Prefab;
@@ -315,7 +315,7 @@ impl MyMain {
         let mut light1 = spot.add_component::<SpotLightComponent>();
         light1.set_color(1.0, 0.2, 0.2);
         light1.set_intensity(10000.);
-        light1.set_inner_angle(20.);
+        light1.set_inner_angle(30.);
         light1.set_outer_angle(30.);
 
         let mut spot2 = world.new_object("Spot 2");
@@ -326,7 +326,7 @@ impl MyMain {
         let mut light2 = spot2.add_component::<SpotLightComponent>();
         light2.set_color(0.2, 0.2, 1.0);
         light2.set_intensity(10000.);
-        light2.set_inner_angle(20.);
+        light2.set_inner_angle(30.);
         light2.set_outer_angle(30.);
 
         (light1, light2)
@@ -399,7 +399,7 @@ impl MyMain {
             let player_collider = collider.phys_handle.unwrap_or_else(ColliderHandle::invalid);
             let ray = Ray::new(
                 camera_obj.transform.position().into(),
-                camera_obj.transform.forward(),
+                camera_obj.transform.forward().into(),
             );
             let intersect = world.physics.cast_ray(
                 &ray,
@@ -417,7 +417,14 @@ impl MyMain {
             match intersect {
                 None => info!("No ray intersection"),
                 Some((dt, obj)) => {
-                    if let Some(obj_ref) = world.get_object_ref(obj) {
+                    if let Some(obj_ref) = world.get_object_ref(obj)
+                        && let Some(mut rb) = obj.get_component::<RigidBodyComponent>()
+                    {
+                        rb.set_kinematic(true);
+                        let body = rb.body_mut().unwrap();
+                        body.set_linvel(Vec3::ZERO, true);
+                        body.set_angvel(Vec3::ZERO, true);
+
                         info!("Intersection after {dt}s, against: {}", obj_ref.name);
                         self.picked_up = Some(obj_ref);
                     }
@@ -436,20 +443,21 @@ impl MyMain {
             let delta = world.delta_time().as_secs_f32();
             let scale = obj.transform.scale();
             let target_position = camera_obj.transform.position()
-                + camera_obj.transform.forward() * scale.magnitude().max(1.) * 2.;
+                + camera_obj.transform.forward() * scale.length().max(1.) * 2.;
             let position = obj.transform.position();
-            let target_rotation = UnitQuaternion::face_towards(
-                &camera_obj.transform.up(),
-                &camera_obj.transform.forward(),
-            );
-            let rotation = obj.transform.rotation();
-            let unit_quat =
-                UnitQuaternion::from_quaternion(rotation.lerp(&target_rotation, 1.03 * delta));
-            obj.transform
-                .set_position_vec(position.lerp(&target_position, 10.03 * delta));
-            obj.transform.set_rotation(unit_quat);
+            let rotation: Quat = obj.transform.rotation();
+            let camera_rotation: Quat = camera_obj.transform.rotation();
+            let target_rotation = rotation.slerp(camera_rotation, 10.0 * delta);
+            // let next_rot = smooth_rot(rotation, target_rotation, delta, 15.0);
+            let next_pos = position.lerp(target_position, 100.03 * delta);
             if let Some(mut rb) = obj.get_component::<RigidBodyComponent>() {
                 rb.set_kinematic(true);
+                rb.body_mut()
+                    .unwrap()
+                    .set_next_kinematic_position(Pose::from_parts(
+                        next_pos.into(),
+                        target_rotation,
+                    ));
             }
         }
     }
@@ -559,4 +567,14 @@ impl Prefab for City {
 
         city
     }
+}
+
+pub fn smooth_rot(
+    current: Quat,
+    target: Quat,
+    dt: f32,
+    responsiveness: f32, // e.g. 15..30
+) -> Quat {
+    let a = 1.0 - (-responsiveness * dt).exp();
+    current.slerp(target, a)
 }

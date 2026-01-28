@@ -3,7 +3,7 @@ use syrillian::components::{CameraComponent, Component};
 use syrillian::core::Transform;
 use syrillian::input::Axis;
 use syrillian::input::InputManager;
-use syrillian::math::{UnitQuaternion, Vector2, Vector3};
+use syrillian::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use syrillian::tracing::warn;
 use syrillian::utils::FloatMathExt;
 use syrillian::{Reflect, ViewportId};
@@ -13,9 +13,9 @@ use syrillian::{Reflect, ViewportId};
 #[reflect_all]
 pub struct FPSCameraConfig {
     /// Mouse sensitivity coefficient. Default: X & Y = 0.6
-    pub mouse_sensitivity: Vector2<f32>,
+    pub mouse_sensitivity: Vec2,
     /// Gamepad (right stick) sensitivity coefficient. Default: X & Y = 1.0
-    pub controller_sensitivity: Vector2<f32>,
+    pub controller_sensitivity: Vec2,
     /// Maximum up-down (pitch) angle. Default: 89.9
     pub max_pitch: f32,
     /// Maximum tilt (in degrees) when turning. Default: 1.0
@@ -23,9 +23,9 @@ pub struct FPSCameraConfig {
     /// Look smoothing speed. Default: 12.0
     pub look_smoothing: f32,
     /// Bobbing amplitude on X and Y axes. Default: X = 0.015, Y = 0.03, Z = 0.0
-    pub bob_amplitude: Vector3<f32>,
+    pub bob_amplitude: Vec3,
     /// Bobbing base frequency (walk cycles per second) for x/y. Default: (1.8, 3.0)
-    pub bob_frequency: Vector2<f32>,
+    pub bob_frequency: Vec2,
     /// How much bob increases while sprinting. Default: 0.35
     pub sprint_bob_scale: f32,
     /// Interpolation speed for bobbing and roll. Default: 12.0
@@ -61,10 +61,10 @@ pub struct FirstPersonCameraController {
     pitch: f32,
     #[reflect]
     smooth_roll: f32,
-    bob_offset: Vector3<f32>,
-    bob_phase: Vector3<f32>,
+    bob_offset: Vec3,
+    bob_phase: Vec3,
 
-    pub vel: Vector3<f32>,
+    pub vel: Vec3,
 
     jump_offset: f32,
     jump_bob_interp: f32,
@@ -75,7 +75,7 @@ pub struct FirstPersonCameraController {
     zoom_factor: f32,
 
     #[reflect]
-    pub base_position: Vector3<f32>,
+    pub base_position: Vec3,
     interp_yaw: f32,
     interp_pitch: f32,
     movement_speed_fraction: f32,
@@ -87,13 +87,13 @@ impl Default for FPSCameraConfig {
     fn default() -> Self {
         // Make sure to change the document comments if you change these
         FPSCameraConfig {
-            mouse_sensitivity: Vector2::new(0.6, 0.6),
-            controller_sensitivity: Vector2::new(1.0, 1.0),
+            mouse_sensitivity: Vec2::new(0.6, 0.6),
+            controller_sensitivity: Vec2::new(1.0, 1.0),
             max_pitch: 89.9,
             max_roll: 1.0,
             look_smoothing: 12.0,
-            bob_amplitude: Vector3::new(0.05, 0.05, 0.0),
-            bob_frequency: Vector2::new(3.0, 6.0),
+            bob_amplitude: Vec3::new(0.05, 0.05, 0.0),
+            bob_frequency: Vec2::new(3.0, 6.0),
             sprint_bob_scale: 0.35,
             smoothing_speed: 12.0,
             jump_bob_height: 0.6,
@@ -116,10 +116,10 @@ impl Default for FirstPersonCameraController {
             yaw: 0.0,
             pitch: 0.0,
             smooth_roll: 0.0,
-            bob_offset: Vector3::zeros(),
-            bob_phase: Vector3::zeros(),
+            bob_offset: Vec3::ZERO,
+            bob_phase: Vec3::ZERO,
 
-            vel: Vector3::zeros(),
+            vel: Vec3::ZERO,
 
             jump_offset: 0.0,
             jump_bob_interp: 0.0,
@@ -127,7 +127,7 @@ impl Default for FirstPersonCameraController {
             is_grounded: false,
             zoom_factor: 0.0,
 
-            base_position: Vector3::zeros(),
+            base_position: Vec3::ZERO,
             interp_yaw: 0.0,
             interp_pitch: 0.0,
             movement_speed_fraction: 0.0,
@@ -209,7 +209,7 @@ impl FirstPersonCameraController {
             self.idle_phase = (self.idle_phase + dt * self.config.idle_sway_frequency) % TAU;
             let sway = self.idle_phase.sin() * self.config.idle_sway_amplitude;
             self.bob_offset = self.bob_offset.lerp(
-                &Vector3::new(sway * 0.15, sway, 0.0),
+                Vec3::new(sway * 0.15, sway, 0.0),
                 0.2 * dt * self.config.smoothing_speed,
             );
             return;
@@ -217,13 +217,13 @@ impl FirstPersonCameraController {
 
         let sin_tx = self.bob_phase.x.sin();
         let sin_ty = self.bob_phase.y.sin();
-        let target = Vector3::new(
+        let target = Vec3::new(
             sin_tx * self.config.bob_amplitude.x * mul * sprint_scale,
             sin_ty * self.config.bob_amplitude.y * mul * sprint_scale,
             0.0,
         );
 
-        self.bob_offset = self.bob_offset.lerp(&target, 0.04 * mul);
+        self.bob_offset = self.bob_offset.lerp(target, 0.04 * mul);
     }
 
     pub fn signal_jump(&mut self) {
@@ -236,14 +236,9 @@ impl FirstPersonCameraController {
         self.jump_offset = 0.;
     }
 
-    fn update_rotation(
-        &mut self,
-        transform: &mut Transform,
-        delta_time: f32,
-        mouse_delta: &Vector2<f32>,
-    ) {
-        if self.vel.xz().magnitude() < 0.01
-            || self.vel.xz().normalize().dot(&transform.forward().xz()) > 0.9
+    fn update_rotation(&mut self, transform: &mut Transform, delta_time: f32, mouse_delta: &Vec2) {
+        if self.vel.xz().length() < 0.01
+            || self.vel.xz().normalize().dot(transform.forward().xz()) > 0.9
         {
             self.update_roll(mouse_delta.x, self.config.max_roll);
         }
@@ -258,30 +253,22 @@ impl FirstPersonCameraController {
         self.smooth_roll = self
             .smooth_roll
             .lerp(0., self.config.smoothing_speed * delta_time);
-        let roll_rotation =
-            UnitQuaternion::from_axis_angle(&Vector3::z_axis(), self.smooth_roll.to_radians());
+        let roll_rotation = Quat::from_axis_angle(Vec3::Z, self.smooth_roll.to_radians());
 
-        let yaw_rot =
-            UnitQuaternion::from_axis_angle(&Vector3::y_axis(), self.interp_yaw.to_radians());
-        let pitch_rot =
-            UnitQuaternion::from_axis_angle(&Vector3::x_axis(), self.interp_pitch.to_radians());
+        let yaw_rot = Quat::from_axis_angle(Vec3::Y, self.interp_yaw.to_radians());
+        let pitch_rot = Quat::from_axis_angle(Vec3::X, self.interp_pitch.to_radians());
 
         transform.set_local_rotation(pitch_rot * roll_rotation);
         self.bob_offset = self
             .bob_offset
-            .lerp(&Vector3::zeros(), self.config.smoothing_speed * delta_time);
+            .lerp(Vec3::ZERO, self.config.smoothing_speed * delta_time);
 
         if let Some(mut parent) = *self.parent().parent() {
             parent.transform.set_local_rotation(yaw_rot);
         }
     }
 
-    fn calculate_rotation(
-        &mut self,
-        input: &InputManager,
-        delta_time: f32,
-        mouse_delta: &Vector2<f32>,
-    ) {
+    fn calculate_rotation(&mut self, input: &InputManager, delta_time: f32, mouse_delta: &Vec2) {
         let controller_x = -input.gamepad.axis(Axis::RightStickX)
             * self.config.controller_sensitivity.x
             * 100.
@@ -314,7 +301,7 @@ impl FirstPersonCameraController {
 
     fn update_jump_bob(&mut self, transform: &mut Transform) {
         let right = transform.right();
-        let up = Vector3::y();
+        let up = Vec3::Y;
         let bob_offset =
             (right * self.bob_offset.x) + up * (self.bob_offset.y + self.jump_bob_interp);
 

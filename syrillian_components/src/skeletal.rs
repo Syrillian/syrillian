@@ -4,21 +4,20 @@ use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::core::Bones;
-use syrillian::math::{Matrix4, Rotation3, Scale3, Vector3};
-use syrillian::math::{Translation3, UnitQuaternion};
+use syrillian::math::Quat;
+use syrillian::math::{Mat4, Vec3};
 use syrillian::tracing::warn;
-use syrillian::utils::{ExtraMatrixMath, MATRIX4_ID};
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
 pub struct SkeletalComponent {
     bones_static: Bones,
-    skin_transform: Vec<Matrix4<f32>>,
-    skin_rotation: Vec<Matrix4<f32>>,
-    skin_scale: Vec<Matrix4<f32>>,
-    skin_local: Vec<Matrix4<f32>>,
-    globals: Vec<Matrix4<f32>>,
-    palette: Vec<Matrix4<f32>>,
+    skin_transform: Vec<Mat4>,
+    skin_rotation: Vec<Mat4>,
+    skin_scale: Vec<Mat4>,
+    skin_local: Vec<Mat4>,
+    globals: Vec<Mat4>,
+    palette: Vec<Mat4>,
     #[dont_reflect]
     dirty: bool,
 }
@@ -57,12 +56,10 @@ impl Component for SkeletalComponent {
             .bind_local
             .iter()
             .map(|l| {
-                let (t, r, s) = l.decompose();
-                let (t, r, s) = (
-                    Translation3::from(t).to_homogeneous(),
-                    Rotation3::from(r).to_homogeneous(),
-                    Scale3::from(s).to_homogeneous(),
-                );
+                let (s, r, t) = l.to_scale_rotation_translation();
+                let t: Mat4 = Mat4::from_translation(t);
+                let r: Mat4 = Mat4::from_quat(r);
+                let s: Mat4 = Mat4::from_scale(s);
                 let sl = t * r * s;
                 (t, r, s, sl)
             })
@@ -73,8 +70,8 @@ impl Component for SkeletalComponent {
         self.skin_scale = s;
         self.skin_local = sl;
 
-        self.globals = vec![Matrix4::identity(); n];
-        self.palette = vec![Matrix4::identity(); n];
+        self.globals = vec![Mat4::IDENTITY; n];
+        self.palette = vec![Mat4::IDENTITY; n];
 
         self.dirty = true;
     }
@@ -91,42 +88,37 @@ impl SkeletalComponent {
     }
 
     /// Set local TRS for (some/all) bones.
-    pub fn set_local_pose_trs(
-        &mut self,
-        locals: &[(Vector3<f32>, UnitQuaternion<f32>, Vector3<f32>)],
-    ) {
+    pub fn set_local_pose_trs(&mut self, locals: &[(Vec3, Quat, Vec3)]) {
         let n = self.bones_static.len();
-        self.skin_transform.resize(n, MATRIX4_ID);
-        self.skin_rotation.resize(n, MATRIX4_ID);
-        self.skin_scale.resize(n, MATRIX4_ID);
-        self.skin_local.resize(n, MATRIX4_ID);
+        self.skin_transform.resize(n, Mat4::IDENTITY);
+        self.skin_rotation.resize(n, Mat4::IDENTITY);
+        self.skin_scale.resize(n, Mat4::IDENTITY);
+        self.skin_local.resize(n, Mat4::IDENTITY);
 
         for (i, (pos, rot, scale)) in locals.iter().enumerate().take(n) {
-            self.set_local_transform(i, Translation3::from(*pos));
-            self.set_local_rotation(i, rot.to_rotation_matrix());
-            self.set_local_scale(i, Scale3::from(*scale));
+            self.set_local_transform(i, *pos);
+            self.set_local_rotation(i, *rot);
+            self.set_local_scale(i, *scale);
         }
         self.dirty = true;
     }
 
-    pub fn set_local_transform(&mut self, index: usize, pos: Translation3<f32>) {
-        self.skin_transform[index] = pos.to_homogeneous();
+    pub fn set_local_transform(&mut self, index: usize, pos: Vec3) {
+        self.skin_transform[index] = Mat4::from_translation(pos);
         self.dirty = true;
     }
 
-    pub fn set_local_rotation(&mut self, index: usize, q: Rotation3<f32>) {
-        let mut rot = Matrix4::identity();
-        rot.fixed_view_mut::<3, 3>(0, 0).copy_from(q.matrix());
-        self.skin_rotation[index] = rot;
+    pub fn set_local_rotation(&mut self, index: usize, q: Quat) {
+        self.skin_rotation[index] = Mat4::from_quat(q);
         self.dirty = true;
     }
 
-    pub fn set_local_scale(&mut self, index: usize, scale: Scale3<f32>) {
-        self.skin_scale[index] = scale.to_homogeneous();
+    pub fn set_local_scale(&mut self, index: usize, scale: Vec3) {
+        self.skin_scale[index] = Mat4::from_scale(scale);
         self.dirty = true;
     }
 
-    pub fn palette(&self) -> &[Matrix4<f32>] {
+    pub fn palette(&self) -> &[Mat4] {
         &self.palette
     }
 
@@ -148,10 +140,10 @@ impl SkeletalComponent {
         fn visit(
             i: usize,
             bones: &Bones,
-            globals: &mut [Matrix4<f32>],
-            skin_locals: &[Matrix4<f32>],
-            palette: &mut [Matrix4<f32>],
-            parent_global: Matrix4<f32>,
+            globals: &mut [Mat4],
+            skin_locals: &[Mat4],
+            palette: &mut [Mat4],
+            parent_global: Mat4,
         ) {
             let g = parent_global * skin_locals[i];
             globals[i] = g;
@@ -168,7 +160,7 @@ impl SkeletalComponent {
                 &mut self.globals,
                 &self.skin_local,
                 &mut self.palette,
-                MATRIX4_ID,
+                Mat4::IDENTITY,
             );
         }
 

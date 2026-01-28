@@ -5,7 +5,7 @@
 //!
 //! To make a component:
 //! ```rust
-//! use syrillian::math::Vector3;
+//! use syrillian::math::Vec3;
 //! use syrillian::components::Component;
 //! use syrillian::core::GameObjectId;
 //! use syrillian::World;
@@ -26,7 +26,7 @@
 //!     fn update(&mut self, world: &mut World) {
 //!         let delta_time = world.delta_time().as_secs_f32();
 //!
-//!         let movement = Vector3::new(0.0, self.force * delta_time, 0.0);
+//!         let movement = Vec3::new(0.0, self.force * delta_time, 0.0);
 //!
 //!         let transform = &mut self.parent().transform;
 //!         transform.translate(movement);

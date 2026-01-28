@@ -240,7 +240,7 @@ pub fn reflect_fn(attr: TokenStream, input: TokenStream) -> TokenStream {
 //     func.sig.ident = new_ident.clone();
 //
 //     quote! {
-//         fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Matrix4<f32>) -> Box<dyn Any> {
+//         fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Mat4) -> Box<dyn Any> {
 //             #func
 //             let proxy_data = #new_ident(self, renderer, data, window, local_to_world);
 //             Box::new(proxy_data)
@@ -272,7 +272,7 @@ pub fn reflect_fn(attr: TokenStream, input: TokenStream) -> TokenStream {
 //     func.sig.ident = new_ident.clone();
 //
 //     quote! {
-//         fn update_render(&mut self, renderer: &Renderer, data: &mut dyn Any, window: &Window, local_to_world: &Matrix4<f32>) {
+//         fn update_render(&mut self, renderer: &Renderer, data: &mut dyn Any, window: &Window, local_to_world: &Mat4) {
 //             #func
 //             let data: #ty = proxy_data_mut!(data);
 //

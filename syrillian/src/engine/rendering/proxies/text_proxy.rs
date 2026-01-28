@@ -1,6 +1,7 @@
 use crate::assets::{AssetStore, HFont, HShader};
 use crate::core::ModelUniform;
 use crate::core::bone::BoneData;
+use crate::math::{Vec2, Vec3};
 #[cfg(debug_assertions)]
 use crate::rendering::DebugRenderer;
 use crate::rendering::glyph::{GlyphRenderData, generate_glyph_geometry_stream};
@@ -16,7 +17,7 @@ use crate::{
 };
 use delegate::delegate;
 use etagere::euclid::approxeq::ApproxEq;
-use nalgebra::{Matrix4, Vector2, Vector3};
+use glamx::Affine3A;
 use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -34,10 +35,10 @@ pub struct TextRenderData {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct TextImmediates {
-    pub position: Vector2<f32>,
+    pub position: Vec2,
     pub em_scale: f32,
     pub msdf_range_px: f32,
-    pub color: Vector3<f32>,
+    pub color: Vec3,
     pub padding: u32,
 }
 
@@ -95,8 +96,8 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
             pc: TextImmediates {
                 em_scale,
-                position: Vector2::zeros(),
-                color: Vector3::new(1., 1., 1.),
+                position: Vec2::ZERO,
+                color: Vec3::ONE,
                 msdf_range_px: 4.0,
                 padding: 0,
             },
@@ -151,9 +152,9 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             #[field(em_scale)]
             pub fn size(&self) -> f32;
             #[field]
-            pub fn color(&self) -> Vector3<f32>;
+            pub fn color(&self) -> Vec3;
             #[field]
-            pub fn position(&self) -> Vector2<f32>;
+            pub fn position(&self) -> Vec2;
         }
     }
 
@@ -202,7 +203,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         &mut self,
         renderer: &Renderer,
         data: &mut TextRenderData,
-        local_to_world: &Matrix4<f32>,
+        local_to_world: &Affine3A,
     ) {
         let hot_font = renderer.cache.font(self.font);
         let glyphs_ready = hot_font.pump(&renderer.cache, &renderer.state.queue, 10);
@@ -216,7 +217,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             self.text_dirty = true;
         }
 
-        self.translation.update(local_to_world);
+        self.translation.update(&(*local_to_world).into());
 
         if self.text_dirty {
             self.regenerate_geometry(renderer);
@@ -359,7 +360,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
     }
 
     pub const fn set_position(&mut self, x: f32, y: f32) {
-        self.set_position_vec(Vector2::new(x, y));
+        self.set_position_vec(Vec2::new(x, y));
     }
 
     pub fn set_alignment(&mut self, alignment: TextAlignment) {
@@ -371,16 +372,16 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         self.text_dirty = true;
     }
 
-    pub const fn set_position_vec(&mut self, pos: Vector2<f32>) {
+    pub const fn set_position_vec(&mut self, pos: Vec2) {
         self.pc.position = pos;
         self.constants_dirty = true;
     }
 
     pub const fn set_color(&mut self, r: f32, g: f32, b: f32) {
-        self.set_color_vec(Vector3::new(r, g, b));
+        self.set_color_vec(Vec3::new(r, g, b));
     }
 
-    pub const fn set_color_vec(&mut self, color: Vector3<f32>) {
+    pub const fn set_color_vec(&mut self, color: Vec3) {
         self.pc.color = color;
         self.constants_dirty = true;
     }
@@ -397,11 +398,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 }
 
 impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
-    fn setup_render(
-        &mut self,
-        renderer: &Renderer,
-        _local_to_world: &Matrix4<f32>,
-    ) -> Box<dyn Any> {
+    fn setup_render(&mut self, renderer: &Renderer, _local_to_world: &Affine3A) -> Box<dyn Any> {
         self.regenerate_geometry(renderer);
 
         let device = &renderer.state.device;
@@ -425,7 +422,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         &mut self,
         renderer: &Renderer,
         data: &mut dyn Any,
-        local_to_world: &Matrix4<f32>,
+        local_to_world: &Affine3A,
     ) {
         let data: &mut TextRenderData = proxy_data_mut!(data);
 
@@ -475,7 +472,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
 
         let color = hash_to_rgba(binding.object_hash);
         let mut pc = self.pc;
-        pc.color = Vector3::new(color[0], color[1], color[2]);
+        pc.color = Vec3::new(color[0], color[1], color[2]);
 
         pass.set_immediates(0, bytemuck::bytes_of(&pc));
         pass.set_vertex_buffer(0, data.glyph_vbo.slice(..));

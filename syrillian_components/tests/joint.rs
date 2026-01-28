@@ -1,7 +1,7 @@
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use syrillian::World;
 use syrillian::components::Component;
-use syrillian::math::{Isometry3, Point3, Vector3};
+use syrillian::math::{Isometry3, Point3, Vec3};
 use syrillian_components::{
     RigidBodyComponent,
     joints::{FixedJoint, PrismaticJoint, RevoluteJoint, RopeJoint, SphericalJoint, SpringJoint},
@@ -269,7 +269,7 @@ fn fixed_joint_set_frame() {
 
     let mut joint = obj1.add_component::<FixedJoint>();
 
-    let frame = Isometry3::rotation(Vector3::new(0.0, FRAC_PI_2, 0.0));
+    let frame = Isometry3::rotation(Vec3::new(0.0, FRAC_PI_2, 0.0));
     joint.set_frame1(frame);
 
     assert_eq!(joint.config.frame1, frame);
@@ -320,7 +320,7 @@ fn revolute_joint_default_config() {
 
     let joint = obj1.add_component::<RevoluteJoint>();
 
-    assert_eq!(joint.config.axis, Vector3::y_axis());
+    assert_eq!(joint.config.axis, Vec3::Y);
     assert!(joint.config.limits.is_none());
 }
 
@@ -333,12 +333,12 @@ fn revolute_joint_set_axis() {
     obj2.add_component::<RigidBodyComponent>();
 
     let mut joint = obj1.add_component::<RevoluteJoint>();
-    joint.set_axis(Vector3::x_axis());
+    joint.set_axis(Vec3::X);
 
-    assert_eq!(joint.config.axis, Vector3::x_axis());
+    assert_eq!(joint.config.axis, Vec3::X);
 
     joint.connect_to(obj2);
-    assert_eq!(joint.config.axis, Vector3::x_axis());
+    assert_eq!(joint.config.axis, Vec3::X);
 }
 
 #[test]
@@ -510,7 +510,7 @@ fn prismatic_joint_default_config() {
 
     let joint = obj1.add_component::<PrismaticJoint>();
 
-    assert_eq!(joint.config.axis, Vector3::y_axis());
+    assert_eq!(joint.config.axis, Vec3::Y);
     assert!(joint.config.limits.is_none());
 }
 
@@ -523,12 +523,12 @@ fn prismatic_joint_set_axis() {
     obj2.add_component::<RigidBodyComponent>();
 
     let mut joint = obj1.add_component::<PrismaticJoint>();
-    joint.set_axis(Vector3::x_axis());
+    joint.set_axis(Vec3::X);
 
-    assert_eq!(joint.config.axis, Vector3::x_axis());
+    assert_eq!(joint.config.axis, Vec3::X);
 
     joint.connect_to(obj2);
-    assert_eq!(joint.config.axis, Vector3::x_axis());
+    assert_eq!(joint.config.axis, Vec3::X);
 }
 
 #[test]
@@ -559,7 +559,7 @@ fn prismatic_joint_translation() {
     obj2.add_component::<RigidBodyComponent>();
 
     let mut joint = obj1.add_component::<PrismaticJoint>();
-    joint.set_axis(Vector3::y_axis());
+    joint.set_axis(Vec3::Y);
     joint.connect_to(obj2);
 
     world.physics.step();
@@ -618,7 +618,7 @@ fn prismatic_joint_position_ratio() {
     obj2.add_component::<RigidBodyComponent>();
 
     let mut joint = obj1.add_component::<PrismaticJoint>();
-    joint.set_axis(Vector3::y_axis());
+    joint.set_axis(Vec3::Y);
     joint.set_limits(0.0, 10.0);
     joint.connect_to(obj2);
 

@@ -5,7 +5,7 @@ use syrillian::World;
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
 use syrillian::engine::assets::{HMesh, Mesh};
-use syrillian::math::{Point3, Vector3};
+use syrillian::math::Vec3;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::{trace, warn};
 use syrillian::utils::debug_panic;
@@ -16,7 +16,7 @@ use syrillian::assets::StoreType;
 #[cfg(debug_assertions)]
 use syrillian::core::Vertex3D;
 #[cfg(debug_assertions)]
-use syrillian::math::{Matrix4, Vector4};
+use syrillian::math::{Affine3A, Vec4};
 #[cfg(debug_assertions)]
 use syrillian::proxy_data_mut;
 #[cfg(debug_assertions)]
@@ -27,7 +27,7 @@ pub struct Collider3D {
     pub phys_handle: Option<ColliderHandle>,
     linked_to_body: Option<RigidBodyHandle>,
     shape_kind: ColliderShapeKind,
-    last_scale: Vector3<f32>,
+    last_scale: Vec3,
 
     #[cfg(debug_assertions)]
     enable_debug_render: bool, // TODO: Sync with GPU
@@ -67,7 +67,7 @@ impl Default for Collider3D {
             phys_handle: None,
             linked_to_body: None,
             shape_kind: ColliderShapeKind::Cuboid,
-            last_scale: Vector3::new(1.0, 1.0, 1.0),
+            last_scale: Vec3::ONE,
 
             #[cfg(debug_assertions)]
             enable_debug_render: true,
@@ -107,8 +107,8 @@ impl Component for Collider3D {
             self.link_to_rigid_body(world, Some(body_handle));
 
             if let Some(collider) = world.physics.collider_set.get_mut(self.handle()) {
-                collider.set_translation(Vector3::identity());
-                collider.set_rotation(Rotation::identity());
+                collider.set_translation(Vector::ZERO);
+                collider.set_rotation(Rotation::IDENTITY);
             }
         }
 
@@ -124,7 +124,7 @@ impl Component for Collider3D {
             return None;
         };
 
-        const COLOR: Vector4<f32> = Vector4::new(0.0, 1.0, 0.2, 1.0);
+        const COLOR: Vec4 = Vec4::new(0.0, 1.0, 0.2, 1.0);
 
         let transform = self.collider_debug_transform();
         let mut proxy = Box::new(DebugSceneProxy::single_mesh(mesh));
@@ -165,23 +165,19 @@ impl Component for Collider3D {
 }
 
 impl Collider3D {
-    fn sanitize_scale(scale: Vector3<f32>) -> Vector3<f32> {
-        Vector3::new(
+    fn sanitize_scale(scale: Vec3) -> Vec3 {
+        Vec3::new(
             scale.x.abs().max(f32::EPSILON),
             scale.y.abs().max(f32::EPSILON),
             scale.z.abs().max(f32::EPSILON),
         )
     }
 
-    fn build_cuboid_shape(scale: Vector3<f32>) -> SharedShape {
+    fn build_cuboid_shape(scale: Vec3) -> SharedShape {
         SharedShape::cuboid(scale.x * 0.5, scale.y * 0.5, scale.z * 0.5)
     }
 
-    fn build_shape_for_scale_world(
-        &self,
-        world: &World,
-        scale: Vector3<f32>,
-    ) -> Option<SharedShape> {
+    fn build_shape_for_scale_world(&self, world: &World, scale: Vec3) -> Option<SharedShape> {
         match &self.shape_kind {
             ColliderShapeKind::Cuboid => Some(Self::build_cuboid_shape(scale)),
             ColliderShapeKind::Mesh(handle) => {
@@ -193,7 +189,7 @@ impl Collider3D {
 
     fn sync_with_transform_world(&mut self, world: &mut World, force_pose: bool) {
         let scale = self.parent().transform.scale();
-        let new_shape = ((scale - self.last_scale).norm() > f32::EPSILON)
+        let new_shape = (scale.distance(self.last_scale) > f32::EPSILON)
             .then(|| self.build_shape_for_scale_world(world, scale));
 
         let Some(collider) = self.collider_mut() else {
@@ -218,14 +214,11 @@ impl Collider3D {
     }
 
     pub fn collider(&self) -> Option<&Collider> {
-        World::instance().physics.collider_set.get(self.handle())
+        self.world().physics.collider_set.get(self.handle())
     }
 
     pub fn collider_mut(&self) -> Option<&mut Collider> {
-        World::instance()
-            .physics
-            .collider_set
-            .get_mut(self.handle())
+        self.world().physics.collider_set.get_mut(self.handle())
     }
 
     fn default_collider(parent: GameObjectId, shape: SharedShape) -> Collider {
@@ -315,7 +308,8 @@ impl Collider3D {
         let (vertices, indices) = collider.shared_shape().to_trimesh();
         let vertices: Vec<_> = vertices
             .iter()
-            .map(|v| Vertex3D::position_only(v.coords))
+            .copied()
+            .map(Vertex3D::position_only)
             .collect();
 
         Mesh::builder(vertices)
@@ -325,21 +319,12 @@ impl Collider3D {
     }
 
     #[cfg(debug_assertions)]
-    fn collider_debug_transform(&self) -> Matrix4<f32> {
+    fn collider_debug_transform(&self) -> Affine3A {
         if let Some(collider) = self.collider() {
-            let iso = collider.position();
-            let mut mat = Matrix4::identity();
-            let rot = iso.rotation.to_rotation_matrix().into_inner();
-            mat.fixed_view_mut::<3, 3>(0, 0).copy_from(&rot);
-            mat[(0, 3)] = iso.translation.vector.x;
-            mat[(1, 3)] = iso.translation.vector.y;
-            mat[(2, 3)] = iso.translation.vector.z;
-            mat
+            let pos = collider.position();
+            Affine3A::from_rotation_translation(pos.rotation, pos.translation)
         } else {
-            self.parent()
-                .transform
-                .global_transform_matrix()
-                .to_homogeneous()
+            self.parent().transform.affine()
         }
     }
 
@@ -351,10 +336,10 @@ impl Collider3D {
 
 pub trait MeshShapeExtra<T> {
     fn mesh(mesh: &Mesh) -> Option<T>;
-    fn mesh_with_scale(mesh: &Mesh, scale: Vector3<f32>) -> Option<T>;
+    fn mesh_with_scale(mesh: &Mesh, scale: Vec3) -> Option<T>;
     fn mesh_convex_hull(mesh: &Mesh) -> Option<SharedShape>;
-    fn local_aabb_mesh(&self) -> (Vec<Point3<f32>>, Vec<[u32; 3]>);
-    fn to_trimesh(&self) -> (Vec<Point3<f32>>, Vec<[u32; 3]>);
+    fn local_aabb_mesh(&self) -> (Vec<Vec3>, Vec<[u32; 3]>);
+    fn to_trimesh(&self) -> (Vec<Vec3>, Vec<[u32; 3]>);
 }
 
 impl MeshShapeExtra<SharedShape> for SharedShape {
@@ -379,7 +364,7 @@ impl MeshShapeExtra<SharedShape> for SharedShape {
         }
     }
 
-    fn mesh_with_scale(mesh: &Mesh, scale: Vector3<f32>) -> Option<SharedShape> {
+    fn mesh_with_scale(mesh: &Mesh, scale: Vec3) -> Option<SharedShape> {
         trace!(
             "Loading scaled collider mesh with {} vertices",
             mesh.vertex_count()
@@ -389,11 +374,9 @@ impl MeshShapeExtra<SharedShape> for SharedShape {
             return None;
         }
 
-        let mut vertices = mesh.data.make_point_cloud();
+        let mut vertices: Vec<Vec3> = mesh.data.make_point_cloud();
         for v in &mut vertices {
-            v.coords.x *= scale.x;
-            v.coords.y *= scale.y;
-            v.coords.z *= scale.z;
+            *v *= scale;
         }
         let indices = mesh.data.make_triangle_indices();
         match SharedShape::trimesh(vertices, indices) {
@@ -406,16 +389,17 @@ impl MeshShapeExtra<SharedShape> for SharedShape {
     }
 
     fn mesh_convex_hull(mesh: &Mesh) -> Option<SharedShape> {
-        let vertices = mesh.data.make_point_cloud();
+        let vertices: Vec<Vec3> = mesh.data.make_point_cloud();
+
         SharedShape::convex_hull(&vertices)
     }
 
-    fn local_aabb_mesh(&self) -> (Vec<Point3<f32>>, Vec<[u32; 3]>) {
+    fn local_aabb_mesh(&self) -> (Vec<Vec3>, Vec<[u32; 3]>) {
         let aabb = self.compute_local_aabb();
         aabb.to_trimesh()
     }
 
-    fn to_trimesh(&self) -> (Vec<Point3<f32>>, Vec<[u32; 3]>) {
+    fn to_trimesh(&self) -> (Vec<Vec3>, Vec<[u32; 3]>) {
         trace!("[Collider] Type: {:?}", self.as_typed_shape());
         match self.as_typed_shape() {
             TypedShape::Ball(s) => s.to_trimesh(10, 10),

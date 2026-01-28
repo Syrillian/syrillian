@@ -1,5 +1,5 @@
 use crate::core::GameObjectId;
-use nalgebra::{UnitQuaternion, Vector3};
+use crate::math::{Quat, Vec3};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -8,13 +8,13 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Default)]
 pub struct TransformKeys {
     pub t_times: Vec<f32>,
-    pub t_values: Vec<Vector3<f32>>,
+    pub t_values: Vec<Vec3>,
 
     pub r_times: Vec<f32>,
-    pub r_values: Vec<UnitQuaternion<f32>>,
+    pub r_values: Vec<Quat>,
 
     pub s_times: Vec<f32>,
-    pub s_values: Vec<Vector3<f32>>,
+    pub s_values: Vec<Vec3>,
 }
 
 #[derive(Debug, Clone)]
@@ -95,11 +95,11 @@ fn find_key(times: &[f32], t: f32) -> usize {
         .unwrap_or_else(|i| (i - 1).max(0))
 }
 
-fn lerp_vec3(a: &Vector3<f32>, b: &Vector3<f32>, alpha: f32) -> Vector3<f32> {
+fn lerp_vec3(a: &Vec3, b: &Vec3, alpha: f32) -> Vec3 {
     a * (1.0 - alpha) + b * alpha
 }
 
-pub fn sample_translation(keys: &TransformKeys, t: f32) -> Option<Vector3<f32>> {
+pub fn sample_translation(keys: &TransformKeys, t: f32) -> Option<Vec3> {
     let n = keys.t_times.len();
     if n == 0 {
         return None;
@@ -118,7 +118,7 @@ pub fn sample_translation(keys: &TransformKeys, t: f32) -> Option<Vector3<f32>> 
     Some(lerp_vec3(&keys.t_values[i], &keys.t_values[i + 1], a))
 }
 
-pub fn sample_scale(keys: &TransformKeys, t: f32) -> Option<Vector3<f32>> {
+pub fn sample_scale(keys: &TransformKeys, t: f32) -> Option<Vec3> {
     let n = keys.s_times.len();
     if n == 0 {
         return None;
@@ -137,7 +137,7 @@ pub fn sample_scale(keys: &TransformKeys, t: f32) -> Option<Vector3<f32>> {
     Some(lerp_vec3(&keys.s_values[i], &keys.s_values[i + 1], a))
 }
 
-pub fn sample_rotation(keys: &TransformKeys, t: f32) -> Option<UnitQuaternion<f32>> {
+pub fn sample_rotation(keys: &TransformKeys, t: f32) -> Option<Quat> {
     let n = keys.r_times.len();
     if n == 0 {
         return None;
@@ -153,20 +153,18 @@ pub fn sample_rotation(keys: &TransformKeys, t: f32) -> Option<UnitQuaternion<f3
     let t0 = keys.r_times[i];
     let t1 = keys.r_times[i + 1];
     let a = if t1 > t0 { (t - t0) / (t1 - t0) } else { 0.0 };
-    Some(keys.r_values[i].slerp(&keys.r_values[i + 1], a))
+    Some(keys.r_values[i].slerp(keys.r_values[i + 1], a).normalize())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::math::EulerRot;
 
     fn keyed_translation(times: &[f32], values: &[[f32; 3]]) -> TransformKeys {
         TransformKeys {
             t_times: times.to_vec(),
-            t_values: values
-                .iter()
-                .map(|v| Vector3::new(v[0], v[1], v[2]))
-                .collect(),
+            t_values: values.iter().map(|v| Vec3::new(v[0], v[1], v[2])).collect(),
             ..Default::default()
         }
     }
@@ -174,10 +172,7 @@ mod tests {
     fn keyed_scale(times: &[f32], values: &[[f32; 3]]) -> TransformKeys {
         TransformKeys {
             s_times: times.to_vec(),
-            s_values: values
-                .iter()
-                .map(|v| Vector3::new(v[0], v[1], v[2]))
-                .collect(),
+            s_values: values.iter().map(|v| Vec3::new(v[0], v[1], v[2])).collect(),
             ..Default::default()
         }
     }
@@ -187,7 +182,7 @@ mod tests {
             r_times: times.to_vec(),
             r_values: angles
                 .iter()
-                .map(|a| UnitQuaternion::from_euler_angles(0.0, 0.0, *a))
+                .map(|a| Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, *a))
                 .collect(),
             ..Default::default()
         }
@@ -202,28 +197,25 @@ mod tests {
 
         assert_eq!(
             sample_translation(&keys, -0.5).unwrap(),
-            Vector3::new(-0.5, -1.0, -1.5)
+            Vec3::new(-0.5, -1.0, -1.5)
         );
         assert_eq!(
             sample_translation(&keys, 2.5).unwrap(),
-            Vector3::new(2.0, 4.0, 6.0)
+            Vec3::new(2.0, 4.0, 6.0)
         );
 
         let mid = sample_translation(&keys, 0.5).unwrap();
-        assert!((mid - Vector3::new(0.5, 1.0, 1.5)).abs().max() < 1e-6);
+        assert!((mid - Vec3::new(0.5, 1.0, 1.5)).abs().max_element() < 1e-6);
     }
 
     #[test]
     fn scale_samples_single_entry_and_interpolates() {
         let single = keyed_scale(&[0.0], &[[2.0, 2.0, 2.0]]);
-        assert_eq!(
-            sample_scale(&single, 5.0).unwrap(),
-            Vector3::new(2.0, 2.0, 2.0)
-        );
+        assert_eq!(sample_scale(&single, 5.0).unwrap(), Vec3::splat(2.0));
 
         let keys = keyed_scale(&[0.0, 2.0], &[[1.0, 1.0, 1.0], [3.0, 5.0, 7.0]]);
         let mid = sample_scale(&keys, 1.0).unwrap();
-        assert!((mid - Vector3::new(2.0, 3.0, 4.0)).abs().max() < 1e-6);
+        assert!((mid - Vec3::new(2.0, 3.0, 4.0)).abs().max_element() < f32::EPSILON);
     }
 
     #[test]
@@ -231,14 +223,14 @@ mod tests {
         let keys = keyed_rotation(&[0.0, 1.0], &[0.0, std::f32::consts::FRAC_PI_2]);
 
         let start = sample_rotation(&keys, -1.0).unwrap();
-        let expected_start = keys.r_values[0].slerp(&keys.r_values[1], -1.0);
-        assert!(start.angle_to(&expected_start) < 1e-6);
+        let expected_start = keys.r_values[0].slerp(keys.r_values[1], -1.0).normalize();
+        assert!(start.angle_between(expected_start) < f32::EPSILON);
 
         let end = sample_rotation(&keys, 2.0).unwrap();
-        assert!((end.angle() - std::f32::consts::FRAC_PI_2).abs() < 1e-6);
+        assert!((end.to_axis_angle().1 - std::f32::consts::FRAC_PI_2).abs() < f32::EPSILON);
 
         let mid = sample_rotation(&keys, 0.5).unwrap();
-        assert!((mid.angle() - std::f32::consts::FRAC_PI_4).abs() < 1e-3);
+        assert!((mid.to_axis_angle().1 - std::f32::consts::FRAC_PI_4).abs() < f32::EPSILON);
     }
 
     #[test]

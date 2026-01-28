@@ -6,7 +6,7 @@ use itertools::izip;
 use std::collections::HashMap;
 use syrillian::assets::Mesh;
 use syrillian::core::{Bones, Vertex3D};
-use syrillian::math::{Vector2, Vector3};
+use syrillian::math::{Vec2, Vec3};
 use syrillian::tracing::warn;
 
 /// Mesh and associated material indices for each sub-mesh range.
@@ -241,25 +241,17 @@ fn normalize_weights(weights: [f32; 4]) -> Vec<f32> {
 }
 
 /// Computes the bitangent vector for a vertex from the normal and tangent.
-fn compute_bitangent(
-    normal: &Vector3<f32>,
-    tangent: &Vector3<f32>,
-    handedness: f32,
-) -> Vector3<f32> {
-    let cross = normal.cross(tangent);
-    match cross.try_normalize(1e-6) {
-        Some(unit) => unit * handedness.signum(),
-        None => Vector3::zeros(),
-    }
+fn compute_bitangent(normal: Vec3, tangent: Vec3, handedness: f32) -> Vec3 {
+    normal.cross(tangent).normalize() * handedness.signum()
 }
 
 #[derive(Default)]
 struct PrimitiveBuffers {
-    positions: Vec<Vector3<f32>>,
-    tex_coords: Vec<Vector2<f32>>,
-    normals: Vec<Vector3<f32>>,
-    tangents: Vec<Vector3<f32>>,
-    bitangents: Vec<Vector3<f32>>,
+    positions: Vec<Vec3>,
+    tex_coords: Vec<Vec2>,
+    normals: Vec<Vec3>,
+    tangents: Vec<Vec3>,
+    bitangents: Vec<Vec3>,
     bone_indices: Vec<Vec<u32>>,
     bone_weights: Vec<Vec<f32>>,
     ranges: Vec<std::ops::Range<u32>>,
@@ -347,11 +339,11 @@ impl PrimitiveBuffers {
 }
 
 struct PrimitiveResult {
-    positions: Vec<Vector3<f32>>,
-    tex_coords: Vec<Vector2<f32>>,
-    normals: Vec<Vector3<f32>>,
-    tangents: Vec<Vector3<f32>>,
-    bitangents: Vec<Vector3<f32>>,
+    positions: Vec<Vec3>,
+    tex_coords: Vec<Vec2>,
+    normals: Vec<Vec3>,
+    tangents: Vec<Vec3>,
+    bitangents: Vec<Vec3>,
     bone_indices: Vec<Vec<u32>>,
     bone_weights: Vec<Vec<f32>>,
     material_index: u32,
@@ -380,30 +372,30 @@ impl PrimitiveResult {
     /// Appends a vertex with all available attributes to the primitive result.
     fn push_vertex(&mut self, index: usize, sources: &VertexSources<'_>) {
         let pos = sources.positions[index];
-        let position = Vector3::new(pos[0], pos[1], pos[2]);
+        let position = Vec3::from(pos);
         self.positions.push(position);
 
-        let normal = sources.normals.map_or_else(Vector3::zeros, |list| {
+        let normal = sources.normals.map_or(Vec3::ZERO, |list| {
             let n = list[index];
-            Vector3::new(n[0], n[1], n[2])
+            Vec3::from(n)
         });
         self.normals.push(normal);
 
         let (tangent, bitangent) = sources.tangents.map_or_else(
-            || (Vector3::zeros(), Vector3::zeros()),
+            || (Vec3::ZERO, Vec3::ZERO),
             |list| {
                 let t = list[index];
-                let tangent = Vector3::new(t[0], t[1], t[2]);
-                let bitangent = compute_bitangent(&normal, &tangent, t[3]);
+                let tangent = Vec3::new(t[0], t[1], t[2]);
+                let bitangent = compute_bitangent(normal, tangent, t[3]);
                 (tangent, bitangent)
             },
         );
         self.tangents.push(tangent);
         self.bitangents.push(bitangent);
 
-        let uv = sources.tex_coords.map_or_else(Vector2::zeros, |list| {
+        let uv = sources.tex_coords.map_or(Vec2::ZERO, |list| {
             let uv = list[index];
-            Vector2::new(uv[0], uv[1])
+            Vec2::from(uv)
         });
         self.tex_coords.push(uv);
 

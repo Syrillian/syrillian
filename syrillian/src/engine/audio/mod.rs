@@ -1,11 +1,12 @@
 use kira::listener::ListenerHandle;
 use kira::track::{SpatialTrackBuilder, SpatialTrackHandle};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
-use nalgebra::{Quaternion, Vector3};
 use tracing::error;
 
+use crate::math::Vec3;
 pub use kira::effect;
 pub use kira::track;
+use syrillian::math::Quat;
 
 struct AudioSceneInner {
     manager: AudioManager<DefaultBackend>,
@@ -22,8 +23,8 @@ impl AudioSceneInner {
             }
         };
 
-        let position = Vector3::zeros();
-        let orientation = Quaternion::identity();
+        let position = Vec3::ZERO;
+        let orientation = Quat::IDENTITY;
 
         let listener = match manager.add_listener(position, orientation) {
             Ok(x) => x,
@@ -51,14 +52,14 @@ impl Default for AudioScene {
 }
 
 impl AudioScene {
-    pub fn set_receiver_position(&mut self, receiver_position: Vector3<f32>) {
+    pub fn set_receiver_position(&mut self, receiver_position: Vec3) {
         if let Some(this) = self.inner.as_mut() {
             this.listener
                 .set_position(receiver_position, Tween::default())
         }
     }
 
-    pub fn set_receiver_orientation(&mut self, receiver_orientation: Quaternion<f32>) {
+    pub fn set_receiver_orientation(&mut self, receiver_orientation: Quat) {
         if let Some(this) = self.inner.as_mut() {
             this.listener
                 .set_orientation(receiver_orientation, Tween::default())
@@ -68,7 +69,7 @@ impl AudioScene {
     /// Returns none if the spatial track limit was reached
     pub fn add_spatial_track(
         &mut self,
-        initial_position: Vector3<f32>,
+        initial_position: Vec3,
         track: SpatialTrackBuilder,
     ) -> Option<SpatialTrackHandle> {
         self.inner.as_mut().and_then(|this| {

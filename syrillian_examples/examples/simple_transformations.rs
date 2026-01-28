@@ -6,8 +6,9 @@ use std::error::Error;
 use syrillian::AppState;
 use syrillian::SyrillianApp;
 use syrillian::core::GameObjectId;
-use syrillian::math::UnitQuaternion;
+use syrillian::math::Quat;
 use syrillian::prefabs::Prefab;
+use syrillian::utils::QuaternionEuler;
 use syrillian::world::World;
 use syrillian_scene::SceneLoader;
 
@@ -42,7 +43,7 @@ impl Prefab for NineCubes {
         scene.transform.set_position(0.0, 0.0, -10.0);
         scene
             .transform
-            .set_rotation(UnitQuaternion::from_euler_angles(0.0, 90.0, 0.0));
+            .set_rotation(Quat::from_euler_angles_deg(0.0, 90.0, 0.0));
         scene.transform.set_scale(0.01);
 
         world.add_child(scene);

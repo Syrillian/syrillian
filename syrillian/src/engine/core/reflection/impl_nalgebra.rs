@@ -1,65 +1,104 @@
 use crate::core::reflection::Value;
-use nalgebra::{ArrayStorage, Const, Matrix};
+use crate::math::{Mat2, Mat3, Mat4, Vec2, Vec3, Vec4};
 
-macro_rules! reflect_matrix {
-    ($inner_type:ty, $num_r:literal, $num_c:literal) => {
-        impl ::syrillian::core::reflection::ReflectSerialize for Matrix<$inner_type, Const<$num_r>, Const<$num_c>, ArrayStorage<$inner_type, $num_r, $num_c>> {
-            fn serialize(this: &Self) -> Value {
-                <ArrayStorage<$inner_type, $num_r, $num_c>>::serialize(&this.data)
-            }
-        }
-
-        impl ::syrillian::core::reflection::ReflectSerialize for ArrayStorage<$inner_type, $num_r, $num_c> {
-            fn serialize(this: &Self) -> Value {
-                let mut list: Vec<Value> = Vec::new();
-                for x in this.0 {
-                    let mut inner_list = Vec::new();
-                    for y in x {
-                        inner_list.push(<$inner_type>::serialize(&y));
-                    }
-                    list.push(Value::Array(inner_list))
-                }
-                Value::Array(list)
-            }
-        }
-
-        ::syrillian::register_type!(syrillian::reflect_type_info!(
-            nalgebra,
-            ArrayStorage<$inner_type, $num_r, $num_c>,
-            &[]
-        ));
-        ::syrillian::register_type!(::syrillian::reflect_type_info!(
-                nalgebra,
-                Matrix<$inner_type, Const<$num_r>, Const<$num_c>, ArrayStorage<$inner_type, $num_r, $num_c>>,
-                &[]
-            ));
-    };
-    ($( $inner_types:ty ),* ; $num_r:literal, $num_c:literal) => {
-        $(
-            reflect_matrix!($inner_types, $num_r, $num_c);
-        )*
-    };
-    ($num_r:literal, $num_c:literal) => {
-        reflect_matrix!(i8, u8, i16, u16, i32, u32, i64, u64, usize, i128, u128, f32, f64 ; $num_r, $num_c);
-    };
+impl syrillian::core::reflection::ReflectSerialize for Vec2 {
+    fn serialize(this: &Self) -> Value {
+        Value::Array(vec![Value::Float(this.x), Value::Float(this.y)])
+    }
 }
 
-reflect_matrix!(1, 1);
-reflect_matrix!(2, 1);
-reflect_matrix!(3, 1);
-reflect_matrix!(4, 1);
+impl syrillian::core::reflection::ReflectSerialize for Vec3 {
+    fn serialize(this: &Self) -> Value {
+        Value::Array(vec![
+            Value::Float(this.x),
+            Value::Float(this.y),
+            Value::Float(this.z),
+        ])
+    }
+}
 
-reflect_matrix!(1, 2);
-reflect_matrix!(2, 2);
-reflect_matrix!(3, 2);
-reflect_matrix!(4, 2);
+impl syrillian::core::reflection::ReflectSerialize for Vec4 {
+    fn serialize(this: &Self) -> Value {
+        Value::Array(vec![
+            Value::Float(this.x),
+            Value::Float(this.y),
+            Value::Float(this.z),
+            Value::Float(this.w),
+        ])
+    }
+}
 
-reflect_matrix!(1, 3);
-reflect_matrix!(2, 3);
-reflect_matrix!(3, 3);
-reflect_matrix!(4, 3);
+impl syrillian::core::reflection::ReflectSerialize for Mat2 {
+    fn serialize(this: &Self) -> Value {
+        Value::Array(vec![
+            Value::Array(vec![
+                Value::Float(this.x_axis.x),
+                Value::Float(this.x_axis.y),
+            ]),
+            Value::Array(vec![
+                Value::Float(this.y_axis.x),
+                Value::Float(this.y_axis.y),
+            ]),
+        ])
+    }
+}
 
-reflect_matrix!(1, 4);
-reflect_matrix!(2, 4);
-reflect_matrix!(3, 4);
-reflect_matrix!(4, 4);
+impl syrillian::core::reflection::ReflectSerialize for Mat3 {
+    fn serialize(this: &Self) -> Value {
+        Value::Array(vec![
+            Value::Array(vec![
+                Value::Float(this.x_axis.x),
+                Value::Float(this.x_axis.y),
+                Value::Float(this.x_axis.z),
+            ]),
+            Value::Array(vec![
+                Value::Float(this.y_axis.x),
+                Value::Float(this.y_axis.y),
+                Value::Float(this.y_axis.z),
+            ]),
+            Value::Array(vec![
+                Value::Float(this.z_axis.x),
+                Value::Float(this.z_axis.y),
+                Value::Float(this.z_axis.z),
+            ]),
+        ])
+    }
+}
+
+impl syrillian::core::reflection::ReflectSerialize for Mat4 {
+    fn serialize(this: &Self) -> Value {
+        Value::Array(vec![
+            Value::Array(vec![
+                Value::Float(this.x_axis.x),
+                Value::Float(this.x_axis.y),
+                Value::Float(this.x_axis.z),
+                Value::Float(this.x_axis.w),
+            ]),
+            Value::Array(vec![
+                Value::Float(this.y_axis.x),
+                Value::Float(this.y_axis.y),
+                Value::Float(this.y_axis.z),
+                Value::Float(this.y_axis.w),
+            ]),
+            Value::Array(vec![
+                Value::Float(this.z_axis.x),
+                Value::Float(this.z_axis.y),
+                Value::Float(this.z_axis.z),
+                Value::Float(this.z_axis.w),
+            ]),
+            Value::Array(vec![
+                Value::Float(this.w_axis.x),
+                Value::Float(this.w_axis.y),
+                Value::Float(this.w_axis.z),
+                Value::Float(this.w_axis.w),
+            ]),
+        ])
+    }
+}
+
+syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Vec2, &[]));
+syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Vec3, &[]));
+syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Vec4, &[]));
+syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Mat2, &[]));
+syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Mat3, &[]));
+syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Mat4, &[]));

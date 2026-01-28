@@ -1,4 +1,4 @@
-use nalgebra::{Vector2, Vector3};
+use crate::math::{Vec2, Vec3};
 use static_assertions::const_assert_eq;
 use wgpu::{BufferAddress, VertexAttribute, VertexFormat};
 
@@ -33,11 +33,11 @@ impl SimpleVertex3D {
         let tx = world_up[0] - nx * dot;
         let ty = world_up[1] - ny * dot;
         let tz = world_up[2] - nz * dot;
-        let tangent = Vector3::new(tx, ty, tz);
+        let tangent = Vec3::new(tx, ty, tz);
 
-        let position = Vector3::new(px, py, pz);
-        let uv = Vector2::new(u, v);
-        let normal = Vector3::new(nx, ny, nz);
+        let position = Vec3::new(px, py, pz);
+        let uv = Vec2::new(u, v);
+        let normal = Vec3::new(nx, ny, nz);
 
         Vertex3D {
             position,
@@ -54,10 +54,10 @@ impl SimpleVertex3D {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex3D {
-    pub position: Vector3<f32>,
-    pub uv: Vector2<f32>,
-    pub normal: Vector3<f32>,
-    pub tangent: Vector3<f32>,
+    pub position: Vec3,
+    pub uv: Vec2,
+    pub normal: Vec3,
+    pub tangent: Vec3,
     pub bone_indices: [u32; 4],
     pub bone_weights: [f32; 4],
 }
@@ -65,10 +65,10 @@ pub struct Vertex3D {
 impl Vertex3D {
     /// Creates a new vertex from individual attributes.
     pub fn new(
-        position: Vector3<f32>,
-        tex_coord: Vector2<f32>,
-        normal: Vector3<f32>,
-        tangent: Vector3<f32>,
+        position: Vec3,
+        tex_coord: Vec2,
+        normal: Vec3,
+        tangent: Vec3,
         bone_indices: &[u32],
         bone_weights: &[f32],
     ) -> Self {
@@ -128,38 +128,30 @@ impl Vertex3D {
         LAYOUT
     }
 
-    pub const fn basic(position: Vector3<f32>, uv: Vector2<f32>, normal: Vector3<f32>) -> Self {
+    pub const fn basic(position: Vec3, uv: Vec2, normal: Vec3) -> Self {
         Vertex3D {
             position,
             uv,
             normal,
-            tangent: Vector3::new(1.0, 0.0, 0.0),
+            tangent: Vec3::X,
             bone_indices: [0; 4],
             bone_weights: [0.0; 4],
         }
     }
 
-    pub const fn position_only(position: Vector3<f32>) -> Self {
+    pub const fn position_only(position: Vec3) -> Self {
         Vertex3D {
             position,
-            uv: Vector2::new(0.0, 0.0),
-            normal: Vector3::new(0.0, 1.0, 0.0),
-            tangent: Vector3::new(1.0, 0.0, 0.0),
+            uv: Vec2::ZERO,
+            normal: Vec3::Y,
+            tangent: Vec3::X,
             bone_indices: [0; 4],
             bone_weights: [0.0; 4],
         }
     }
 }
 
-pub type Vertex3DTuple<'a, IU, IF> = (
-    Vector3<f32>,
-    Vector2<f32>,
-    Vector3<f32>,
-    Vector3<f32>,
-    Vector3<f32>,
-    IU,
-    IF,
-);
+pub type Vertex3DTuple<'a, IU, IF> = (Vec3, Vec2, Vec3, Vec3, Vec3, IU, IF);
 
 impl<'a, IU: AsRef<[u32]>, IF: AsRef<[f32]>> From<Vertex3DTuple<'a, IU, IF>> for Vertex3D {
     fn from(value: Vertex3DTuple<IU, IF>) -> Self {

@@ -1,17 +1,15 @@
-use nalgebra::Vector3;
 use std::any::TypeId;
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
+use syrillian::math::Vec3;
 
 #[derive(Debug, Default, Reflect)]
 struct MyComponent;
 
 impl Component for MyComponent {
     fn init(&mut self, _world: &mut World) {
-        self.parent()
-            .transform
-            .translate(Vector3::new(1.0, 0.0, 0.0));
+        self.parent().transform.translate(Vec3::X);
     }
 }
 
@@ -21,10 +19,10 @@ fn component() {
     let mut obj = world.new_object("Test");
 
     let comp = obj.add_component::<MyComponent>();
-    assert_eq!(obj.transform.position(), Vector3::new(1.0, 0.0, 0.0));
+    assert_eq!(obj.transform.position(), Vec3::X);
 
     let comp2 = obj.add_component::<MyComponent>();
-    assert_eq!(obj.transform.position(), Vector3::new(2.0, 0.0, 0.0));
+    assert_eq!(obj.transform.position(), Vec3::X * 2.0);
 
     assert_eq!(comp.parent(), obj);
     assert_eq!(comp2.parent(), obj);

@@ -4,7 +4,7 @@ use syrillian::components::Component;
 use syrillian::core::{BoneData, Vertex3D};
 use syrillian::engine::assets::HMesh;
 use syrillian::engine::rendering::CPUDrawCtx;
-use syrillian::math::Vector3;
+use syrillian::math::Vec3;
 use syrillian::rendering::proxies::SceneProxy;
 use syrillian::rendering::proxies::mesh_proxy::MeshSceneProxy;
 use syrillian::tracing::warn;
@@ -13,8 +13,8 @@ use syrillian::{Reflect, World, proxy_data_mut};
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct DebugVertexNormal {
-    position: Vector3<f32>,
-    normal: Vector3<f32>,
+    position: Vec3,
+    normal: Vec3,
 }
 
 #[derive(Debug, Reflect)]

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use syrillian::World;
 use syrillian::assets::{HMaterial, Mesh};
 use syrillian::core::GameObjectId;
-use syrillian::math::{Quaternion, UnitQuaternion, Vector3};
+use syrillian::math::{Quat, Vec3, quat};
 use syrillian::rendering::lights::Light;
 use syrillian::tracing::trace;
 use syrillian::utils::animation::{AnimationClip, Channel, TransformKeys};
@@ -157,10 +157,9 @@ impl SceneLoader {
         }
 
         let (p, r, s) = node.transform().decomposed();
-        obj.transform.set_local_position_vec(Vector3::from(p));
-        obj.transform
-            .set_local_rotation(UnitQuaternion::from_quaternion(Quaternion::from(r)));
-        obj.transform.set_nonuniform_local_scale(Vector3::from(s));
+        obj.transform.set_local_position_vec(Vec3::from(p));
+        obj.transform.set_local_rotation(Quat::from_array(r));
+        obj.transform.set_nonuniform_local_scale(Vec3::from(s));
 
         load_node_light(node.clone(), obj);
 
@@ -270,10 +269,7 @@ fn read_channel(scene: &GltfScene, channel: gltf::animation::Channel) -> Option<
 fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
     match outputs {
         ReadOutputs::Translations(values) => {
-            let translations: Vec<Vector3<f32>> = values
-                .into_iter()
-                .map(|v| Vector3::new(v[0], v[1], v[2]))
-                .collect();
+            let translations: Vec<Vec3> = values.into_iter().map(Vec3::from_array).collect();
             TransformKeys {
                 t_times: times.to_vec(),
                 t_values: translations,
@@ -281,9 +277,9 @@ fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
             }
         }
         ReadOutputs::Rotations(values) => {
-            let rotations: Vec<UnitQuaternion<f32>> = values
+            let rotations: Vec<Quat> = values
                 .into_f32()
-                .map(|q| UnitQuaternion::from_quaternion(Quaternion::new(q[3], q[0], q[1], q[2])))
+                .map(|q| quat(q[3], q[0], q[1], q[2]))
                 .collect();
             TransformKeys {
                 r_times: times.to_vec(),
@@ -292,10 +288,7 @@ fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
             }
         }
         ReadOutputs::Scales(values) => {
-            let scales: Vec<Vector3<f32>> = values
-                .into_iter()
-                .map(|v| Vector3::new(v[0], v[1], v[2]))
-                .collect();
+            let scales: Vec<Vec3> = values.into_iter().map(Vec3::from_array).collect();
             TransformKeys {
                 s_times: times.to_vec(),
                 s_values: scales,
@@ -309,7 +302,7 @@ fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
 /// Attaches lights defined on a glTF node.
 fn load_node_light(node: Node, mut obj: GameObjectId) {
     if let Some(nl) = node.light() {
-        let color = Vector3::new(nl.color()[0], nl.color()[1], nl.color()[2]);
+        let color = Vec3::from_array(nl.color());
         let intensity = nl.intensity();
         let range = nl.range().unwrap_or(100.0);
 

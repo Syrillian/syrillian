@@ -1,9 +1,9 @@
-use nalgebra::{Vector2, Vector3};
 use syrillian::assets::{
     AssetStore, Font, HMaterial, HMesh, HShader, HTexture2D, Material, Mesh, Shader, Sound,
     Texture2D,
 };
 use syrillian::core::Vertex3D;
+use syrillian::math::{Vec2, Vec3};
 
 #[test]
 fn test_predefined_meshes() {
@@ -21,26 +21,26 @@ fn test_mesh_store() {
 
     let vertices = vec![
         Vertex3D::new(
-            Vector3::new(0.0, 0.0, 0.0),
-            Vector2::new(0.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec2::new(0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
             &[0u32],
             &[0.0f32],
         ),
         Vertex3D::new(
-            Vector3::new(1.0, 0.0, 0.0),
-            Vector2::new(1.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
             &[0u32],
             &[0.0f32],
         ),
         Vertex3D::new(
-            Vector3::new(0.0, 0.0, 1.0),
-            Vector2::new(0.0, 1.0),
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec2::new(0.0, 1.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
             &[0u32],
             &[0.0f32],
         ),
@@ -167,10 +167,10 @@ fn test_remove_asset() {
     let store = AssetStore::new();
 
     let vertices = vec![Vertex3D::new(
-        Vector3::new(0.0, 0.0, 0.0),
-        Vector2::new(0.0, 0.0),
-        Vector3::new(0.0, 1.0, 0.0),
-        Vector3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec2::new(0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
         &[0u32],
         &[0.0f32],
     )];
@@ -195,10 +195,10 @@ fn test_iterate_assets() {
     let store = AssetStore::new();
 
     let vertices = vec![Vertex3D::new(
-        Vector3::new(0.0, 0.0, 0.0),
-        Vector2::new(0.0, 0.0),
-        Vector3::new(0.0, 1.0, 0.0),
-        Vector3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec2::new(0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
         &[0u32],
         &[0.0f32],
     )];

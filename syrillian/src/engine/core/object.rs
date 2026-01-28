@@ -2,9 +2,9 @@ use crate::components::{CRef, Component, TypedComponentId};
 use crate::core::Transform;
 use crate::core::reflection::Value;
 use crate::ensure_aligned;
+use crate::math::{Mat4, Vec3};
 use crate::world::World;
 use itertools::Itertools;
-use nalgebra::{Matrix4, Translation3, Vector3};
 use slotmap::{Key, KeyData, new_key_type};
 use std::borrow::Borrow;
 use std::cell::Cell;
@@ -610,7 +610,7 @@ impl GameObject {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ModelUniform {
-    pub model_mat: Matrix4<f32>,
+    pub model_mat: Mat4,
 }
 
 ensure_aligned!(ModelUniform { model_mat }, align <= 16 * 4 => size);
@@ -618,29 +618,28 @@ ensure_aligned!(ModelUniform { model_mat }, align <= 16 * 4 => size);
 impl ModelUniform {
     pub fn empty() -> Self {
         ModelUniform {
-            model_mat: Matrix4::identity(),
+            model_mat: Mat4::IDENTITY,
         }
     }
 
+    #[inline]
     pub fn new_at(x: f32, y: f32, z: f32) -> Self {
+        Self::new_at_vec(Vec3::new(x, y, z))
+    }
+
+    pub fn new_at_vec(pos: Vec3) -> Self {
         ModelUniform {
-            model_mat: Translation3::new(x, y, z).to_homogeneous(),
+            model_mat: Mat4::from_translation(pos),
         }
     }
 
-    pub fn new_at_vec(pos: Vector3<f32>) -> Self {
-        ModelUniform {
-            model_mat: Translation3::from(pos).to_homogeneous(),
-        }
-    }
-
-    pub fn from_matrix(translation: &Matrix4<f32>) -> Self {
+    pub fn from_matrix(translation: &Mat4) -> Self {
         ModelUniform {
             model_mat: *translation,
         }
     }
 
-    pub fn update(&mut self, transform: &Matrix4<f32>) {
+    pub fn update(&mut self, transform: &Mat4) {
         self.model_mat = *transform;
     }
 }

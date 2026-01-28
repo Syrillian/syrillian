@@ -7,7 +7,7 @@
 //!
 //! To make a component:
 //! ```rust
-//! use nalgebra::Vector3;
+//! use syrillian::math::Vec3;
 //! use syrillian::components::{Component};
 //! use syrillian::core::GameObjectId;
 //! use syrillian::World;
@@ -28,7 +28,7 @@
 //!     fn update(&mut self, world: &mut World) {
 //!         let delta_time = world.delta_time().as_secs_f32();
 //!
-//!         let movement = Vector3::new(0.0, self.force * delta_time, 0.0);
+//!         let movement = Vec3::new(0.0, self.force * delta_time, 0.0);
 //!
 //!         let transform = &mut self.parent().transform;
 //!         transform.translate(movement);
@@ -396,7 +396,7 @@ impl TypedComponentId {
 /// # Examples
 ///
 /// ```rust
-/// use nalgebra::Vector3;
+/// use syrillian::math::Vec3;
 /// use syrillian::World;
 /// use syrillian::components::{Component, ComponentContext};
 /// use syrillian::core::GameObjectId;
@@ -407,7 +407,7 @@ impl TypedComponentId {
 /// impl Component for MyComponent {
 ///     fn init(&mut self, _world: &mut World) {
 ///         // Move the GameObject on attachment
-///         self.parent().transform.translate(Vector3::new(1.0, 0.0, 0.0));
+///         self.parent().transform.translate(Vec3::new(1.0, 0.0, 0.0));
 ///     }
 /// }
 ///```
@@ -423,10 +423,10 @@ pub trait Component: Any {
     fn late_update(&mut self, world: &mut World) {}
 
     // Gets called before physics are evolved
-    fn pre_fixed_update(&mut self, world: &mut World) {}
+    fn fixed_update(&mut self, world: &mut World) {}
 
     // Gets called after physics have evolved
-    fn fixed_update(&mut self, world: &mut World) {}
+    fn post_fixed_update(&mut self, world: &mut World) {}
 
     // Gets called after all other updates are done
     fn post_update(&mut self, world: &mut World) {}

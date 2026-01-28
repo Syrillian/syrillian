@@ -1,15 +1,15 @@
 use crate::engine::assets::generic_store::{HandleName, Store, StoreDefaults, StoreType};
 use crate::engine::assets::*;
+use crate::math::Vec3;
 use crate::store_add_checked;
 use bon::Builder;
-use nalgebra::Vector3;
 
 #[derive(Debug, Clone, Builder)]
 pub struct Material {
     #[builder(into)]
     pub name: String,
-    #[builder(default = Vector3::new(0.7, 0.7, 0.7))]
-    pub color: Vector3<f32>,
+    #[builder(default = Vec3::splat(0.7))]
+    pub color: Vec3,
     pub diffuse_texture: Option<HTexture2D>,
     pub normal_texture: Option<HTexture2D>,
     pub roughness_texture: Option<HTexture2D>,
@@ -48,7 +48,7 @@ impl StoreDefaults for Material {
     fn populate(store: &mut Store<Self>) {
         let fallback = Material {
             name: "Fallback Material".to_string(),
-            color: Vector3::new(1.0, 1.0, 1.0),
+            color: Vec3::splat(1.0),
             diffuse_texture: None,
             normal_texture: None,
             roughness_texture: None,
@@ -65,7 +65,7 @@ impl StoreDefaults for Material {
 
         let default = Material {
             name: "Default Material".to_string(),
-            color: Vector3::new(0.7, 0.7, 0.7),
+            color: Vec3::splat(0.7),
             diffuse_texture: None,
             normal_texture: None,
             roughness_texture: None,

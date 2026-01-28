@@ -2,7 +2,7 @@ use syrillian::World;
 use syrillian::components::{CameraComponent, Component};
 use syrillian::input::InputManager;
 use syrillian::input::{Axis, Button, KeyCode, MouseButton};
-use syrillian::math::{UnitQuaternion, Vector2, Vector3};
+use syrillian::math::{Quat, Vec2, Vec3};
 use syrillian::{Reflect, ViewportId};
 
 #[derive(Debug, Reflect)]
@@ -108,8 +108,8 @@ impl FreecamController {
             self.move_speed * (controller_extra_speed * 5.)
         };
 
-        if direction.magnitude() > f32::EPSILON {
-            direction.normalize_mut();
+        if direction.length() > f32::EPSILON {
+            direction = direction.normalize();
             transform.translate(direction * move_speed * delta_time);
         }
     }
@@ -117,7 +117,7 @@ impl FreecamController {
     fn update_view(&mut self, input: &InputManager) {
         let transform = &mut self.parent().transform;
 
-        let gamepad_delta = Vector2::new(
+        let gamepad_delta = Vec2::new(
             -input.gamepad.axis(Axis::RightStickX),
             input.gamepad.axis(Axis::RightStickY),
         );
@@ -128,10 +128,8 @@ impl FreecamController {
 
         self.pitch = self.pitch.clamp(-89.0f32, 89.0f32);
 
-        let yaw_rotation =
-            UnitQuaternion::from_axis_angle(&Vector3::y_axis(), self.yaw.to_radians());
-        let pitch_rotation =
-            UnitQuaternion::from_axis_angle(&Vector3::x_axis(), self.pitch.to_radians());
+        let yaw_rotation = Quat::from_axis_angle(Vec3::Y, self.yaw.to_radians());
+        let pitch_rotation = Quat::from_axis_angle(Vec3::X, self.pitch.to_radians());
         let rotation = yaw_rotation * pitch_rotation;
 
         transform.set_local_rotation(rotation);

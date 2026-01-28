@@ -22,11 +22,11 @@ naga = { version = "28.0", features = ["stderr"] }
 winit = { version = "0.30" }
 bytemuck = "1.24"
 tracing = "0.1"
-nalgebra = { version = "0.34", features = ["bytemuck", "mint"] }
+glamx = { version = "0.1", features = ["bytemuck", "mint", "nalgebra"] }
 num-traits = "0.2"
 itertools = "0.14"
 image = "0.25"
-rapier3d = "0.31"
+rapier3d = { version = "0.32", features = ["parallel"] }
 futures = "0.3"
 static_assertions = "1.1"
 snafu = "0.8"
@@ -54,6 +54,7 @@ crossbeam-channel = "0.5"
 more-asserts = "0.3"
 bitflags = { version = "2.10", features = ["bytemuck"] }
 inventory = "0.3"
+parking_lot = "0.12"
 
 [build-dependencies]
 chrono = "0.4"

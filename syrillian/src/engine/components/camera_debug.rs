@@ -1,5 +1,5 @@
 use crate::components::Component;
-use crate::math::{Point3, Vector3, Vector4};
+use crate::math::{Vec3, Vec4};
 use crate::physics::Ray;
 use crate::rendering::CPUDrawCtx;
 use crate::rendering::proxies::SceneProxy;
@@ -11,8 +11,8 @@ use web_time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
 pub struct DebugRay {
-    pub origin: Point3<f32>,
-    pub direction: Vector3<f32>,
+    pub origin: Vec3,
+    pub direction: Vec3,
     pub toi: f32,
 }
 
@@ -21,8 +21,8 @@ impl From<&DebugRay> for DebugLine {
         DebugLine {
             start: value.origin,
             end: value.origin + value.direction * value.toi,
-            start_color: Vector4::new(0.9, 0.2, 0.2, 1.0),
-            end_color: Vector4::new(0.4, 0.4, 0.2, 1.0),
+            start_color: Vec4::new(0.9, 0.2, 0.2, 1.0),
+            end_color: Vec4::new(0.4, 0.4, 0.2, 1.0),
         }
     }
 }
@@ -89,7 +89,7 @@ impl Component for CameraDebug {
         Some(Box::new(DebugSceneProxy {
             lines,
             meshes: vec![],
-            color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             override_transform: None,
         }))
     }

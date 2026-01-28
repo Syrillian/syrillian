@@ -1,11 +1,11 @@
 use crate::components::Component;
 use crate::core::GameObject;
-use nalgebra::Vector3;
+use crate::math::Vec3;
 use std::ops::{Deref, DerefMut};
 
 pub trait GameObjectExt {
     fn at(&mut self, x: f32, y: f32, z: f32) -> &mut Self;
-    fn at_vec(&mut self, pos: Vector3<f32>) -> &mut Self;
+    fn at_vec(&mut self, pos: Vec3) -> &mut Self;
     fn scale(&mut self, scale: f32) -> &mut Self;
     fn non_uniform_scale(&mut self, x: f32, y: f32, z: f32) -> &mut Self;
 }
@@ -27,7 +27,7 @@ impl GameObjectExt for GameObject {
     }
 
     #[inline]
-    fn at_vec(&mut self, pos: Vector3<f32>) -> &mut Self {
+    fn at_vec(&mut self, pos: Vec3) -> &mut Self {
         self.transform.set_position_vec(pos);
         self
     }

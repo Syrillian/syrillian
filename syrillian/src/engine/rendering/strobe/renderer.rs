@@ -8,7 +8,7 @@ use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::{FrameCtx, GPUDrawCtx, RenderPassType, State};
 use crate::strobe::CacheId;
 use delegate::delegate;
-use nalgebra::Matrix4;
+use glamx::Affine3A;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::RwLock;
@@ -99,7 +99,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
         })
     }
 
-    pub(crate) fn ui_image_data(&mut self, model_mat: &Matrix4<f32>) -> &mut RuntimeMeshData {
+    pub(crate) fn ui_image_data(&mut self, model_mat: &Affine3A) -> &mut RuntimeMeshData {
         self.image_cache.entry(self.cache_id).or_insert_with(|| {
             let model_bgl = self.cache.bgl_model();
             let model = ModelUniform::empty();
@@ -109,7 +109,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
                 .build(&self.state.device);
 
             let mesh_data = ModelUniform {
-                model_mat: *model_mat,
+                model_mat: (*model_mat).into(),
             };
 
             RuntimeMeshData { mesh_data, uniform }

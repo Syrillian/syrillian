@@ -1,7 +1,7 @@
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
-use syrillian::math::Vector3;
+use syrillian::math::Vec3;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
@@ -28,6 +28,6 @@ impl Component for GravityComponent {
         self.velocity = (self.velocity - self.acceleration_per_sec * delta_time)
             .clamp(-self.max_acceleration, self.max_acceleration);
         let transform = &mut self.parent().transform;
-        transform.translate(Vector3::new(0.0, self.velocity, 0.0));
+        transform.translate(Vec3::new(0.0, self.velocity, 0.0));
     }
 }

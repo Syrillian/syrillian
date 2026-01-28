@@ -4,17 +4,17 @@ use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
-use syrillian::math::Vector2;
+use syrillian::math::Vec2;
 
 /// Basic container for 2D UI elements.
 #[derive(Debug, Reflect)]
 #[reflect_all]
 pub struct Panel {
-    padding: Vector2<f32>,
+    padding: Vec2,
 }
 
 impl Panel {
-    pub fn set_padding(&mut self, padding: Vector2<f32>) {
+    pub fn set_padding(&mut self, padding: Vec2) {
         self.padding = padding;
     }
 }
@@ -22,7 +22,7 @@ impl Panel {
 impl Default for Panel {
     fn default() -> Self {
         Panel {
-            padding: Vector2::new(5.0, 5.0),
+            padding: Vec2::new(5.0, 5.0),
         }
     }
 }
@@ -86,7 +86,7 @@ mod tests {
     use crate::{Image, Panel, Text2D, UiRect};
     use more_asserts::assert_lt;
     use syrillian::components::Component;
-    use syrillian::math::Vector2;
+    use syrillian::math::Vec2;
     use syrillian::strobe::ImageScalingMode;
     use syrillian::{PhysicalSize, ViewportId, World};
 
@@ -104,7 +104,7 @@ mod tests {
         world.add_child(panel);
 
         let mut panel_rect = panel.add_component::<UiRect>();
-        panel_rect.set_offset(Vector2::new(5.0, 10.0));
+        panel_rect.set_offset(Vec2::new(5.0, 10.0));
         panel_rect.set_size(UiSize::Pixels {
             width: 200.0,
             height: 100.0,
@@ -117,13 +117,13 @@ mod tests {
 
         let mut child = world.new_object("child");
         let mut child_rect = child.add_component::<UiRect>();
-        child_rect.set_anchor(Vector2::new(0.5, 0.5));
-        child_rect.set_pivot(Vector2::new(0.5, 0.5));
+        child_rect.set_anchor(Vec2::new(0.5, 0.5));
+        child_rect.set_pivot(Vec2::new(0.5, 0.5));
         child_rect.set_size(UiSize::Percent {
             width: 0.5,
             height: 0.5,
         });
-        child_rect.set_offset(Vector2::new(10.0, -5.0));
+        child_rect.set_offset(Vec2::new(10.0, -5.0));
         let child_image = child.add_component::<Image>();
 
         let mut grandchild = world.new_object("grandchild");
@@ -148,7 +148,10 @@ mod tests {
             other => panic!("expected absolute scaling for child, got {other:?}"),
         }
         assert_eq!(child_image.draw_order(), 2);
-        assert_lt!((child_image.translation()[(2, 3)] - 0.200).abs(), 1e-6);
+        assert_lt!(
+            (child_image.translation().w_axis.z - 0.200).abs(),
+            f32::EPSILON
+        );
 
         match grandchild_image.scaling_mode() {
             ImageScalingMode::Absolute {
@@ -160,6 +163,9 @@ mod tests {
             other => panic!("expected absolute scaling for grandchild, got {other:?}"),
         }
         assert_eq!(grandchild_image.draw_order(), 3);
-        assert_lt!((grandchild_image.translation()[(2, 3)] - 0.200).abs(), 1e-6);
+        assert_lt!(
+            (grandchild_image.translation().w_axis.z - 0.200).abs(),
+            1e-6
+        );
     }
 }

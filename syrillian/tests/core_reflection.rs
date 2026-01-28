@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use nalgebra::Matrix2;
 use syrillian::core::reflection::serializer::JsonSerializer;
 use syrillian::core::reflection::{Reflect, ReflectSerialize, ReflectedField, Value, type_info_of};
+use syrillian::math::Mat2;
 
 #[derive(Debug)]
 struct Demo {
@@ -46,14 +46,14 @@ fn std_container_serialization() {
 
 #[test]
 fn nalgebra_matrix_serialization() {
-    let matrix = Matrix2::<f32>::identity();
+    let matrix = Mat2::IDENTITY;
     let value = ReflectSerialize::serialize(&matrix);
     let expected = Value::Array(vec![
         Value::Array(vec![Value::Float(1.0), Value::Float(0.0)]),
         Value::Array(vec![Value::Float(0.0), Value::Float(1.0)]),
     ]);
     assert_eq!(value, expected);
-    assert!(type_info_of::<Matrix2<f32>>().is_some());
+    assert!(type_info_of::<Mat2>().is_some());
 }
 
 #[test]

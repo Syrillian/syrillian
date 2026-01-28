@@ -5,7 +5,7 @@ use syrillian::SyrillianApp;
 use syrillian::assets::{Material, StoreType, Texture2D};
 use syrillian::core::{GameObjectExt, GameObjectId};
 use syrillian::input::MouseButton;
-use syrillian::math::Vector3;
+use syrillian::math::Vec3;
 use syrillian::physics::QueryFilter;
 use syrillian::strobe::ImageScalingMode;
 use syrillian::tracing::{info, warn};
@@ -18,7 +18,7 @@ const NECO_IMAGE: &[u8; 1293] = include_bytes!("assets/neco.jpg");
 #[derive(Debug, SyrillianApp)]
 struct NecoArc {
     dragging: Option<GameObjectId>,
-    drag_offset: Vector3<f32>,
+    drag_offset: Vec3,
     drag_distance: f32,
 }
 
@@ -26,7 +26,7 @@ impl Default for NecoArc {
     fn default() -> Self {
         NecoArc {
             dragging: None,
-            drag_offset: Vector3::zeros(),
+            drag_offset: Vec3::ZERO,
             drag_distance: 0.0,
         }
     }
@@ -110,7 +110,7 @@ impl NecoArc {
                 }
                 Some((toi, obj)) => {
                     self.dragging = Some(obj);
-                    self.drag_offset = ray.point_at(toi).coords - obj.transform.position();
+                    self.drag_offset = ray.point_at(toi) - obj.transform.position();
                     self.drag_distance = toi;
                     info!("Click ray hit: {:?} after {toi}", obj.name);
                 }
@@ -127,7 +127,7 @@ impl NecoArc {
                 return;
             };
 
-            let new_pos = ray.point_at(self.drag_distance).coords;
+            let new_pos = ray.point_at(self.drag_distance);
             dragging
                 .transform
                 .set_position_vec(new_pos - self.drag_offset);

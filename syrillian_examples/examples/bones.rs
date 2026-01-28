@@ -4,7 +4,7 @@
 //! aid in the development in the first place.
 
 use std::error::Error;
-use syrillian::math::{UnitQuaternion, Vector3};
+use syrillian::math::{Quat, Vec3};
 use syrillian::{AppState, SyrillianApp, World};
 use syrillian_components::SkeletalComponent;
 use syrillian_scene::SceneLoader;
@@ -67,10 +67,7 @@ impl Component for BoneChainWave {
             for i in 0..n {
                 let phase = self.t + i as f32 * 0.35;
                 let angle = (phase).sin() * 20.0_f32.to_radians();
-                skel.set_local_rotation(
-                    i,
-                    UnitQuaternion::from_axis_angle(&Vector3::z_axis(), angle).to_rotation_matrix(),
-                );
+                skel.set_local_rotation(i, Quat::from_axis_angle(Vec3::Z, angle));
             }
         }
     }

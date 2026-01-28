@@ -13,6 +13,7 @@ use crate::engine::rendering::FrameCtx;
 use crate::engine::rendering::cache::{AssetCache, GpuTexture};
 use crate::engine::rendering::offscreen_surface::OffscreenSurface;
 use crate::engine::rendering::post_process_pass::PostProcessData;
+use crate::math::{Mat4, UVec2, Vec3, Vec4};
 #[cfg(debug_assertions)]
 use crate::rendering::DebugRenderer;
 use crate::rendering::light_manager::LightManager;
@@ -26,7 +27,6 @@ use crate::rendering::texture_export::{TextureExportError, save_texture_to_png};
 use crate::rendering::{GPUDrawCtx, RenderPassType, State};
 use crossbeam_channel::{Receiver, Sender};
 use itertools::Itertools;
-use nalgebra::{Matrix4, Vector2, Vector3, Vector4};
 use snafu::ResultExt;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -218,7 +218,7 @@ impl RenderViewport {
 
     fn update_system_data(&mut self, queue: &Queue) {
         let window_size = self.window.inner_size();
-        let window_size = Vector2::new(window_size.width.max(1), window_size.height.max(1));
+        let window_size = UVec2::new(window_size.width.max(1), window_size.height.max(1));
 
         let system_data = &mut self.render_data.system_data;
         system_data.screen_size = window_size;
@@ -958,7 +958,7 @@ impl Renderer {
         match msg {
             RenderMsg::RegisterProxy(cid, object_hash, mut proxy, local_to_world) => {
                 trace!("Registered Proxy for #{:?}", cid.0);
-                let data = proxy.setup_render(self, local_to_world.matrix());
+                let data = proxy.setup_render(self, &local_to_world);
                 let binding = SceneProxyBinding::new(cid, object_hash, local_to_world, data, proxy);
                 self.proxies.insert(cid, binding);
             }
@@ -1155,13 +1155,13 @@ fn sorted_enabled_proxy_ids(
 
 #[derive(Debug, Clone, Copy)]
 struct FrustumPlane {
-    normal: Vector3<f32>,
+    normal: Vec3,
     d: f32,
 }
 
 impl FrustumPlane {
     fn distance_to(&self, sphere: &BoundingSphere) -> f32 {
-        self.normal.dot(&sphere.center) + self.d
+        self.normal.dot(sphere.center) + self.d
     }
 }
 
@@ -1182,15 +1182,15 @@ enum FrustumSide {
 
 impl Frustum {
     #[instrument(skip_all)]
-    fn from_matrix(m: &Matrix4<f32>) -> Self {
-        let row0 = m.row(0).transpose();
-        let row1 = m.row(1).transpose();
-        let row2 = m.row(2).transpose();
-        let row3 = m.row(3).transpose();
+    fn from_matrix(m: &Mat4) -> Self {
+        let row0 = m.row(0);
+        let row1 = m.row(1);
+        let row2 = m.row(2);
+        let row3 = m.row(3);
 
-        let plane_from = |v: Vector4<f32>| {
-            let normal = Vector3::new(v.x, v.y, v.z);
-            let len = normal.norm();
+        let plane_from = |v: Vec4| {
+            let normal = Vec3::new(v.x, v.y, v.z);
+            let len = normal.length();
             if len > 0.0 {
                 FrustumPlane {
                     normal: normal / len,
@@ -1236,8 +1236,8 @@ impl Frustum {
 mod tests {
     use super::*;
     use crate::components::ComponentId;
+    use crate::math::Affine3A;
     use crate::rendering::proxies::SceneProxy;
-    use nalgebra::{Affine3, Matrix4};
     use slotmap::Key;
     use std::any::{Any, TypeId};
     use std::collections::HashMap;
@@ -1248,11 +1248,11 @@ mod tests {
     }
 
     impl SceneProxy for TestProxy {
-        fn setup_render(&mut self, _: &Renderer, _: &Matrix4<f32>) -> Box<dyn Any> {
+        fn setup_render(&mut self, _: &Renderer, _: &Affine3A) -> Box<dyn Any> {
             Box::new(())
         }
 
-        fn update_render(&mut self, _: &Renderer, _: &mut dyn Any, _: &Matrix4<f32>) {}
+        fn update_render(&mut self, _: &Renderer, _: &mut dyn Any, _: &Affine3A) {}
 
         fn render(&self, _renderer: &Renderer, _ctx: &GPUDrawCtx, _binding: &SceneProxyBinding) {}
 
@@ -1303,7 +1303,7 @@ mod tests {
         let mut binding = SceneProxyBinding::new(
             tid,
             1,
-            Affine3::identity(),
+            Affine3A::IDENTITY,
             Box::new(()),
             Box::new(TestProxy { priority }),
         );

@@ -1,9 +1,9 @@
-use nalgebra::{Matrix4, Vector3, Vector4};
+use crate::math::{Mat4, Vec3, Vec4};
 use std::ops::Mul;
 
 #[derive(Debug, Copy, Clone)]
 pub struct BoundingSphere {
-    pub center: Vector3<f32>,
+    pub center: Vec3,
     pub radius: f32,
 }
 
@@ -22,24 +22,24 @@ impl<F: Into<f32>> Mul<F> for BoundingSphere {
 impl BoundingSphere {
     pub fn empty() -> Self {
         Self {
-            center: Vector3::zeros(),
+            center: Vec3::ZERO,
             radius: 0.0,
         }
     }
 
-    pub fn transformed(&self, transform: &Matrix4<f32>) -> Self {
-        let pos = transform * Vector4::new(self.center.x, self.center.y, self.center.z, 1.0);
+    pub fn transformed(&self, transform: &Mat4) -> Self {
+        let pos = transform * Vec4::new(self.center.x, self.center.y, self.center.z, 1.0);
         let w = if pos.w.abs() > f32::EPSILON {
             pos.w
         } else {
             1.0
         };
 
-        let center = Vector3::new(pos.x / w, pos.y / w, pos.z / w);
+        let center = Vec3::new(pos.x / w, pos.y / w, pos.z / w);
 
-        let sx = Vector3::new(transform[(0, 0)], transform[(1, 0)], transform[(2, 0)]).norm();
-        let sy = Vector3::new(transform[(0, 1)], transform[(1, 1)], transform[(2, 1)]).norm();
-        let sz = Vector3::new(transform[(0, 2)], transform[(1, 2)], transform[(2, 2)]).norm();
+        let sx = transform.col(0).length();
+        let sy = transform.col(1).length();
+        let sz = transform.col(2).length();
         let scale = sx.max(sy).max(sz);
 
         Self {

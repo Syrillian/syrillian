@@ -1,7 +1,7 @@
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::engine::assets::HMaterial;
-use syrillian::math::Matrix4;
+use syrillian::math::Mat4;
 use syrillian::rendering::UiContext;
 use syrillian::rendering::strobe::ImageScalingMode;
 use syrillian::strobe::UiImageDraw;
@@ -13,7 +13,7 @@ pub struct Image {
     #[reflect]
     scaling: ImageScalingMode,
     #[reflect]
-    translation: Matrix4<f32>,
+    translation: Mat4,
     draw_order: u32,
     render_target: ViewportId,
 }
@@ -43,7 +43,7 @@ impl Image {
         self.scaling = ImageScalingMode::Ndc { center, size };
     }
 
-    pub fn set_translation(&mut self, translation: Matrix4<f32>) {
+    pub fn set_translation(&mut self, translation: Mat4) {
         self.translation = translation;
     }
 
@@ -62,7 +62,7 @@ impl Image {
         self.render_target
     }
 
-    pub fn translation(&self) -> Matrix4<f32> {
+    pub fn translation(&self) -> Mat4 {
         self.translation
     }
 
@@ -86,7 +86,7 @@ impl Default for Image {
                 top: 0.0,
                 bottom: 100.0,
             },
-            translation: Matrix4::identity(),
+            translation: Mat4::IDENTITY,
             draw_order: 0,
             render_target: ViewportId::PRIMARY,
         }

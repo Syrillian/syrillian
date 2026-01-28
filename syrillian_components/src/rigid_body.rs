@@ -1,12 +1,11 @@
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
-use syrillian::math::{Isometry3, Translation3};
+use syrillian::math::Pose;
 use syrillian::physics::rapier3d::dynamics::{
     RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodyType,
 };
-use syrillian::utils::debug_panic;
-use syrillian::utils::math::QuaternionEuler;
+use syrillian::utils::{QuaternionEuler, debug_panic};
 
 #[derive(Debug, Default, Reflect)]
 pub struct RigidBodyComponent {
@@ -14,27 +13,27 @@ pub struct RigidBodyComponent {
     #[reflect]
     kinematic: bool,
     #[reflect]
-    prev_iso: Isometry3<f32>,
+    prev_iso: Pose,
     #[reflect]
-    curr_iso: Isometry3<f32>,
+    curr_iso: Pose,
 }
 
 impl Component for RigidBodyComponent {
     fn init(&mut self, _world: &mut World) {
         let parent = self.parent();
         let initial_translation = parent.transform.position();
-        let initial_rotation = parent.transform.rotation().euler_vector();
+        let initial_rotation = parent.transform.rotation();
         let rigid_body = RigidBodyBuilder::dynamic()
             .user_data(parent.as_ffi() as u128)
             .translation(initial_translation)
-            .rotation(initial_rotation)
+            .rotation(initial_rotation.euler_vector())
             .build();
 
         let body_handle = self.world().physics.rigid_body_set.insert(rigid_body);
         self.body_handle = Some(body_handle);
     }
 
-    fn pre_fixed_update(&mut self, _world: &mut World) {
+    fn fixed_update(&mut self, _world: &mut World) {
         let parent = self.parent();
 
         let Some(rb) = self.body_mut() else {
@@ -42,32 +41,32 @@ impl Component for RigidBodyComponent {
             return;
         };
 
+        let translation = parent.transform.position();
+        let rotation = parent.transform.rotation();
         if rb.is_dynamic() && parent.transform.is_dirty() {
-            rb.set_translation(parent.transform.position(), false);
-            rb.set_rotation(parent.transform.rotation(), false);
-        } else if rb.is_kinematic() {
-            rb.set_next_kinematic_translation(parent.transform.position());
-            rb.set_next_kinematic_rotation(parent.transform.rotation());
+            rb.set_translation(translation, false);
+            rb.set_rotation(rotation, false);
+        } else if rb.is_kinematic() && parent.transform.is_dirty() {
+            rb.set_next_kinematic_translation(translation);
+            rb.set_next_kinematic_rotation(rotation);
         }
     }
 
-    fn fixed_update(&mut self, _world: &mut World) {
+    fn post_fixed_update(&mut self, _world: &mut World) {
         let mut parent = self.parent();
         let Some(rb) = self.body_mut() else {
             debug_panic!("de-synced - remake_rigid_body();");
             return;
         };
 
-        if rb.is_dynamic() {
-            parent.transform.set_position_vec(*rb.translation());
-            if rb.is_rotation_locked().iter().all(|l| !l) {
-                parent.transform.set_rotation(*rb.rotation());
-            }
+        parent.transform.set_position_vec(rb.translation());
+        if rb.is_rotation_locked().iter().all(|l| !l) {
+            parent.transform.set_rotation(*rb.rotation());
         }
 
-        let new_iso = Isometry3::from_parts(Translation3::from(*rb.translation()), *rb.rotation());
-        self.curr_iso = new_iso;
+        let pos = *rb.position();
         self.prev_iso = self.curr_iso;
+        self.curr_iso = pos;
     }
 
     fn delete(&mut self, world: &mut World) {
@@ -120,11 +119,11 @@ impl RigidBodyComponent {
         self.kinematic
     }
 
-    pub fn render_isometry(&self, alpha: f32) -> Isometry3<f32> {
-        let p0 = self.prev_iso.translation.vector;
-        let p1 = self.curr_iso.translation.vector;
+    pub fn render_isometry(&self, alpha: f32) -> Pose {
+        let p0 = self.prev_iso.translation;
+        let p1 = self.curr_iso.translation;
         let p = p0 + (p1 - p0) * alpha;
-        let r = self.prev_iso.rotation.slerp(&self.curr_iso.rotation, alpha);
-        Isometry3::from_parts(Translation3::from(p), r)
+        let r = self.prev_iso.rotation.slerp(self.curr_iso.rotation, alpha);
+        Pose::from_parts(p, r)
     }
 }

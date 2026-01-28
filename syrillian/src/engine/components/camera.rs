@@ -1,5 +1,5 @@
 use crate::components::Component;
-use crate::math::{Matrix4, Perspective3, Point3, Vector2, Vector4};
+use crate::math::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use crate::physics::rapier3d::geometry::Ray;
 use crate::utils::FloatMathExt;
 use crate::{Reflect, ViewportId, World};
@@ -19,8 +19,8 @@ pub enum CameraError {
 #[derive(Debug, Reflect)]
 #[reflect_all]
 pub struct CameraComponent {
-    pub projection: Perspective3<f32>,
-    pub projection_inverse: Matrix4<f32>,
+    pub projection: Mat4,
+    pub projection_inverse: Mat4,
     fov_active: f32,
     fov_target: f32,
     near: f32,
@@ -78,21 +78,21 @@ impl CameraComponent {
     }
 
     #[inline]
-    pub fn mouse_viewport_position(&self, x: f32, y: f32) -> Vector2<f32> {
-        Vector2::new(x.max(0.), y.max(0.))
+    pub fn mouse_viewport_position(&self, x: f32, y: f32) -> Vec2 {
+        Vec2::new(x.max(0.), y.max(0.))
     }
 
     #[inline]
-    pub fn mouse_viewport_ndc(&self, x: f32, y: f32) -> Vector2<f32> {
+    pub fn mouse_viewport_ndc(&self, x: f32, y: f32) -> Vec2 {
         let nx = (x / self.width).clamp(0.0, 1.0);
         let ny = 1.0 - (y / self.height).clamp(0.0, 1.0);
-        Vector2::new(nx * 2.0 - 1.0, ny * 2.0 - 1.0)
+        Vec2::new(nx * 2.0 - 1.0, ny * 2.0 - 1.0)
     }
 
     #[inline]
-    pub fn mouse_eye_dir(&self, x: f32, y: f32) -> Vector4<f32> {
+    pub fn mouse_eye_dir(&self, x: f32, y: f32) -> Vec4 {
         let ndc = self.mouse_viewport_ndc(x, y);
-        let clip = Vector4::new(ndc.x, ndc.y, 0.0, 1.0);
+        let clip = Vec4::new(ndc.x, ndc.y, 0.0, 1.0);
         let mut eye = self.projection_inverse * clip;
         eye /= eye.w;
         eye.w = 0.0;
@@ -102,18 +102,18 @@ impl CameraComponent {
     pub fn click_ray(&self, x: f32, y: f32) -> Ray {
         let eye = self.mouse_eye_dir(x, y);
 
-        let cam_to_world = self.parent().transform.view_matrix_rigid().to_matrix();
+        let cam_to_world = self.parent().transform.view_matrix_rigid().to_mat4();
 
+        let origin = cam_to_world.transform_point3(Vec3::ZERO);
         let dir_world = (cam_to_world * eye).xyz().normalize();
-        let origin = cam_to_world.transform_point(&Point3::origin());
 
         Ray::new(origin, dir_world)
     }
 
     pub fn regenerate(&mut self) {
-        self.projection = Perspective3::new(
-            self.width / self.height,
+        self.projection = Mat4::perspective_rh(
             self.fov_active.to_radians(),
+            self.width / self.height,
             self.near,
             self.far,
         );
@@ -158,7 +158,7 @@ impl CameraComponent {
 
 impl Default for CameraComponent {
     fn default() -> Self {
-        let projection = Perspective3::new(800.0 / 600.0, 60f32.to_radians(), 0.01, 1000.0);
+        let projection = Mat4::perspective_rh(60f32.to_radians(), 800.0 / 600.0, 0.01, 1000.0);
         let projection_inverse = projection.inverse();
 
         CameraComponent {

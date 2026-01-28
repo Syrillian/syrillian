@@ -5,9 +5,8 @@ use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
-use syrillian::math::{UnitQuaternion, Vector3};
+use syrillian::math::{Quat, Vec3};
 use syrillian::tracing::warn;
-use syrillian::utils::ExtraMatrixMath;
 use syrillian::utils::animation::{
     AnimationClip, Binding, ChannelBinding, ClipIndex, Playback, sample_rotation, sample_scale,
     sample_translation,
@@ -26,7 +25,7 @@ pub struct AnimationComponent {
 }
 
 /// Position, Rotation, Scale
-type SkeletonLocals = (Vector3<f32>, UnitQuaternion<f32>, Vector3<f32>);
+type SkeletonLocals = (Vec3, Quat, Vec3);
 
 impl Component for AnimationComponent {
     fn update(&mut self, world: &mut World) {
@@ -163,7 +162,7 @@ impl AnimationComponent {
                 let bones = skel.bones();
                 let mut pose = Vec::with_capacity(bones.len());
                 for m in &bones.bind_local {
-                    let (t, r, s) = m.decompose();
+                    let (s, r, t) = m.to_scale_rotation_translation();
                     pose.push((t, r, s));
                 }
                 Some(e.insert(pose))
@@ -192,27 +191,27 @@ impl AnimationComponent {
 
                     let tr = &mut go.transform;
                     if let Some(t) = t {
-                        tr.set_local_position_vec(tr.local_position().lerp(&t, weight));
+                        tr.set_local_position_vec(tr.local_position().lerp(t, weight));
                     }
                     if let Some(r) = r {
-                        tr.set_local_rotation(tr.local_rotation().slerp(&r, weight));
+                        tr.set_local_rotation(tr.local_rotation().slerp(r, weight));
                     }
                     if let Some(s) = s {
                         let cur_s = tr.local_scale();
-                        tr.set_nonuniform_local_scale(cur_s.lerp(&s, weight));
+                        tr.set_nonuniform_local_scale(cur_s.lerp(s, weight));
                     }
                 }
                 Binding::Bone { skel, idx } => {
                     if let Some(locals) = Self::ensure_pose(skel, &mut skel_locals) {
                         let (lt, lr, ls) = &mut locals[idx];
                         if let Some(t) = t {
-                            *lt = lt.lerp(&t, weight);
+                            *lt = lt.lerp(t, weight);
                         }
                         if let Some(r) = r {
-                            *lr = lr.slerp(&r, weight);
+                            *lr = lr.slerp(r, weight);
                         }
                         if let Some(s) = s {
-                            *ls = ls.lerp(&s, weight);
+                            *ls = ls.lerp(s, weight);
                         }
                     } else {
                         warn!("Binding bone not found");
