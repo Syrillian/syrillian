@@ -3,7 +3,7 @@ use gltf::image::Format;
 use std::collections::HashMap;
 use syrillian::World;
 use syrillian::assets::{HMaterial, HShader, HTexture2D, Material, StoreType, Texture2D};
-use syrillian::math::Vector3;
+use syrillian::math::Vec3;
 use syrillian::rendering::TextureFormat;
 use syrillian::utils::debug_panic;
 
@@ -16,7 +16,7 @@ pub(super) fn load_materials(scene: &GltfScene, world: &mut World) -> HashMap<u3
         let pbr = mat.pbr_metallic_roughness();
 
         let base = pbr.base_color_factor();
-        let color = Vector3::new(base[0], base[1], base[2]);
+        let color = Vec3::new(base[0], base[1], base[2]);
         let alpha = base[3];
         let metallic = pbr.metallic_factor();
         let roughness = pbr.roughness_factor();

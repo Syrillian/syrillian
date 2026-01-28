@@ -1339,7 +1339,24 @@ version = "0.30.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd47b05dddf0005d850e5644cae7f2b14ac3df487979dbfff3b56f20b1a6ae46"
 dependencies = [
+ "approx",
+ "bytemuck",
+ "libm",
  "mint",
+]
+
+[[package]]
+name = "glamx"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "375b4fa374a343fef990a18a6e0413d54bd990c6d7b8c7ada2d3c884275edea3"
+dependencies = [
+ "approx",
+ "bytemuck",
+ "glam 0.30.9",
+ "nalgebra",
+ "num-traits",
+ "simba",
 ]
 
 [[package]]
@@ -2031,7 +2048,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4d5b3eff5cd580f93da45e64715e8c20a3996342f1e466599cf7a267a0c2f5f"
 dependencies = [
  "approx",
- "bytemuck",
  "glam 0.14.0",
  "glam 0.15.2",
  "glam 0.16.0",
@@ -2049,7 +2065,6 @@ dependencies = [
  "glam 0.29.3",
  "glam 0.30.9",
  "matrixmultiply",
- "mint",
  "nalgebra-macros",
  "num-complex",
  "num-rational",
@@ -2598,9 +2613,9 @@ dependencies = [
 
 [[package]]
 name = "parry3d"
-version = "0.25.3"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e99471b7b6870f7fe406d5611dd4b4c9b07aa3e5436b1d27e1515f9832bb0c6b"
+checksum = "2e04d21bda5249438b5695e7f08f1655524a6025bcdb186c324b7a66562f2d61"
 dependencies = [
  "approx",
  "arrayvec",
@@ -2609,9 +2624,9 @@ dependencies = [
  "either",
  "ena",
  "foldhash 0.2.0",
+ "glamx",
  "hashbrown 0.16.1",
  "log",
- "nalgebra",
  "num-derive",
  "num-traits",
  "ordered-float",
@@ -2869,15 +2884,16 @@ checksum = "c3d6831663a5098ea164f89cff59c6284e95f4e3c76ce9848d4529f5ccca9bde"
 
 [[package]]
 name = "rapier3d"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68073fdc88f6b709002767ce8deffffb05ac06824bf9f98a23e270bcea64ba9f"
+checksum = "a576251c9dc2d6aff08470b7433096a04019c8b7bea9bbb7087f092c180feaea"
 dependencies = [
  "approx",
  "arrayvec",
  "bit-vec",
  "bitflags 2.10.0",
  "downcast-rs 2.0.2",
+ "glamx",
  "log",
  "nalgebra",
  "num-derive",
@@ -2885,10 +2901,12 @@ dependencies = [
  "ordered-float",
  "parry3d",
  "profiling",
+ "rayon",
  "rustc-hash 2.1.1",
  "simba",
  "static_assertions",
  "thiserror 2.0.17",
+ "vec_map",
  "wide",
 ]
 
@@ -3521,17 +3539,18 @@ dependencies = [
  "fontdb",
  "futures",
  "gilrs",
+ "glamx",
  "image",
  "inventory",
  "itertools",
  "kira",
  "more-asserts",
  "naga",
- "nalgebra",
  "num-traits",
  "num_enum",
  "obj",
  "once_cell",
+ "parking_lot",
  "rapier3d",
  "slotmap",
  "smallvec",

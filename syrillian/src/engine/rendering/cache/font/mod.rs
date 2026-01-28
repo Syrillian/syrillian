@@ -10,7 +10,6 @@ use fdsm::shape::Shape;
 use fdsm::transform::Transform;
 use fdsm_ttf_parser::load_shape_from_face;
 use image::RgbImage;
-use nalgebra::Affine2;
 use std::sync::{Arc, RwLock};
 use ttf_parser::Face;
 use wgpu::{Device, Queue};
@@ -18,6 +17,7 @@ use wgpu::{Device, Queue};
 #[cfg(not(target_arch = "wasm32"))]
 use crossbeam_channel::{Receiver, Sender, TryRecvError, unbounded};
 use fdsm::bezier::prepared::PreparedColoredShape;
+use rapier3d::na::{Affine2, Matrix3};
 
 pub mod glyph;
 pub mod msdf_atlas;
@@ -309,9 +309,7 @@ fn glyph_transform(bbox: ttf_parser::Rect, shrinkage: f64, range: f64) -> Affine
     let tx = range - (bbox.x_min as f64) * s;
     let ty = range + (bbox.y_max as f64) * s;
 
-    Affine2::from_matrix_unchecked(nalgebra::Matrix3::new(
-        s, 0.0, tx, 0.0, -s, ty, 0.0, 0.0, 1.0,
-    ))
+    Affine2::from_matrix_unchecked(Matrix3::new(s, 0.0, tx, 0.0, -s, ty, 0.0, 0.0, 1.0))
 }
 
 fn build_msdf_image(

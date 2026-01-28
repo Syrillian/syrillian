@@ -1,9 +1,9 @@
-use nalgebra::{Vector2, Vector3, Vector4};
+use crate::math::{Vec2, Vec3, Vec4};
 use static_assertions::const_assert_eq;
 
-pub const VEC2_SIZE: u64 = size_of::<Vector2<f32>>() as u64;
-pub const VEC3_SIZE: u64 = size_of::<Vector3<f32>>() as u64;
-pub const VEC4_SIZE: u64 = size_of::<Vector4<f32>>() as u64;
+pub const VEC2_SIZE: u64 = size_of::<Vec2>() as u64;
+pub const VEC3_SIZE: u64 = size_of::<Vec3>() as u64;
+pub const VEC4_SIZE: u64 = size_of::<Vec4>() as u64;
 
 pub const WGPU_VEC2_ALIGN: u64 = 8;
 pub const WGPU_VEC3_ALIGN: u64 = 16;

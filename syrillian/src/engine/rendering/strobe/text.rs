@@ -1,5 +1,6 @@
 use crate::assets::HFont;
 use crate::core::{ModelUniform, ObjectHash};
+use crate::math::{Vec2, Vec3};
 use crate::rendering::glyph::{GlyphRenderData, generate_glyph_geometry_stream};
 use crate::rendering::proxies::{MeshUniformIndex, TextImmediates};
 use crate::rendering::{RenderPassType, hash_to_rgba};
@@ -7,7 +8,6 @@ use crate::strobe::UiDrawContext;
 use crate::strobe::ui_element::UiElement;
 use crate::try_activate_shader;
 use crate::utils::hsv_to_rgb;
-use nalgebra::{Vector2, Vector3};
 use wgpu::BufferUsages;
 use wgpu::util::DeviceExt;
 
@@ -24,9 +24,9 @@ pub struct UiTextDraw {
     pub font: HFont,
     pub alignment: TextAlignment,
     pub letter_spacing_em: f32,
-    pub position: Vector2<f32>,
+    pub position: Vec2,
     pub size_em: f32,
-    pub color: Vector3<f32>,
+    pub color: Vec3,
     pub rainbow: bool,
     pub text: String,
     pub object_hash: ObjectHash,
@@ -105,7 +105,7 @@ impl UiElement for UiTextDraw {
 
         if ctx.gpu_ctx().pass_type == RenderPassType::PickingUi {
             let color = hash_to_rgba(self.object_hash);
-            pc.color = Vector3::new(color[0], color[1], color[2]);
+            pc.color = Vec3::new(color[0], color[1], color[2]);
         }
 
         let mut pass = ctx.gpu_ctx().pass.write().unwrap();

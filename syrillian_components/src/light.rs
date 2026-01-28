@@ -130,7 +130,7 @@ impl<L: LightTypeTrait + 'static> Component for LightComponent<L> {
         self.local_proxy.position = parent.transform.position();
         self.local_proxy.direction = parent.transform.forward();
         self.local_proxy.up = parent.transform.up();
-        self.local_proxy.view_mat = parent.transform.view_matrix_rigid().to_matrix();
+        self.local_proxy.view_mat = parent.transform.view_matrix_rigid().to_mat4();
     }
 
     fn late_update(&mut self, world: &mut World) {
@@ -139,7 +139,7 @@ impl<L: LightTypeTrait + 'static> Component for LightComponent<L> {
             self.local_proxy.position = parent.transform.position();
             self.local_proxy.direction = parent.transform.forward();
             self.local_proxy.up = parent.transform.up();
-            self.local_proxy.view_mat = parent.transform.view_matrix_rigid().to_matrix();
+            self.local_proxy.view_mat = parent.transform.view_matrix_rigid().to_mat4();
             self.dirty = true;
         }
 

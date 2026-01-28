@@ -1,13 +1,13 @@
-use num_traits::Zero;
+use bytemuck::Zeroable;
 
 pub trait Interpolatable {
     fn interpolate(&mut self, len: usize);
 }
 
-impl<Z: Zero + Clone> Interpolatable for Vec<Z> {
+impl<Z: Zeroable + Clone> Interpolatable for Vec<Z> {
     fn interpolate(&mut self, len: usize) {
         if self.len() != len {
-            self.resize(len, Z::zero());
+            self.resize(len, Z::zeroed());
         }
     }
 }

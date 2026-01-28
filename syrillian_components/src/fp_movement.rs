@@ -1,10 +1,10 @@
 use crate::{FirstPersonCameraController, RigidBodyComponent};
-use num_traits::Zero;
 use syrillian::World;
 use syrillian::components::{CRef, CWeak, CameraComponent, Component};
 use syrillian::gilrs::Axis;
 use syrillian::input::KeyCode;
-use syrillian::math::Vector3;
+use syrillian::math::Vec3;
+use syrillian::physics::rapier3d::glamx::Vec3Swizzles;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::warn;
 use syrillian::{Reflect, ViewportId};
@@ -18,7 +18,7 @@ pub struct FirstPersonMovementController {
     rigid_body: CWeak<RigidBodyComponent>,
     #[dont_reflect]
     camera_controller: CWeak<FirstPersonCameraController>,
-    pub velocity: Vector3<f32>,
+    pub velocity: Vec3,
     pub sprint_multiplier: f32,
     velocity_interp_t: f32,
     is_grounded: bool,
@@ -33,7 +33,7 @@ impl Default for FirstPersonMovementController {
             jump_factor: 100.0,
             rigid_body: CWeak::null(),
             camera_controller: CWeak::null(),
-            velocity: Vector3::zero(),
+            velocity: Vec3::ZERO,
             sprint_multiplier: 2.0,
             velocity_interp_t: 6.0,
             is_grounded: false,
@@ -97,7 +97,7 @@ impl Component for FirstPersonMovementController {
 
         let jumping = world.input.is_jump_down();
         if jumping && self.is_grounded {
-            body.apply_impulse(vector![0.0, 0.2 * self.jump_factor, 0.0], true);
+            body.apply_impulse(Vec3::new(0.0, 0.2 * self.jump_factor, 0.0), true);
         }
 
         let (lr_movement, fb_movement, speed_factor, max_speed) =
@@ -114,19 +114,19 @@ impl Component for FirstPersonMovementController {
                 -lr_movement * speed_factor * delta_time * 100.,
                 4. - fb_movement.abs() * 2.,
             );
-            let speed_fraction = (self.velocity.magnitude() / max_speed).clamp(0.0, 2.0);
+            let speed_fraction = (self.velocity.length() / max_speed).clamp(0.0, 2.0);
             let sprinting = world.input.is_sprinting();
             camera.apply_movement_state(speed_fraction, sprinting);
             if self.is_grounded {
-                camera.update_bob(body.linvel().magnitude(), sprinting, delta_time);
+                camera.update_bob(body.linvel().length(), sprinting, delta_time);
             }
-            camera.vel = *body.linvel();
+            camera.vel = body.linvel();
             if jumping {
                 camera.signal_jump();
             }
         }
 
-        let mut linvel = *body.linvel();
+        let mut linvel = body.linvel();
         linvel.x = self.velocity.x;
         linvel.z = self.velocity.z;
 
@@ -146,12 +146,12 @@ impl FirstPersonMovementController {
 
         let mut position = *body.position();
         position.translation.y += self.feet_height + 0.05;
-        const DIR: Vector3<f32> = Vector3::new(0.0, -1.0, 0.0);
+        const DIR: Vector = Vector::new(0.0, -1.0, 0.0);
         let filter = QueryFilter::new().exclude_rigid_body(rigid_body.handle());
 
         self.is_grounded = world
             .physics
-            .cast_sphere(0.25, 0.15, &position, &DIR, filter)
+            .cast_sphere(0.25, 0.15, position, DIR, filter)
             .is_some();
     }
 
@@ -167,7 +167,7 @@ impl FirstPersonMovementController {
             speed_factor *= self.sprint_multiplier;
         }
 
-        let mut target_velocity = Vector3::zero();
+        let mut target_velocity = Vec3::ZERO;
 
         let mut fb_movement: f32 = 0.;
         if world.input.is_key_pressed(KeyCode::KeyW) {
@@ -203,7 +203,7 @@ impl FirstPersonMovementController {
         }
 
         let max_speed = speed_factor;
-        if target_velocity.magnitude() > 0.5 {
+        if target_velocity.length() > 0.5 {
             target_velocity = target_velocity.normalize();
         }
         target_velocity *= max_speed;
@@ -212,8 +212,8 @@ impl FirstPersonMovementController {
         if !self.is_grounded {
             interp_speed *= self.air_control;
         }
-        if self.is_grounded || body.linvel().xz().norm() > 0.05 {
-            self.velocity = self.velocity.lerp(&target_velocity, interp_speed);
+        if self.is_grounded || body.linvel().xz().length() > 0.05 {
+            self.velocity = self.velocity.lerp(target_velocity, interp_speed);
         } else {
             self.velocity.x = body.linvel().x;
             self.velocity.z = body.linvel().z;

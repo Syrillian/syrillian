@@ -3,8 +3,8 @@ use crate::engine::assets::{HTexture2D, Material};
 use crate::engine::rendering::cache::{AssetCache, CacheType};
 use crate::engine::rendering::uniform::ShaderUniform;
 use crate::ensure_aligned;
+use crate::math::Vec3;
 use bitflags::bitflags;
-use nalgebra::Vector3;
 use syrillian_macros::UniformIndex;
 use wgpu::{Device, Queue, TextureFormat};
 
@@ -37,7 +37,7 @@ bitflags! {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct MaterialUniform {
-    pub diffuse: Vector3<f32>,
+    pub diffuse: Vec3,
     pub roughness: f32,
     pub metallic: f32,
     pub alpha: f32,

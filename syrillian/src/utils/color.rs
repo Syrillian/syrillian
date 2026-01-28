@@ -1,6 +1,6 @@
-use nalgebra::Vector3;
+use crate::math::Vec3;
 
-pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Vector3<f32> {
+pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Vec3 {
     let h = h.rem_euclid(360.0);
     let c = v * s;
     let hp = h / 60.0;
@@ -14,7 +14,7 @@ pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Vector3<f32> {
         5 => (c, 0.0, x),
         _ => (0.0, 0.0, 0.0),
     };
-    Vector3::new(r1, g1, b1)
+    Vec3::new(r1, g1, b1)
 }
 
 #[cfg(test)]
@@ -25,15 +25,15 @@ mod tests {
     fn hsv_wraps_and_maps_primary_colors() {
         // Red at full saturation/value
         let red = hsv_to_rgb(0.0, 1.0, 1.0);
-        assert!((red - Vector3::new(1.0, 0.0, 0.0)).abs().max() < 1e-6);
+        assert!((red - Vec3::new(1.0, 0.0, 0.0)).abs().max_element() < f32::EPSILON);
 
         // Green via hue wrap
         let green = hsv_to_rgb(120.0, 1.0, 1.0);
-        assert!((green - Vector3::new(0.0, 1.0, 0.0)).abs().max() < 1e-6);
+        assert!((green - Vec3::new(0.0, 1.0, 0.0)).abs().max_element() < f32::EPSILON);
 
         // Blue with negative hue wrapping correctly
         let blue = hsv_to_rgb(-120.0, 1.0, 1.0);
-        assert!((blue - Vector3::new(0.0, 0.0, 1.0)).abs().max() < 1e-6);
+        assert!((blue - Vec3::new(0.0, 0.0, 1.0)).abs().max_element() < f32::EPSILON);
     }
 
     #[test]

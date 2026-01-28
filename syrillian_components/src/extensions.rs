@@ -3,11 +3,9 @@ use crate::light::{LightComponent, LightTypeTrait};
 use crate::{Collider3D, RigidBodyComponent, RotateComponent};
 use std::ops::{Deref, DerefMut};
 use syrillian::core::{GOComponentExt, GameObject, GameObjectId};
-use syrillian::math::nalgebra::Unit;
-use syrillian::math::{Point3, Vector3};
+use syrillian::math::{Pose, Vec3};
 use syrillian::physics::rapier3d::dynamics::RigidBody;
 use syrillian::physics::rapier3d::geometry::Collider;
-use syrillian::physics::rapier3d::math::Isometry;
 use syrillian::rendering::lights::Light;
 
 pub struct GOColliderExt<'a>(&'a mut Collider, &'a mut GameObject);
@@ -240,14 +238,14 @@ impl<T: JointTypeTrait> GOJointExt<'_, T> {
     }
 
     #[inline]
-    pub fn anchor1(self, point: Point3<f32>) -> Self {
-        self.0.set_anchor1(point);
+    pub fn anchor1(self, anchor: Vec3) -> Self {
+        self.0.set_anchor1(anchor);
         self
     }
 
     #[inline]
-    pub fn anchor2(self, point: Point3<f32>) -> Self {
-        self.0.set_anchor2(point);
+    pub fn anchor2(self, anchor: Vec3) -> Self {
+        self.0.set_anchor2(anchor);
         self
     }
 
@@ -272,13 +270,13 @@ impl<T: JointTypeTrait> GOJointExt<'_, T> {
 
 impl GOJointExt<'_, Fixed> {
     #[inline]
-    pub fn frame1(self, frame: Isometry<f32>) -> Self {
+    pub fn frame1(self, frame: Pose) -> Self {
         self.0.set_frame1(frame);
         self
     }
 
     #[inline]
-    pub fn frame2(self, frame: Isometry<f32>) -> Self {
+    pub fn frame2(self, frame: Pose) -> Self {
         self.0.set_frame2(frame);
         self
     }
@@ -286,7 +284,7 @@ impl GOJointExt<'_, Fixed> {
 
 impl GOJointExt<'_, Revolute> {
     #[inline]
-    pub fn axis(self, axis: Unit<Vector3<f32>>) -> Self {
+    pub fn axis(self, axis: Vec3) -> Self {
         self.0.set_axis(axis);
         self
     }
@@ -306,7 +304,7 @@ impl GOJointExt<'_, Revolute> {
 
 impl GOJointExt<'_, Prismatic> {
     #[inline]
-    pub fn axis(self, axis: Unit<Vector3<f32>>) -> Self {
+    pub fn axis(self, axis: Vec3) -> Self {
         self.0.set_axis(axis);
         self
     }

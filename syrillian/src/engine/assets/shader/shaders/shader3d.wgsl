@@ -450,12 +450,15 @@ fn view_look_at_rh(pos: vec3<f32>, target_pos: vec3<f32>, up: vec3<f32>) -> mat4
 }
 
 fn proj_perspective(fovy: f32, near: f32, far: f32) -> mat4x4<f32> {
-    let fct = 1.0 / tan(fovy / 2.0);
+    let sin_fov = sin(0.5 * fovy);
+    let cos_fov = cos(0.5 * fovy);
+    let h = cos_fov / sin_fov;
+    let r = far / (near - far);
     return mat4x4<f32>(
-        vec4<f32>( fct, 0.0, 0.0, 0.0),
-        vec4<f32>( 0.0, fct, 0.0, 0.0),
-        vec4<f32>( 0.0, 0.0, (far + near) / (near - far), -1.0),
-        vec4<f32>( 0.0, 0.0, far * near * 2.0 / (near - far), 0.0)
+        vec4<f32>( h, 0.0, 0.0, 0.0),
+        vec4<f32>( 0.0, h, 0.0, 0.0),
+        vec4<f32>( 0.0, 0.0, r, -1.0),
+        vec4<f32>( 0.0, 0.0, r * near, 0.0)
     );
 }
 
@@ -463,7 +466,7 @@ fn spot_shadow_uvz(light: Light, world_pos: vec3<f32>) -> vec3<f32> {
     let up   = light.up;
     let view = view_look_at_rh(light.position, light.position + light.direction, up);
 
-    let fovy = max(0.001, 2.0 * max(light.inner_angle, light.outer_angle));
+    let fovy = max(0.0175, 2.0 * max(light.inner_angle, light.outer_angle));
     let near = 0.05;
     let far  = max(near + 0.01, light.range);
     let proj = proj_perspective(fovy, near, far);

@@ -16,14 +16,13 @@ use crate::engine::assets::AssetStore;
 use crate::engine::prefabs::Prefab;
 use crate::game_thread::GameAppEvent;
 use crate::input::InputManager;
-use crate::physics::PhysicsManager;
+use crate::physics::PhysicsSimulation;
 use crate::prefabs::CameraPrefab;
 use crate::rendering::message::RenderMsg;
 use crate::rendering::picking::PickRequest;
 use crate::rendering::picking::PickResult;
 use crate::rendering::strobe::StrobeFrame;
 use crate::rendering::{CPUDrawCtx, UiContext};
-use nalgebra::Matrix4;
 use slotmap::{Key, SlotMap};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -180,7 +179,7 @@ pub struct World {
     main_active_camera: CWeak<CameraComponent>,
     /// Physics simulation system
     #[reflect]
-    pub physics: PhysicsManager,
+    pub physics: PhysicsSimulation,
     /// Input management system
     pub input: InputManager,
     /// Asset storage containing meshes, textures, materials, etc.
@@ -216,7 +215,7 @@ impl World {
             click_listeners: HashSet::new(),
             object_hashes: HashSet::new(),
             main_active_camera: CWeak::null(),
-            physics: PhysicsManager::default(),
+            physics: PhysicsSimulation::default(),
             input: InputManager::new(channels.game_event_tx.clone()),
             assets,
             audio: AudioScene::default(),
@@ -638,16 +637,15 @@ impl World {
 
     /// Runs possible physics update if the timestep time has elapsed yet
     pub fn fixed_update(&mut self) {
-        while self.physics.last_update.elapsed() >= self.physics.timestep {
-            self.execute_component_func(Component::pre_fixed_update);
+        while self.physics.is_due() {
+            self.execute_component_func(Component::fixed_update);
 
-            self.physics.last_update += self.physics.timestep;
             self.physics.step();
 
-            self.execute_component_func(Component::fixed_update);
+            self.execute_component_func(Component::post_fixed_update);
         }
 
-        let rem = self.physics.last_update.elapsed();
+        let rem = self.physics.current_timepoint.elapsed();
         self.physics.alpha =
             (rem.as_secs_f32() / self.physics.timestep.as_secs_f32()).clamp(0.0, 1.0);
     }
@@ -692,7 +690,7 @@ impl World {
             for comp in obj.components.iter() {
                 command_batch.push(RenderMsg::UpdateTransform(
                     comp.typed_id(),
-                    obj.transform.global_transform_matrix(),
+                    obj.transform.affine(),
                 ));
             }
         }
@@ -733,11 +731,9 @@ impl World {
         let obj = active_camera.parent();
         if obj.transform.is_dirty() {
             let pos = obj.transform.position();
-            let view_mat = obj.transform.view_matrix_rigid().to_matrix();
-            let view_proj_mat = active_camera.projection.as_matrix() * view_mat;
-            let inv_view_proj = view_proj_mat
-                .try_inverse()
-                .unwrap_or_else(Matrix4::identity);
+            let view_mat = obj.transform.view_matrix_rigid().to_mat4();
+            let view_proj_mat = active_camera.projection * view_mat;
+            let inv_view_proj = view_proj_mat.inverse();
             batch.push(RenderMsg::UpdateActiveCamera(
                 target_id,
                 Box::new(move |cam| {
@@ -755,11 +751,9 @@ impl World {
                 target_id,
                 Box::new(move |cam| {
                     cam.projection_mat = proj_mat;
-                    let view_proj_mat = cam.projection_mat.as_matrix() * cam.view_mat;
+                    let view_proj_mat = cam.projection_mat * cam.view_mat;
                     cam.proj_view_mat = view_proj_mat;
-                    cam.inv_proj_view_mat = view_proj_mat
-                        .try_inverse()
-                        .unwrap_or_else(Matrix4::identity);
+                    cam.inv_proj_view_mat = view_proj_mat.inverse();
                 }),
             ));
             active_camera.clear_projection_dirty();
@@ -796,7 +790,7 @@ impl World {
                 continue;
             };
 
-            let local_to_world = comp.parent().transform.global_transform_matrix();
+            let local_to_world = comp.parent().transform.affine();
             if let Some(proxy) = comp.create_render_proxy(self) {
                 self.channels
                     .render_tx

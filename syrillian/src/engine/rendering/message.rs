@@ -2,12 +2,12 @@ use crate::ViewportId;
 use crate::assets::HTexture2D;
 use crate::components::TypedComponentId;
 use crate::core::ObjectHash;
+use crate::math::Affine3A;
 use crate::rendering::lights::LightProxy;
 use crate::rendering::picking::PickRequest;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::render_data::CameraUniform;
 use crate::rendering::strobe::StrobeFrame;
-use nalgebra::Affine3;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 
@@ -16,15 +16,10 @@ pub type LightProxyCommand = Box<dyn FnOnce(&mut LightProxy) + Send>;
 pub type CameraUpdateCommand = Box<dyn FnOnce(&mut CameraUniform) + Send>;
 
 pub enum RenderMsg {
-    RegisterProxy(
-        TypedComponentId,
-        ObjectHash,
-        Box<dyn SceneProxy>,
-        Affine3<f32>,
-    ),
+    RegisterProxy(TypedComponentId, ObjectHash, Box<dyn SceneProxy>, Affine3A),
     RegisterLightProxy(TypedComponentId, Box<LightProxy>),
     RemoveProxy(TypedComponentId),
-    UpdateTransform(TypedComponentId, Affine3<f32>),
+    UpdateTransform(TypedComponentId, Affine3A),
     ProxyUpdate(TypedComponentId, ProxyUpdateCommand),
     LightProxyUpdate(TypedComponentId, LightProxyCommand),
     UpdateActiveCamera(ViewportId, CameraUpdateCommand),

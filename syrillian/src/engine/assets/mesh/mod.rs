@@ -4,10 +4,10 @@ use crate::assets::mesh::builder::MeshBuilder;
 use crate::core::{Bones, BoundingSphere, Vertex3D};
 use crate::engine::assets::generic_store::{HandleName, Store, StoreDefaults, StoreType};
 use crate::engine::assets::{H, HMesh};
+use crate::math::{Vec2, Vec3};
 use crate::store_add_checked;
 use crate::utils::UNIT_SQUARE_VERT;
 use itertools::izip;
-use nalgebra::{Point, Vector2, Vector3};
 use obj::{IndexTuple, ObjError};
 use snafu::Snafu;
 use std::fmt::Debug;
@@ -85,9 +85,9 @@ impl Mesh {
 
     pub fn load_from_obj_slice(data: &[u8]) -> Result<Mesh, MeshError> {
         let data = obj::ObjData::load_buf(data)?;
-        let mut vertices: Vec<Vector3<f32>> = Vec::new();
-        let mut normals: Vec<Vector3<f32>> = Vec::new();
-        let mut uvs: Vec<Vector2<f32>> = Vec::new();
+        let mut vertices: Vec<Vec3> = Vec::new();
+        let mut normals: Vec<Vec3> = Vec::new();
+        let mut uvs: Vec<Vec2> = Vec::new();
 
         let mut material_ranges = Vec::new();
 
@@ -149,8 +149,8 @@ impl MeshVertexData<Vertex3D> {
         }
     }
 
-    pub fn make_point_cloud(&self) -> Vec<Point<f32, 3>> {
-        self.vertices.iter().map(|v| v.position.into()).collect()
+    pub fn make_point_cloud(&self) -> Vec<Vec3> {
+        self.vertices.iter().map(|v| v.position).collect()
     }
 }
 
@@ -225,7 +225,7 @@ pub(crate) fn bounding_sphere_from_vertices(vertices: &[Vertex3D]) -> BoundingSp
     let center = (min + max) * 0.5;
     let mut radius = 0.0f32;
     for v in vertices {
-        radius = radius.max((v.position - center).norm());
+        radius = radius.max((v.position - center).length());
     }
 
     BoundingSphere { center, radius }

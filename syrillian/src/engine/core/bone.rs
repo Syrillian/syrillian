@@ -1,11 +1,11 @@
+use crate::math::Mat4;
 use crate::{MAX_BONES, ensure_aligned};
-use nalgebra::Matrix4;
 use std::collections::HashMap;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Bone {
-    pub(crate) transform: Matrix4<f32>,
+    pub(crate) transform: Mat4,
 }
 
 ensure_aligned!(Bone { transform }, align <= 16 * 4 => size);
@@ -18,9 +18,9 @@ pub struct Bones {
     pub parents: Vec<Option<usize>>,
     pub children: Vec<Vec<usize>>,
     pub roots: Vec<usize>,
-    pub inverse_bind: Vec<Matrix4<f32>>,
-    pub bind_global: Vec<Matrix4<f32>>,
-    pub bind_local: Vec<Matrix4<f32>>,
+    pub inverse_bind: Vec<Mat4>,
+    pub bind_global: Vec<Mat4>,
+    pub bind_local: Vec<Mat4>,
     /// Fast lookup from name to index.
     pub index_of: HashMap<String, usize>,
 }
@@ -42,7 +42,7 @@ impl Bones {
         self.index_of.get(name).copied()
     }
 
-    pub fn as_slice(&self) -> &[Matrix4<f32>] {
+    pub fn as_slice(&self) -> &[Mat4] {
         self.inverse_bind.as_slice()
     }
 
@@ -59,26 +59,21 @@ pub struct BoneData {
 impl BoneData {
     #[rustfmt::skip]
     pub const DUMMY: [Bone; MAX_BONES] = [Bone {
-        transform: Matrix4::new(
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0
-        )
+        transform: Mat4::IDENTITY,
     }; MAX_BONES];
 
     pub fn new_full_identity() -> Self {
         Self {
             bones: vec![
                 Bone {
-                    transform: Matrix4::identity()
+                    transform: Mat4::IDENTITY
                 };
                 MAX_BONES
             ],
         }
     }
 
-    pub fn set_first_n(&mut self, mats: &[Matrix4<f32>]) {
+    pub fn set_first_n(&mut self, mats: &[Mat4]) {
         for (i, m) in mats.iter().take(self.bones.len()).enumerate() {
             self.bones[i].transform = *m;
         }

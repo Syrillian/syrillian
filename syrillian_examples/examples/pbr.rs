@@ -2,7 +2,7 @@ use itertools::iproduct;
 use std::error::Error;
 use syrillian::SyrillianApp;
 use syrillian::assets::{Material, StoreType};
-use syrillian::math::Vector3;
+use syrillian::math::Vec3;
 use syrillian::{AppState, World};
 use syrillian_components::prefabs::SunPrefab;
 use syrillian_components::{FreecamController, MeshRenderer};
@@ -21,7 +21,7 @@ impl AppState for PBR {
             let ys = (y + 5) as f32 / 10.0;
             let zs = (z + 5) as f32 / 10.0;
 
-            let color = Vector3::new(xs, ys, zs);
+            let color = Vec3::new(xs, ys, zs);
             let material = Material::builder()
                 .roughness(xs)
                 .metallic(ys)

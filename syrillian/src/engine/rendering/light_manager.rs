@@ -235,7 +235,6 @@ impl LightManager {
     }
 
     pub fn update(&mut self, cache: &AssetCache, queue: &Queue, device: &Device) {
-        let queue = &queue;
         let proxies = proxy_buffer_slice(&self.proxies);
         let size = proxies.len();
 

@@ -1,11 +1,11 @@
 use crate::assets::{HMaterial, HShader};
 use crate::core::ObjectHash;
+use crate::math::Vec3;
 use crate::rendering::proxies::MeshUniformIndex;
 use crate::rendering::{RenderPassType, hash_to_rgba};
 use crate::strobe::UiDrawContext;
 use crate::strobe::ui_element::UiElement;
-use nalgebra::{Matrix4, Scale3, Translation3};
-use num_traits::Zero;
+use syrillian::math::Affine3A;
 
 #[derive(Debug, Clone)]
 pub struct UiImageDraw {
@@ -44,7 +44,7 @@ pub enum ImageScalingMode {
 }
 
 impl ImageScalingMode {
-    pub fn screen_matrix(&self, window_width: f32, window_height: f32) -> Matrix4<f32> {
+    pub fn screen_matrix(&self, window_width: f32, window_height: f32) -> Vec3 {
         match self {
             ImageScalingMode::Absolute {
                 left,
@@ -63,8 +63,7 @@ impl ImageScalingMode {
                 let tx = (right + left) * 0.5;
                 let ty = (top + bottom) * 0.5;
 
-                Translation3::new(tx, ty, 0.0).to_homogeneous()
-                    * Scale3::new(sx, sy, 1.0).to_homogeneous()
+                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
             }
             ImageScalingMode::Relative {
                 width,
@@ -88,8 +87,7 @@ impl ImageScalingMode {
                 let tx = (right + left) * 0.5;
                 let ty = (top + bottom) * 0.5;
 
-                Translation3::new(tx, ty, 0.0).to_homogeneous()
-                    * Scale3::new(sx, sy, 1.0).to_homogeneous()
+                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
             }
             ImageScalingMode::RelativeStretch {
                 left,
@@ -103,8 +101,7 @@ impl ImageScalingMode {
                 let tx = left + right - 1.0;
                 let ty = bottom + top - 1.0;
 
-                Translation3::new(tx, ty, 0.0).to_homogeneous()
-                    * Scale3::new(sx, sy, 1.0).to_homogeneous()
+                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
             }
             ImageScalingMode::Ndc { center, size } => {
                 let sx = size[0] * 0.5;
@@ -112,8 +109,7 @@ impl ImageScalingMode {
                 let tx = center[0];
                 let ty = center[1];
 
-                Translation3::new(tx, ty, 0.0).to_homogeneous()
-                    * Scale3::new(sx, sy, 1.0).to_homogeneous()
+                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
             }
         }
     }
@@ -138,11 +134,13 @@ impl UiElement for UiImageDraw {
         let height = ctx.viewport_size().height.max(1) as f32;
 
         let model_matrix = self.scaling.screen_matrix(width, height);
-        if model_matrix.is_zero() {
+        if model_matrix.length() < f32::EPSILON {
             return;
         }
 
-        let cached_image = ctx.ui_image_data(&model_matrix).clone();
+        let cached_image = ctx
+            .ui_image_data(&Affine3A::from_translation(model_matrix))
+            .clone();
 
         ctx.state().queue.write_buffer(
             cached_image.uniform.buffer(MeshUniformIndex::MeshData),

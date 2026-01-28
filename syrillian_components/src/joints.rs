@@ -1,16 +1,17 @@
 use crate::RigidBodyComponent;
 use snafu::{Snafu, ensure};
 use std::any::TypeId;
+use std::marker::PhantomData;
 use std::mem::offset_of;
-use std::{f32, marker::PhantomData};
 use syrillian::Reflect;
 use syrillian::core::reflection::{
     PartialReflect, Reflect, ReflectedField, ReflectedTypeActions, ReflectedTypeInfo, serialize_as,
 };
-use syrillian::math::nalgebra::UnitVector3;
-use syrillian::math::{Point3, Unit, Vector3};
+use syrillian::math::Vec3;
+use syrillian::physics::rapier3d::glamx::Quat;
+use syrillian::physics::rapier3d::math::Pose;
 use syrillian::physics::rapier3d::{
-    math::{Isometry, Vector},
+    math::Vector,
     prelude::{
         FixedJointBuilder, GenericJoint, ImpulseJointHandle, JointAxis, PrismaticJointBuilder,
         RevoluteJointBuilder, RigidBody, RopeJointBuilder, SphericalJointBuilder,
@@ -37,7 +38,7 @@ pub trait JointTypeTrait: Send + Sync + 'static {
     const NAME: &'static str;
     const FULL_NAME: &'static str;
 
-    fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint;
+    fn build(config: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint;
 }
 
 pub struct Fixed;
@@ -50,21 +51,21 @@ pub struct Spring;
 #[derive(Clone, Default, Reflect)]
 #[reflect_all]
 pub struct FixedConfig {
-    pub frame1: Isometry<f32>,
-    pub frame2: Isometry<f32>,
+    pub frame1: Pose,
+    pub frame2: Pose,
 }
 
 #[derive(Clone, Reflect)]
 #[reflect_all]
 pub struct RevoluteConfig {
-    pub axis: UnitVector3<f32>,
+    pub axis: Vector,
     pub limits: Option<[f32; 2]>,
 }
 
 #[derive(Clone, Reflect)]
 #[reflect_all]
 pub struct PrismaticConfig {
-    pub axis: UnitVector3<f32>,
+    pub axis: Vector,
     pub limits: Option<[f32; 2]>,
 }
 
@@ -89,7 +90,7 @@ pub struct SpringConfig {
 impl Default for RevoluteConfig {
     fn default() -> Self {
         Self {
-            axis: Vector3::y_axis(),
+            axis: Vec3::Y,
             limits: None,
         }
     }
@@ -98,7 +99,7 @@ impl Default for RevoluteConfig {
 impl Default for PrismaticConfig {
     fn default() -> Self {
         Self {
-            axis: Vector3::y_axis(),
+            axis: Vec3::Y,
             limits: None,
         }
     }
@@ -126,7 +127,7 @@ impl JointTypeTrait for Fixed {
     const NAME: &str = "FixedJoint";
     const FULL_NAME: &str = concat!(module_path!(), "::", "FixedJoint");
 
-    fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
+    fn build(config: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint {
         FixedJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
@@ -143,7 +144,7 @@ impl JointTypeTrait for Revolute {
     const NAME: &str = "RevoluteJoint";
     const FULL_NAME: &str = concat!(module_path!(), "::", "RevoluteJoint");
 
-    fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
+    fn build(config: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint {
         let mut b = RevoluteJointBuilder::new(config.axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2);
@@ -162,7 +163,7 @@ impl JointTypeTrait for Prismatic {
     const NAME: &str = "PrismaticJoint";
     const FULL_NAME: &str = concat!(module_path!(), "::", "PrismaticJoint");
 
-    fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
+    fn build(config: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint {
         let mut b = PrismaticJointBuilder::new(config.axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2);
@@ -181,7 +182,7 @@ impl JointTypeTrait for Spherical {
     const NAME: &str = "SphericalJoint";
     const FULL_NAME: &str = concat!(module_path!(), "::", "SphericalJoint");
 
-    fn build(_: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
+    fn build(_: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint {
         SphericalJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
@@ -196,7 +197,7 @@ impl JointTypeTrait for Rope {
     const NAME: &str = "RopeJoint";
     const FULL_NAME: &str = concat!(module_path!(), "::", "RopeJoint");
 
-    fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
+    fn build(config: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint {
         RopeJointBuilder::new(config.max_distance)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
@@ -211,7 +212,7 @@ impl JointTypeTrait for Spring {
     const NAME: &str = "SpringJoint";
     const FULL_NAME: &str = concat!(module_path!(), "::", "SpringJoint");
 
-    fn build(config: &Self::Config, anchor1: Point3<f32>, anchor2: Point3<f32>) -> GenericJoint {
+    fn build(config: &Self::Config, anchor1: Vec3, anchor2: Vec3) -> GenericJoint {
         SpringJointBuilder::new(config.rest_length, config.stiffness, config.damping)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
@@ -223,8 +224,8 @@ impl JointTypeTrait for Spring {
 pub struct JointComponent<T: JointTypeTrait> {
     pub connected: Option<GameObjectId>,
     handle: Option<ImpulseJointHandle>,
-    anchor1: Point3<f32>,
-    anchor2: Point3<f32>,
+    anchor1: Vector,
+    anchor2: Vector,
     pub break_force: Option<f32>,
     pub break_torque: Option<f32>,
     pub broken: bool,
@@ -284,8 +285,8 @@ impl<T: JointTypeTrait> Default for JointComponent<T> {
         Self {
             connected: None,
             handle: None,
-            anchor1: Point3::origin(),
-            anchor2: Point3::origin(),
+            anchor1: Vector::ZERO,
+            anchor2: Vector::ZERO,
             break_force: None,
             break_torque: None,
             broken: false,
@@ -296,7 +297,7 @@ impl<T: JointTypeTrait> Default for JointComponent<T> {
 }
 
 impl<T: JointTypeTrait> Component for JointComponent<T> {
-    fn fixed_update(&mut self, world: &mut World) {
+    fn post_fixed_update(&mut self, world: &mut World) {
         if self.handle.is_some() && !self.broken {
             self.check_break(world);
         }
@@ -401,25 +402,25 @@ impl<T: JointTypeTrait> JointComponent<T> {
 
     // anchors
 
-    pub fn set_anchor1(&mut self, anchor: Point3<f32>) {
+    pub fn set_anchor1(&mut self, anchor: Vec3) {
         self.anchor1 = anchor;
         if let Some(j) = self.joint_data_mut() {
-            j.set_local_anchor1(anchor);
+            j.set_local_anchor1(self.anchor1);
         }
     }
 
-    pub fn set_anchor2(&mut self, anchor: Point3<f32>) {
+    pub fn set_anchor2(&mut self, anchor: Vec3) {
         self.anchor2 = anchor;
         if let Some(j) = self.joint_data_mut() {
-            j.set_local_anchor2(anchor);
+            j.set_local_anchor2(self.anchor2);
         }
     }
 
-    pub fn anchor1(&self) -> Point3<f32> {
+    pub fn anchor1(&self) -> Vec3 {
         self.anchor1
     }
 
-    pub fn anchor2(&self) -> Point3<f32> {
+    pub fn anchor2(&self) -> Vec3 {
         self.anchor2
     }
 
@@ -482,75 +483,79 @@ impl<T: JointTypeTrait> JointComponent<T> {
         let w1 = rb1.position() * self.anchor1;
         let w2 = rb2.position() * self.anchor2;
 
-        Some((w2 - w1).magnitude())
+        Some((w2 - w1).length())
     }
 
-    pub fn anchor_direction(&self) -> Option<Unit<Vector3<f32>>> {
+    pub fn anchor_direction(&self) -> Option<Vec3> {
         let (rb1, rb2) = self.bodies()?;
         let w1 = rb1.position() * self.anchor1;
         let w2 = rb2.position() * self.anchor2;
-        Unit::try_new(w2 - w1, f32::EPSILON)
+        Some(w2 - w1)
     }
 
-    pub fn world_anchor1(&self) -> Option<Point3<f32>> {
+    pub fn world_anchor1(&self) -> Option<Vec3> {
         let (rb1, _) = self.bodies()?;
         Some(rb1.position() * self.anchor1)
     }
 
-    pub fn world_anchor2(&self) -> Option<Point3<f32>> {
+    pub fn world_anchor2(&self) -> Option<Vec3> {
         let (_, rb2) = self.bodies()?;
         Some(rb2.position() * self.anchor2)
     }
 
-    pub fn force(&self) -> Option<Vector3<f32>> {
+    pub fn force(&self) -> Option<Vec3> {
         let (rb1, rb2) = self.bodies()?;
         let reduced = (rb1.mass() * rb2.mass()) / (rb1.mass() + rb2.mass());
         Some((rb2.linvel() - rb1.linvel()) * reduced)
     }
 
     pub fn force_magnitude(&self) -> Option<f32> {
-        self.force().map(|f| f.magnitude())
+        self.force().map(|f| f.length())
     }
 
-    pub fn torque(&self) -> Option<Vector3<f32>> {
+    pub fn torque(&self) -> Option<Vec3> {
         let (rb1, rb2) = self.bodies()?;
         Some(rb2.angvel() - rb1.angvel())
     }
 
     pub fn torque_magnitude(&self) -> Option<f32> {
-        self.torque().map(|t| t.magnitude())
+        self.torque().map(|t| t.length())
     }
 }
 
 impl JointComponent<Fixed> {
-    pub fn set_frame1(&mut self, q: Isometry<f32>) {
+    pub fn set_frame1(&mut self, q: Pose) {
         self.config.frame1 = q;
         if let Some(j) = self.joint_data_mut()
             && let Some(f) = j.as_fixed_mut()
         {
-            f.set_local_frame1(q);
+            f.set_local_frame1(self.config.frame1);
         }
     }
 
-    pub fn set_frame2(&mut self, q: Isometry<f32>) {
+    pub fn set_frame2(&mut self, q: Pose) {
         self.config.frame2 = q;
         if let Some(j) = self.joint_data_mut()
             && let Some(f) = j.as_fixed_mut()
         {
-            f.set_local_frame2(q);
+            f.set_local_frame2(self.config.frame2);
         }
     }
 
     pub fn rotation_error(&self) -> Option<f32> {
         let (rb1, rb2) = self.bodies()?;
-        let expected = rb1.rotation() * self.config.frame1 * self.config.frame2.inverse();
+        let expected = *rb1.rotation() * self.config.frame1 * self.config.frame2.inverse();
 
-        Some((expected.inverse() * rb2.rotation()).rotation.angle())
+        Some(
+            (expected.inverse() * *rb2.rotation())
+                .rotation
+                .angle_between(Quat::IDENTITY),
+        )
     }
 }
 
 impl JointComponent<Revolute> {
-    pub fn set_axis(&mut self, axis: Unit<Vector3<f32>>) {
+    pub fn set_axis(&mut self, axis: Vec3) {
         self.config.axis = axis;
     }
 
@@ -569,10 +574,11 @@ impl JointComponent<Revolute> {
 
     pub fn angle(&self) -> Option<f32> {
         let (rb1, rb2) = self.bodies()?;
-        self.joint_data()?
-            .as_revolute()?
-            .angle(rb1.rotation(), rb2.rotation())
-            .into()
+        Some(
+            self.joint_data()?
+                .as_revolute()?
+                .angle(rb1.rotation(), rb2.rotation()),
+        )
     }
 
     pub fn angle_deg(&self) -> Option<f32> {
@@ -581,7 +587,7 @@ impl JointComponent<Revolute> {
 
     pub fn angular_velocity(&self) -> Option<f32> {
         let (rb1, rb2) = self.bodies()?;
-        Some((rb2.angvel() - rb1.angvel()).dot(&self.config.axis))
+        Some((rb2.angvel() - rb1.angvel()).dot(self.config.axis))
     }
 
     pub fn set_motor_velocity(&mut self, vel: f32, max_force: f32) {
@@ -612,7 +618,7 @@ impl JointComponent<Revolute> {
 }
 
 impl JointComponent<Prismatic> {
-    pub fn set_axis(&mut self, axis: Unit<Vector3<f32>>) {
+    pub fn set_axis(&mut self, axis: Vec3) {
         self.config.axis = axis;
     }
 
@@ -631,12 +637,12 @@ impl JointComponent<Prismatic> {
 
         let vec = Vector::new(sub.x, sub.y, sub.z);
 
-        Some(vec.dot(&self.config.axis))
+        Some(vec.dot(self.config.axis))
     }
 
     pub fn velocity(&self) -> Option<f32> {
         let (rb1, rb2) = self.bodies()?;
-        Some((rb2.linvel() - rb1.linvel()).dot(&self.config.axis))
+        Some((rb2.linvel() - rb1.linvel()).dot(self.config.axis))
     }
 
     pub fn set_motor_velocity(&mut self, vel: f32, max_force: f32) {

@@ -1,6 +1,7 @@
 use crate::assets::{AssetStore, H, HMaterial, HMesh, HShader, Shader};
 use crate::core::bone::BoneData;
 use crate::core::{BoundingSphere, ModelUniform};
+use crate::math::Affine3A;
 #[cfg(debug_assertions)]
 use crate::rendering::DebugRenderer;
 use crate::rendering::picking::hash_to_rgba;
@@ -12,7 +13,6 @@ use crate::rendering::{
     AssetCache, GPUDrawCtx, RenderPassType, Renderer, RuntimeMesh, RuntimeShader,
 };
 use crate::{proxy_data, proxy_data_mut, try_activate_shader};
-use nalgebra::Matrix4;
 use std::any::Any;
 use std::ops::Range;
 use std::sync::RwLockWriteGuard;
@@ -62,7 +62,7 @@ impl RuntimeMeshData {
 }
 
 impl SceneProxy for MeshSceneProxy {
-    fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Matrix4<f32>) -> Box<dyn Any> {
+    fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Affine3A) -> Box<dyn Any> {
         Box::new(self.setup_mesh_data(renderer, local_to_world))
     }
 
@@ -70,7 +70,7 @@ impl SceneProxy for MeshSceneProxy {
         &mut self,
         renderer: &Renderer,
         data: &mut dyn Any,
-        local_to_world: &Matrix4<f32>,
+        local_to_world: &Affine3A,
     ) {
         let data: &mut RuntimeMeshData = proxy_data_mut!(data);
 
@@ -85,7 +85,7 @@ impl SceneProxy for MeshSceneProxy {
             self.bones_dirty = false;
         }
 
-        data.mesh_data.model_mat = *local_to_world;
+        data.mesh_data.model_mat = (*local_to_world).into();
 
         renderer.state.queue.write_buffer(
             data.uniform.buffer(MeshUniformIndex::MeshData),
@@ -172,8 +172,8 @@ impl SceneProxy for MeshSceneProxy {
         }
     }
 
-    fn bounds(&self, local_to_world: &Matrix4<f32>) -> Option<BoundingSphere> {
-        Some((self.bounding * 5.0).transformed(local_to_world))
+    fn bounds(&self, local_to_world: &Affine3A) -> Option<BoundingSphere> {
+        Some((self.bounding * 5.0).transformed(&(*local_to_world).into()))
     }
 }
 
@@ -243,11 +243,11 @@ impl MeshSceneProxy {
     fn setup_mesh_data(
         &mut self,
         renderer: &Renderer,
-        local_to_world: &Matrix4<f32>,
+        local_to_world: &Affine3A,
     ) -> RuntimeMeshData {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
-        let mesh_data = ModelUniform::from_matrix(local_to_world);
+        let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
         let uniform = ShaderUniform::<MeshUniformIndex>::builder(&model_bgl)
             .with_buffer_data(&mesh_data)
@@ -266,9 +266,9 @@ fn draw_edges(
     runtime: &RuntimeMeshData,
     pass: &mut RenderPass,
 ) {
-    use nalgebra::Vector4;
+    use syrillian::math::Vec4;
 
-    const COLOR: Vector4<f32> = Vector4::new(1.0, 0.0, 1.0, 1.0);
+    const COLOR: Vec4 = Vec4::new(1.0, 0.0, 1.0, 1.0);
 
     let shader = cache.shader(HShader::DEBUG_EDGES);
     if !runtime.activate_shader(&shader, ctx, pass) {

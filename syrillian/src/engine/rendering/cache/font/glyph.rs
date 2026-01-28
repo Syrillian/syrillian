@@ -1,7 +1,7 @@
+use crate::math::Vec2;
 use crate::rendering::FontAtlas;
 use crate::rendering::msdf_atlas::{FontLineMetrics, GlyphAtlasEntry};
 use crate::rendering::strobe::TextAlignment;
-use nalgebra::Vector2;
 use static_assertions::{const_assert, const_assert_eq};
 use ttf_parser::Face;
 
@@ -47,7 +47,7 @@ pub struct GlyphBitmap {
 }
 
 impl GlyphRenderData {
-    fn from_entry(origin_em: Vector2<f32>, entry: &GlyphAtlasEntry) -> Self {
+    fn from_entry(origin_em: Vec2, entry: &GlyphAtlasEntry) -> Self {
         let l = origin_em.x + entry.plane_min[0];
         let r = origin_em.x + entry.plane_max[0];
         let b = origin_em.y + entry.plane_min[1];
@@ -172,7 +172,7 @@ fn layout_text_lines(
 ) -> (Vec<GlyphRenderData>, Vec<(usize, f32)>) {
     let mut quads = Vec::new();
     let mut row_data = Vec::<(usize, f32)>::new();
-    let mut cursor = Vector2::new(0.0f32, 0.0f32);
+    let mut cursor = Vec2::new(0.0f32, 0.0f32);
     let mut row_glyphs = 0usize;
     let mut row_width_em = 0.0f32;
     let mut prev_char: Option<char> = None;
@@ -221,7 +221,7 @@ fn push_row(rows: &mut Vec<(usize, f32)>, glyphs: usize, width_em: f32) {
     rows.push((glyphs, width_em));
 }
 
-fn begin_new_line(cursor: &mut Vector2<f32>, baseline_dy: f32) {
+fn begin_new_line(cursor: &mut Vec2, baseline_dy: f32) {
     cursor.x = 0.0;
     cursor.y -= baseline_dy;
 }

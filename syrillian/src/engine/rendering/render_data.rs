@@ -1,9 +1,8 @@
 use crate::core::Transform;
 use crate::ensure_aligned;
+use crate::math::{Mat4, UVec2, Vec3};
 use crate::rendering::lights::LightProxy;
 use crate::rendering::uniform::ShaderUniform;
-use crate::utils::{MATRIX4_ID, VECTOR3_ID};
-use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector2, Vector3};
 use std::f32::consts::FRAC_PI_2;
 use syrillian_macros::UniformIndex;
 use wgpu::{BindGroupLayout, Device, Queue};
@@ -12,12 +11,12 @@ use wgpu::{BindGroupLayout, Device, Queue};
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    pub(crate) pos: Vector3<f32>,
+    pub(crate) pos: Vec3,
     pub(crate) _padding: u32,
-    pub(crate) view_mat: Matrix4<f32>,
-    pub(crate) projection_mat: Perspective3<f32>,
-    pub proj_view_mat: Matrix4<f32>,
-    pub inv_proj_view_mat: Matrix4<f32>,
+    pub(crate) view_mat: Mat4,
+    pub(crate) projection_mat: Mat4,
+    pub proj_view_mat: Mat4,
+    pub inv_proj_view_mat: Mat4,
 }
 
 ensure_aligned!(
@@ -34,7 +33,7 @@ ensure_aligned!(
 #[repr(C)]
 #[derive(Default, Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SystemUniform {
-    pub(crate) screen_size: Vector2<u32>,
+    pub(crate) screen_size: UVec2,
     pub(crate) time: f32,
     pub(crate) delta_time: f32,
 }
@@ -56,15 +55,15 @@ pub struct RenderUniformData {
 
 impl Default for CameraUniform {
     fn default() -> Self {
-        let projection_mat = Perspective3::new(1.0, 60.0, 0.1, 1000.0);
-        let proj_view_mat = projection_mat.to_homogeneous(); // identity matrix for view_mat so it's the same
+        let projection_mat = Mat4::perspective_rh(60.0, 1.0, 0.1, 1000.0);
+        let proj_view_mat = projection_mat; // identity matrix for view_mat so it's the same
         CameraUniform {
-            pos: VECTOR3_ID,
+            pos: Vec3::ZERO,
             _padding: 0,
-            view_mat: MATRIX4_ID,
+            view_mat: Mat4::IDENTITY,
             projection_mat,
             proj_view_mat,
-            inv_proj_view_mat: MATRIX4_ID,
+            inv_proj_view_mat: Mat4::IDENTITY,
         }
     }
 }
@@ -72,49 +71,36 @@ impl Default for CameraUniform {
 impl CameraUniform {
     pub const fn empty() -> Self {
         CameraUniform {
-            pos: VECTOR3_ID,
+            pos: Vec3::ZERO,
             _padding: 0,
-            view_mat: MATRIX4_ID,
-            projection_mat: Perspective3::from_matrix_unchecked(MATRIX4_ID), // This is 100% wrong but nalgebra forces this for const. It's ""fine"" though.
-            proj_view_mat: MATRIX4_ID,
-            inv_proj_view_mat: MATRIX4_ID,
+            view_mat: Mat4::IDENTITY,
+            projection_mat: Mat4::IDENTITY,
+            proj_view_mat: Mat4::IDENTITY,
+            inv_proj_view_mat: Mat4::IDENTITY,
         }
     }
 
-    pub fn update_with_transform(
-        &mut self,
-        proj_matrix: &Perspective3<f32>,
-        cam_transform: &Transform,
-    ) {
+    pub fn update_with_transform(&mut self, proj_matrix: &Mat4, cam_transform: &Transform) {
         let pos = cam_transform.position();
-        let view_mat = cam_transform.global_transform_matrix_ext(true).inverse();
+        let view_mat: Mat4 = cam_transform.affine().inverse().into();
 
-        self.update(proj_matrix, &pos, view_mat.matrix());
+        self.update(proj_matrix, &pos, &view_mat);
     }
 
-    pub fn update(
-        &mut self,
-        proj_matrix: &Perspective3<f32>,
-        pos: &Vector3<f32>,
-        view_matrix: &Matrix4<f32>,
-    ) {
+    pub fn update(&mut self, proj_matrix: &Mat4, pos: &Vec3, view_matrix: &Mat4) {
         self.pos = *pos;
         self.view_mat = *view_matrix;
         self.projection_mat = *proj_matrix;
 
-        let proj_mat = self.projection_mat.as_matrix();
-        self.proj_view_mat = proj_mat * self.view_mat;
-        self.inv_proj_view_mat = self
-            .proj_view_mat
-            .try_inverse()
-            .unwrap_or_else(Matrix4::identity);
+        self.proj_view_mat = proj_matrix * self.view_mat;
+        self.inv_proj_view_mat = self.proj_view_mat.inverse();
     }
 }
 
 impl SystemUniform {
     pub const fn empty() -> Self {
         SystemUniform {
-            screen_size: Vector2::new(0, 0),
+            screen_size: UVec2::ZERO,
             time: 0.0,
             delta_time: 0.0,
         }
@@ -141,7 +127,7 @@ impl RenderUniformData {
         let fovy = (2.0 * light.outer_angle).clamp(0.0175, 3.12);
         let near = 0.05_f32;
         let far = light.range.max(near + 0.01);
-        let proj = Perspective3::new(1.0, fovy, near, far);
+        let proj = Mat4::perspective_rh(fovy, 1.0, near, far);
 
         self.camera_data
             .update(&proj, &light.position, &light.view_mat);
@@ -149,35 +135,34 @@ impl RenderUniformData {
     }
 
     pub fn update_shadow_camera_for_point(&mut self, light: &LightProxy, face: u8, queue: &Queue) {
-        const DIRECTIONS: [Vector3<f32>; 6] = [
-            Vector3::new(1.0, 0.0, 0.0),
-            Vector3::new(-1.0, 0.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(0.0, -1.0, 0.0),
-            Vector3::new(0.0, 0.0, 1.0),
-            Vector3::new(0.0, 0.0, -1.0),
+        const DIRECTIONS: [Vec3; 6] = [
+            Vec3::X,
+            Vec3::NEG_X,
+            Vec3::Y,
+            Vec3::NEG_Y,
+            Vec3::Z,
+            Vec3::NEG_Z,
         ];
-        const UPS: [Vector3<f32>; 6] = [
-            Vector3::new(0.0, -1.0, 0.0),
-            Vector3::new(0.0, -1.0, 0.0),
-            Vector3::new(0.0, 0.0, 1.0),
-            Vector3::new(0.0, 0.0, -1.0),
-            Vector3::new(0.0, -1.0, 0.0),
-            Vector3::new(0.0, -1.0, 0.0),
+        const UPS: [Vec3; 6] = [
+            Vec3::NEG_Y,
+            Vec3::NEG_Y,
+            Vec3::Z,
+            Vec3::NEG_Z,
+            Vec3::NEG_Y,
+            Vec3::NEG_Y,
         ];
 
         let idx = face.min(5) as usize;
         let dir = DIRECTIONS[idx];
         let up = UPS[idx];
 
-        let eye = Point3::new(light.position.x, light.position.y, light.position.z);
-        let target_vec = light.position + dir;
-        let target = Point3::new(target_vec.x, target_vec.y, target_vec.z);
-        let view = Isometry3::look_at_rh(&eye, &target, &up).to_homogeneous();
+        let eye = light.position;
+        let target = light.position + dir;
+        let view = Mat4::look_at_rh(eye, target, up);
 
         let near = 0.05_f32;
         let far = light.range.max(near + 0.01);
-        let proj = Perspective3::new(1.0, FRAC_PI_2, near, far);
+        let proj = Mat4::perspective_rh(FRAC_PI_2, 1.0, near, far);
 
         self.camera_data.update(&proj, &light.position, &view);
         self.upload_camera_data(queue);

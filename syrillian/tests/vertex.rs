@@ -1,13 +1,13 @@
-use nalgebra::{Vector2, Vector3};
 use syrillian::engine::core::Vertex3D;
+use syrillian::math::{Vec2, Vec3};
 
 #[test]
 fn vertex_creation_pads_indices() {
     let v = Vertex3D::new(
-        Vector3::new(0.0, 0.0, 0.0),
-        Vector2::new(0.0, 0.0),
-        Vector3::new(0.0, 0.0, 1.0),
-        Vector3::new(1.0, 0.0, 0.0),
+        Vec3::ZERO,
+        Vec2::ZERO,
+        Vec3::Z,
+        Vec3::X,
         &[1, 2],
         &[0.5, 0.5],
     );

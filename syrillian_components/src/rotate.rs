@@ -1,4 +1,4 @@
-use syrillian::math::{UnitQuaternion, Vector3};
+use syrillian::math::{Quat, Vec3};
 
 use syrillian::Reflect;
 use syrillian::World;
@@ -11,7 +11,7 @@ pub struct RotateComponent {
     pub iteration: f32,
     pub y_rot: f32,
     pub scale_coefficient: f32,
-    default_scale: Vector3<f32>,
+    default_scale: Vec3,
 }
 
 impl Default for RotateComponent {
@@ -21,7 +21,7 @@ impl Default for RotateComponent {
             iteration: 0.0,
             y_rot: 0.0,
             scale_coefficient: 0.0,
-            default_scale: Vector3::new(1.0, 1.0, 1.0),
+            default_scale: Vec3::ONE,
         }
     }
 }
@@ -35,10 +35,10 @@ impl Component for RotateComponent {
         let delta_time = world.delta_time().as_secs_f32();
 
         let x_angle_radians = (self.iteration / 100.0).sin() * 45.0f32.to_radians();
-        let x_rotation = UnitQuaternion::from_axis_angle(&Vector3::x_axis(), x_angle_radians);
+        let x_rotation = Quat::from_axis_angle(Vec3::X, x_angle_radians);
 
         self.y_rot += self.rotate_speed.to_radians() * delta_time;
-        let y_rotation = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), self.y_rot);
+        let y_rotation = Quat::from_axis_angle(Vec3::Y, self.y_rot);
 
         let combined_rotation = y_rotation * x_rotation;
 

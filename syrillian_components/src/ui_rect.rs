@@ -1,15 +1,15 @@
 use crate::{Image, Text2D};
 use syrillian::World;
 use syrillian::components::Component;
-use syrillian::math::{Translation3, Vector2};
+use syrillian::math::{Mat4, Vec2, Vec3};
 use syrillian::rendering::strobe::ImageScalingMode;
 use syrillian::{Reflect, ViewportId};
 
 #[derive(Debug, Clone)]
 pub struct UiRectLayout {
-    pub top_left_px: Vector2<f32>,
-    pub size_px: Vector2<f32>,
-    pub screen: Vector2<f32>,
+    pub top_left_px: Vec2,
+    pub size_px: Vec2,
+    pub screen: Vec2,
     pub target: ViewportId,
     pub depth: f32,
     pub draw_order: u32,
@@ -22,11 +22,11 @@ pub enum UiSize {
 }
 
 impl UiSize {
-    pub fn resolve(&self, screen: Vector2<f32>) -> Vector2<f32> {
+    pub fn resolve(&self, screen: Vec2) -> Vec2 {
         match *self {
-            UiSize::Pixels { width, height } => Vector2::new(width.max(0.0), height.max(0.0)),
+            UiSize::Pixels { width, height } => Vec2::new(width.max(0.0), height.max(0.0)),
             UiSize::Percent { width, height } => {
-                Vector2::new((width * screen.x).max(0.0), (height * screen.y).max(0.0))
+                Vec2::new((width * screen.x).max(0.0), (height * screen.y).max(0.0))
             }
         }
     }
@@ -35,9 +35,9 @@ impl UiSize {
 #[derive(Debug, Reflect)]
 #[reflect_all]
 pub struct UiRect {
-    anchor: Vector2<f32>,
-    pivot: Vector2<f32>,
-    offset: Vector2<f32>,
+    anchor: Vec2,
+    pivot: Vec2,
+    offset: Vec2,
     size: UiSize,
     pub depth: f32,
     #[dont_reflect]
@@ -45,27 +45,27 @@ pub struct UiRect {
 }
 
 impl UiRect {
-    pub fn anchor(&self) -> Vector2<f32> {
+    pub fn anchor(&self) -> Vec2 {
         self.anchor
     }
 
-    pub fn set_anchor(&mut self, anchor: Vector2<f32>) {
+    pub fn set_anchor(&mut self, anchor: Vec2) {
         self.anchor = anchor;
     }
 
-    pub fn pivot(&self) -> Vector2<f32> {
+    pub fn pivot(&self) -> Vec2 {
         self.pivot
     }
 
-    pub fn set_pivot(&mut self, pivot: Vector2<f32>) {
+    pub fn set_pivot(&mut self, pivot: Vec2) {
         self.pivot = pivot;
     }
 
-    pub fn offset(&self) -> Vector2<f32> {
+    pub fn offset(&self) -> Vec2 {
         self.offset
     }
 
-    pub fn set_offset(&mut self, offset: Vector2<f32>) {
+    pub fn set_offset(&mut self, offset: Vec2) {
         self.offset = offset;
     }
 
@@ -95,19 +95,19 @@ impl UiRect {
 
     pub fn layout(&self, world: &World) -> Option<UiRectLayout> {
         let screen = world.viewport_size(self.render_target)?;
-        let screen_vec = Vector2::new(screen.width as f32, screen.height as f32);
-        self.layout_in_region(Vector2::zeros(), screen_vec, screen_vec)
+        let screen_vec = Vec2::new(screen.width as f32, screen.height as f32);
+        self.layout_in_region(Vec2::ZERO, screen_vec, screen_vec)
     }
 
     pub fn layout_in_region(
         &self,
-        parent_origin: Vector2<f32>,
-        parent_size: Vector2<f32>,
-        screen: Vector2<f32>,
+        parent_origin: Vec2,
+        parent_size: Vec2,
+        screen: Vec2,
     ) -> Option<UiRectLayout> {
         let size_px = self.size.resolve(parent_size);
-        let anchor_px = Vector2::new(self.anchor.x * parent_size.x, self.anchor.y * parent_size.y);
-        let pivot_offset = Vector2::new(self.pivot.x * size_px.x, self.pivot.y * size_px.y);
+        let anchor_px = Vec2::new(self.anchor.x * parent_size.x, self.anchor.y * parent_size.y);
+        let pivot_offset = Vec2::new(self.pivot.x * size_px.x, self.pivot.y * size_px.y);
         let top_left_px = parent_origin + anchor_px + self.offset - pivot_offset;
 
         Some(UiRectLayout {
@@ -144,7 +144,7 @@ impl UiRect {
 
                 image.set_draw_order(layout.draw_order);
 
-                let translation = Translation3::new(0.0, 0.0, layout.depth).to_homogeneous();
+                let translation = Mat4::from_translation(Vec3::new(0.0, 0.0, layout.depth));
                 image.set_translation(translation);
 
                 layout.draw_order += 1;
@@ -162,9 +162,9 @@ impl UiRect {
 impl Default for UiRect {
     fn default() -> Self {
         Self {
-            anchor: Vector2::new(0.0, 0.0),
-            pivot: Vector2::new(0.0, 0.0),
-            offset: Vector2::zeros(),
+            anchor: Vec2::ZERO,
+            pivot: Vec2::ZERO,
+            offset: Vec2::ZERO,
             size: UiSize::Pixels {
                 width: 100.0,
                 height: 100.0,
@@ -180,7 +180,7 @@ impl Component for UiRect {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use syrillian::math::{Translation3, Vector2};
+    use syrillian::math::Vec2;
     use syrillian::windowing::PhysicalSize;
 
     fn world_with_viewport() -> Box<World> {
@@ -192,9 +192,9 @@ mod tests {
     #[test]
     fn layout_in_region_resolves_anchor_and_pivot() {
         let mut rect = UiRect::default();
-        rect.set_anchor(Vector2::new(0.5, 0.5));
-        rect.set_pivot(Vector2::new(1.0, 1.0));
-        rect.set_offset(Vector2::new(10.0, -5.0));
+        rect.set_anchor(Vec2::new(0.5, 0.5));
+        rect.set_pivot(Vec2::new(1.0, 1.0));
+        rect.set_offset(Vec2::new(10.0, -5.0));
         rect.set_size(UiSize::Percent {
             width: 0.25,
             height: 0.5,
@@ -202,15 +202,15 @@ mod tests {
 
         let layout = rect
             .layout_in_region(
-                Vector2::new(20.0, 30.0),
-                Vector2::new(400.0, 200.0),
-                Vector2::new(800.0, 600.0),
+                Vec2::new(20.0, 30.0),
+                Vec2::new(400.0, 200.0),
+                Vec2::new(800.0, 600.0),
             )
             .expect("layout should be produced");
 
-        assert_eq!(layout.size_px, Vector2::new(100.0, 100.0));
-        assert_eq!(layout.top_left_px, Vector2::new(130.0, 25.0));
-        assert_eq!(layout.screen, Vector2::new(800.0, 600.0));
+        assert_eq!(layout.size_px, Vec2::new(100.0, 100.0));
+        assert_eq!(layout.top_left_px, Vec2::new(130.0, 25.0));
+        assert_eq!(layout.screen, Vec2::new(800.0, 600.0));
         assert_eq!(layout.target, ViewportId::PRIMARY);
         assert_eq!(layout.depth, rect.depth);
         assert_eq!(layout.draw_order, 0);
@@ -223,7 +223,7 @@ mod tests {
         world.add_child(obj);
 
         let mut rect = obj.add_component::<UiRect>();
-        rect.set_offset(Vector2::new(12.0, 18.0));
+        rect.set_offset(Vec2::new(12.0, 18.0));
         rect.set_size(UiSize::Pixels {
             width: 150.0,
             height: 75.0,
@@ -255,7 +255,7 @@ mod tests {
         assert_eq!(image2.draw_order(), 2);
         assert_eq!(
             image.translation(),
-            Translation3::new(0.0, 0.0, 0.25).to_homogeneous()
+            Mat4::from_translation(Vec3::new(0.0, 0.0, 0.25))
         );
     }
 
@@ -276,9 +276,9 @@ mod tests {
         });
 
         let mut layout = UiRectLayout {
-            top_left_px: Vector2::new(10.0, 20.0),
-            size_px: Vector2::zeros(),
-            screen: Vector2::new(100.0, 100.0),
+            top_left_px: Vec2::new(10.0, 20.0),
+            size_px: Vec2::ZERO,
+            screen: Vec2::new(100.0, 100.0),
             target: ViewportId::PRIMARY,
             depth: 0.5,
             draw_order: 3,
@@ -289,6 +289,6 @@ mod tests {
         assert_eq!(layout.draw_order, 4);
         assert_eq!(image.scaling_mode(), before);
         assert_eq!(image.draw_order(), 3);
-        assert!((image.translation()[(2, 3)] - 0.5).abs() < 1e-6);
+        assert!((image.translation().w_axis.z - 0.5).abs() < f32::EPSILON);
     }
 }

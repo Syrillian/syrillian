@@ -1,12 +1,13 @@
 use crate::assets::{AssetStore, HMesh, HShader};
 use crate::core::ModelUniform;
 use crate::core::bone::BoneData;
+use crate::math::{Vec3, Vec4};
 use crate::rendering::proxies::mesh_proxy::{MeshUniformIndex, RuntimeMeshData};
 use crate::rendering::proxies::{PROXY_PRIORITY_SOLID, SceneProxy, SceneProxyBinding};
 use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::{AssetCache, GPUDrawCtx, Renderer};
 use crate::{must_pipeline, proxy_data, proxy_data_mut, try_activate_shader};
-use nalgebra::{Matrix4, Point3, Vector4};
+use glamx::Affine3A;
 use std::any::Any;
 use syrillian_utils::debug_panic;
 use tracing::warn;
@@ -20,24 +21,40 @@ pub(crate) struct GPUDebugProxyData {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone)]
 pub struct DebugLine {
-    pub start: Point3<f32>,
-    pub start_color: Vector4<f32>,
-    pub end: Point3<f32>,
-    pub end_color: Vector4<f32>,
+    pub start: Vec3,
+    pub start_color: Vec4,
+    pub end: Vec3,
+    pub end_color: Vec4,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct DebugLineVertex {
+    position: [f32; 3],
+    color: [f32; 4],
+}
+
+impl DebugLineVertex {
+    fn new(position: Vec3, color: Vec4) -> Self {
+        Self {
+            position: [position.x, position.y, position.z],
+            color: [color.x, color.y, color.z, color.w],
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct DebugSceneProxy {
     pub lines: Vec<DebugLine>,
     pub meshes: Vec<HMesh>,
-    pub color: Vector4<f32>,
-    pub override_transform: Option<Matrix4<f32>>,
+    pub color: Vec4,
+    pub override_transform: Option<Affine3A>,
 }
 
 impl SceneProxy for DebugSceneProxy {
-    fn setup_render(&mut self, renderer: &Renderer, model_mat: &Matrix4<f32>) -> Box<dyn Any> {
+    fn setup_render(&mut self, renderer: &Renderer, model_mat: &Affine3A) -> Box<dyn Any> {
         let line_data = self.new_line_buffer(&renderer.state.device);
         let transform = self.override_transform.unwrap_or(*model_mat);
         let model_uniform =
@@ -53,7 +70,7 @@ impl SceneProxy for DebugSceneProxy {
         &mut self,
         renderer: &Renderer,
         data: &mut dyn Any,
-        local_to_world: &Matrix4<f32>,
+        local_to_world: &Affine3A,
     ) {
         let data: &mut GPUDebugProxyData = proxy_data_mut!(data);
 
@@ -87,7 +104,7 @@ impl Default for DebugSceneProxy {
         Self {
             lines: vec![],
             meshes: vec![],
-            color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             override_transform: None,
         }
     }
@@ -99,9 +116,15 @@ impl DebugSceneProxy {
             return None;
         }
 
+        let mut vertices = Vec::with_capacity(self.lines.len() * 2);
+        for line in &self.lines {
+            vertices.push(DebugLineVertex::new(line.start, line.start_color));
+            vertices.push(DebugLineVertex::new(line.end, line.end_color));
+        }
+
         Some(device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Debug Ray Data Buffer"),
-            contents: bytemuck::cast_slice(&self.lines[..]),
+            contents: bytemuck::cast_slice(vertices.as_slice()),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         }))
     }
@@ -110,7 +133,7 @@ impl DebugSceneProxy {
         &self,
         cache: &AssetCache,
         device: &Device,
-        model_mat: &Matrix4<f32>,
+        model_mat: &Affine3A,
     ) -> Option<RuntimeMeshData> {
         if self.meshes.is_empty() {
             return None;
@@ -118,7 +141,7 @@ impl DebugSceneProxy {
 
         let bgl = cache.bgl_model();
         let mesh_data = ModelUniform {
-            model_mat: *model_mat,
+            model_mat: (*model_mat).into(),
         };
         let uniform = ShaderUniform::builder(&bgl)
             .with_buffer_data(&mesh_data)
@@ -134,7 +157,7 @@ impl DebugSceneProxy {
         cache: &AssetCache,
         device: &Device,
         queue: &Queue,
-        model_mat: &Matrix4<f32>,
+        model_mat: &Affine3A,
     ) {
         if self.meshes.is_empty() {
             return;
@@ -143,7 +166,7 @@ impl DebugSceneProxy {
         let model_uniform = match data.model_uniform.take() {
             None => self.new_mesh_buffer(cache, device, model_mat),
             Some(mut model_uniform) => {
-                model_uniform.mesh_data.model_mat = *model_mat;
+                model_uniform.mesh_data.model_mat = (*model_mat).into();
                 let mesh_buffer = model_uniform.uniform.buffer(MeshUniformIndex::MeshData);
                 queue.write_buffer(mesh_buffer, 0, bytemuck::bytes_of(&model_uniform.mesh_data));
                 Some(model_uniform)
@@ -159,7 +182,7 @@ impl DebugSceneProxy {
         proxy
     }
 
-    pub fn set_override_transform(&mut self, transform: Matrix4<f32>) {
+    pub fn set_override_transform(&mut self, transform: Affine3A) {
         self.override_transform = Some(transform);
     }
 

@@ -1,9 +1,8 @@
 use crate::ViewportId;
 use crate::game_thread::GameAppEvent;
 use crate::input::gamepad_manager::GamePadManager;
+use crate::math::Vec2;
 use crossbeam_channel::Sender;
-use nalgebra::Vector2;
-use num_traits::Zero;
 use std::collections::HashMap;
 use tracing::{info, trace};
 use winit::dpi::PhysicalPosition;
@@ -20,7 +19,7 @@ struct InputState {
     button_just_updated: Vec<MouseButton>,
     mouse_wheel_delta: f32,
     mouse_pos: PhysicalPosition<f32>,
-    mouse_delta: Vector2<f32>,
+    mouse_delta: Vec2,
     is_locked: bool,
 }
 
@@ -80,7 +79,7 @@ impl InputManager {
     pub(crate) fn process_device_input_event(&mut self, device_event: &DeviceEvent) {
         let state = self.state_mut();
         if let DeviceEvent::MouseMotion { delta } = device_event {
-            state.mouse_delta = Vector2::new(-delta.0 as f32, -delta.1 as f32);
+            state.mouse_delta = Vec2::new(-delta.0 as f32, -delta.1 as f32);
             state.mouse_pos.x += state.mouse_delta.x;
             state.mouse_pos.y += state.mouse_delta.y;
         }
@@ -205,7 +204,7 @@ impl InputManager {
         self.state().mouse_pos
     }
 
-    pub fn mouse_delta(&self) -> &Vector2<f32> {
+    pub fn mouse_delta(&self) -> &Vec2 {
         &self.state().mouse_delta
     }
 
@@ -234,7 +233,7 @@ impl InputManager {
     pub fn next_frame_all(&mut self) {
         self.state.key_just_updated.clear();
         self.state.button_just_updated.clear();
-        self.state.mouse_delta = Vector2::zero();
+        self.state.mouse_delta = Vec2::ZERO;
         self.gamepad.poll();
     }
 

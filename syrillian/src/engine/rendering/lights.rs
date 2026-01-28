@@ -1,44 +1,43 @@
 use crate::components::Component;
 use crate::ensure_aligned;
-use crate::utils::MATRIX4_ID;
-use nalgebra::{Matrix4, SimdPartialOrd, Vector3};
+use crate::math::{Mat4, Vec3};
 use num_enum::TryFromPrimitive;
 use syrillian_macros::UniformIndex;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightProxy {
-    pub position: Vector3<f32>,
+    pub position: Vec3,
     pub _p0: u32,
-    pub up: Vector3<f32>,
+    pub up: Vec3,
     pub radius: f32,
-    pub direction: Vector3<f32>,
+    pub direction: Vec3,
     pub range: f32,
-    pub color: Vector3<f32>,
+    pub color: Vec3,
     pub intensity: f32,
     pub inner_angle: f32,
     pub outer_angle: f32,
     pub type_id: u32, // LightType
     pub shadow_map_id: u32,
-    pub view_mat: Matrix4<f32>,
+    pub view_mat: Mat4,
 }
 
 impl LightProxy {
     pub const fn dummy() -> Self {
         Self {
-            position: Vector3::new(0.0, 0.0, 0.0),
+            position: Vec3::ZERO,
             _p0: 0,
-            up: Vector3::new(0.0, 0.0, 0.0),
+            up: Vec3::Y,
             radius: 10.0,
-            direction: Vector3::new(0.0, -1.0, 0.0),
+            direction: Vec3::NEG_Y,
             range: 10.0,
-            color: Vector3::new(1.0, 1.0, 1.0),
+            color: Vec3::ONE,
             intensity: 1000.0,
             inner_angle: 0.0,
             outer_angle: 0.0,
             type_id: LightType::Point as u32,
             shadow_map_id: 0,
-            view_mat: MATRIX4_ID,
+            view_mat: Mat4::IDENTITY,
         }
     }
 }
@@ -70,9 +69,8 @@ pub trait Light: Component {
         light.color.z = b.clamp(0., 1.);
     }
 
-    fn set_color_vec(&mut self, color: &Vector3<f32>) {
-        self.data_mut(true).color =
-            color.simd_clamp(Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.));
+    fn set_color_vec(&mut self, color: &Vec3) {
+        self.data_mut(true).color = color.clamp(Vec3::ZERO, Vec3::ONE);
     }
 
     fn set_inner_angle(&mut self, angle: f32) {

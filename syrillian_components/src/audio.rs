@@ -136,6 +136,6 @@ impl Component for AudioReceiver {
         let transform = &self.parent().transform;
 
         world.audio.set_receiver_position(transform.position());
-        world.audio.set_receiver_orientation(*transform.rotation());
+        world.audio.set_receiver_orientation(transform.rotation());
     }
 }
