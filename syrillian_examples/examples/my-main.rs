@@ -421,7 +421,7 @@ impl MyMain {
         format!(
             "{debug_or_release} {} {viewport} - FPS: [ {} ]",
             syrillian::ENGINE_STR,
-            self.frame_counter.fps(),
+            self.frame_counter.fps_mean(),
         )
     }
 
