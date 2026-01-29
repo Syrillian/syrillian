@@ -74,3 +74,4 @@ test_custom_shader!(debug_light, "Debug Light Geometry Shader" => "debug/light.w
 
 // Post-Processing Shaders
 test_post_shader!(fullscreen_passthrough, "Fullscreen Passthrough Shader" => "fullscreen_passthrough.wgsl");
+test_post_shader!(ssr_post_process, "SSR Post Process Shader" => "ssr_post_process.wgsl");
