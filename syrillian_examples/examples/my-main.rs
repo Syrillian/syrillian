@@ -29,8 +29,8 @@ use syrillian::{AppRuntime, AppState, World};
 use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab};
 use syrillian_components::{
     AudioEmitter, Collider3D, FirstPersonCameraController, FlashlightComponent, FreecamController,
-    PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
-    SpringJoint, Text3D,
+    PointLightComponent, Profiler, RigidBodyComponent, RopeJoint, RotateComponent,
+    SpotLightComponent, SpringJoint, Text3D,
 };
 use syrillian_scene::SceneLoader;
 use tracing_subscriber::layer::SubscriberExt;
@@ -109,6 +109,8 @@ impl AppState for MyMain {
         let camera = self.spawn_viewport_camera(world);
         self.viewport_camera = Some(camera.clone());
         // world.set_active_camera_for_target(RenderTargetId::PRIMARY, camera);
+
+        self.player.add_component::<Profiler>();
 
         let serialized = ReflectSerialize::serialize(world);
         let serialized = JsonSerializer::value_to_string(&serialized);
