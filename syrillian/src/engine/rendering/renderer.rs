@@ -177,6 +177,8 @@ impl RenderViewport {
 
         self.offscreen_surface.recreate(&state.device, &self.config);
         self.depth_texture = Self::create_depth_texture(&state.device, &self.config);
+        self.g_normal = Self::create_g_buffer("GBuffer (Normals)", &state.device, &self.config);
+        self.g_material = Self::create_material_texture(&state.device, &self.config);
         self.picking_surface.recreate(&state.device, &self.config);
         let pp_bgl = cache.bgl_post_process();
         let depth_view = self
