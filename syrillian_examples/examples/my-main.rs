@@ -28,8 +28,9 @@ use syrillian::utils::FrameCounter;
 use syrillian::{AppRuntime, AppState, World};
 use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab};
 use syrillian_components::{
-    AudioEmitter, Collider3D, FirstPersonCameraController, FreecamController, PointLightComponent,
-    RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent, SpringJoint, Text3D,
+    AudioEmitter, Collider3D, FirstPersonCameraController, FlashlightComponent, FreecamController,
+    PointLightComponent, RigidBodyComponent, RopeJoint, RotateComponent, SpotLightComponent,
+    SpringJoint, Text3D,
 };
 use syrillian_scene::SceneLoader;
 use tracing_subscriber::layer::SubscriberExt;
@@ -52,6 +53,7 @@ struct MyMain {
     frame_counter: FrameCounter,
     player: GameObjectRef,
     player_rb: CRef<RigidBodyComponent>,
+    flashlight: CRef<SpotLightComponent>,
     picked_up: Option<GameObjectRef>,
     text3d: GameObjectRef,
     light1: CRef<SpotLightComponent>,
@@ -69,6 +71,7 @@ impl Default for MyMain {
                 frame_counter: FrameCounter::default(),
                 player: GameObjectRef::null(),
                 player_rb: CRef::null(),
+                flashlight: CRef::null(),
                 picked_up: None,
                 text3d: GameObjectRef::null(),
                 light1: CRef::null(),
@@ -98,9 +101,10 @@ impl AppState for MyMain {
         self.light1 = light1;
         self.light2 = light2;
 
-        let (player, player_rb) = Self::spawn_player(world);
+        let (player, player_rb, light_comp) = Self::spawn_player(world);
         self.player = player;
         self.player_rb = player_rb;
+        self.flashlight = light_comp;
 
         let camera = self.spawn_viewport_camera(world);
         self.viewport_camera = Some(camera.clone());
@@ -126,6 +130,14 @@ impl AppState for MyMain {
         self.handle_debug_overlays(world);
         world.input.auto_quit_on_escape();
 
+        if world.input.is_key_down(KeyCode::KeyF) {
+            if self.flashlight.intensity() < f32::EPSILON {
+                self.flashlight.set_intensity(12000.0);
+            } else {
+                self.flashlight.set_intensity(0.0);
+            }
+        }
+
         // if world.input.is_key_down(KeyCode::KeyH) {
         //     world.capture_offscreen_textures(ViewportId::PRIMARY, "E:/SS");
         // }
@@ -135,7 +147,13 @@ impl AppState for MyMain {
 }
 
 impl MyMain {
-    fn spawn_player(world: &mut World) -> (GameObjectRef, CRef<RigidBodyComponent>) {
+    fn spawn_player(
+        world: &mut World,
+    ) -> (
+        GameObjectRef,
+        CRef<RigidBodyComponent>,
+        CRef<SpotLightComponent>,
+    ) {
         let id = world.spawn(&FirstPersonPlayerPrefab);
         let mut player = world
             .get_object_ref(id)
@@ -144,7 +162,27 @@ impl MyMain {
             .get_component::<RigidBodyComponent>()
             .expect("player prefab should include a rigid body");
         player.at(0.0, 20.0, 0.0);
-        (player, player_rb)
+
+        let mut light_comp = unsafe { CRef::null() };
+
+        if let Some(camera) = player.get_child_component::<CameraComponent>() {
+            let mut camera_obj = camera.parent();
+            let mut flashlight = world.new_object("Flashlight");
+            camera_obj.add_child(flashlight);
+            flashlight.transform.set_local_position(0.25, -0.2, -0.55);
+            flashlight.transform.set_euler_rotation_deg(-2.0, 2.0, 0.0);
+            let mut light = flashlight.add_component::<SpotLightComponent>();
+            light.set_color(1.0, 0.98, 0.9);
+            light.set_intensity(0.0);
+            light.set_range(45.0);
+            light.set_inner_angle(9.0);
+            light.set_outer_angle(18.0);
+            flashlight.add_component::<FlashlightComponent>();
+
+            light_comp = light;
+        }
+
+        (player, player_rb, light_comp)
     }
 
     fn spawn_viewport_camera(&self, world: &mut World) -> CRef<CameraComponent> {
@@ -222,6 +260,10 @@ impl MyMain {
 
         big_cube_left.at(100.0, 10.0, 200.0).scale(100.);
         big_cube_right.at(-100.0, 10.0, 200.0).scale(100.);
+
+        let mut fancy_cube =
+            SceneLoader::load(world, "syrillian_examples/examples/assets/fancy_cube.glb").unwrap();
+        fancy_cube.at(-20.0, 2.0, -5.0);
     }
 
     fn setup_audio_demo(
@@ -361,7 +403,7 @@ impl MyMain {
     }
 
     fn handle_player_toggle(&mut self, world: &World) {
-        if world.input.is_key_down(KeyCode::KeyF) {
+        if world.input.is_key_down(KeyCode::KeyG) {
             let is_kinematic = self.player_rb.is_kinematic();
             self.player_rb.set_kinematic(!is_kinematic);
         }
