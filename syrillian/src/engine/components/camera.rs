@@ -53,6 +53,10 @@ impl CameraComponent {
         self.fov_target = fov;
     }
 
+    pub fn fov_target(&mut self) -> f32 {
+        self.fov_target
+    }
+
     pub fn near(&self) -> f32 {
         self.near
     }

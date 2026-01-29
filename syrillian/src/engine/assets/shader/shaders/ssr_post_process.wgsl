@@ -73,6 +73,12 @@ fn sample_reflection(uv: vec2f, roughness: f32, pixel_size: vec2f) -> vec4f {
     return c * 0.2;
 }
 
+fn depth_to_view_z(depth_ndc: f32) -> f32 {
+    let n = camera.near;
+    let f = camera.far;
+    return (n * f) / max(f - depth_ndc * (f - n), 1e-6);
+}
+
 @fragment
 fn fs_main(
     @location(0) uv: vec2f,
@@ -107,9 +113,10 @@ fn fs_main(
     let max_steps = i32(steps_f);
     let step_size = max_distance / steps_f;
 
-    let origin = world_pos
-        + normal  * (0.01 + 0.05 * r2)
-        + refl_dir * step_size;
+    let origin =
+        world_pos +
+        normal * (0.01 + 0.05 * r2) +
+        refl_dir * step_size;
 
     let clip_o = camera.view_proj_mat * vec4f(origin, 1.0);
     let clip_d = camera.view_proj_mat * vec4f(refl_dir, 0.0);
@@ -217,13 +224,31 @@ fn fs_main(
         return base_color;
     }
 
-    let sample_pos = origin + refl_dir * hit_t;
-    let scene_world = reconstruct_world(hit_uv, final_scene_depth);
-
-    let thickness_world = step_size * mix(0.75, 2.5, r2);
-    if (distance(scene_world, sample_pos) > thickness_world) {
+    let clip_hit = clip_o + clip_d * hit_t;
+    if (clip_hit.w <= 0.0) {
         return base_color;
     }
+
+    let ndc_hit = clip_hit.xyz / clip_hit.w;
+
+    let ray_z   = depth_to_view_z(ndc_hit.z);
+    let scene_z = depth_to_view_z(final_scene_depth);
+
+    let clip_prev = clip_o + clip_d * max(hit_t - step_size, 0.0);
+    let ndc_prev  = clip_prev.xyz / max(clip_prev.w, 1e-6);
+    let ray_z_prev = depth_to_view_z(ndc_prev.z);
+
+    let step_z = abs(ray_z - ray_z_prev);
+
+    let thickness_view =
+        step_z * (1.0 + 2.0 * r2) +
+        (0.02 + 0.08 * r2) * (1.0 + 0.01 * ray_z);
+
+    if (abs(scene_z - ray_z) > thickness_view) {
+        return base_color;
+    }
+
+    // ---- Shade & combine ----
 
     let hit_color = sample_reflection(hit_uv, roughness, pixel_size);
 
@@ -236,6 +261,7 @@ fn fs_main(
     let fade_edge = edge_fade(hit_uv, 0.05);
     let fade_dist = 1.0 - saturate(hit_t / max_distance);
     let fade_rough = (1.0 - roughness);
+
     let strength = saturate(spec * fade_edge * fade_dist * fade_rough * fade_rough);
 
     return vec4f(mix(base_color.rgb, hit_color.rgb, strength), base_color.a);

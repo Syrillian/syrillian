@@ -11,12 +11,16 @@ use wgpu::{BindGroupLayout, Device, Queue};
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    pub(crate) pos: Vec3,
-    pub(crate) _padding: u32,
-    pub(crate) view_mat: Mat4,
-    pub(crate) projection_mat: Mat4,
+    pub pos: Vec3,
+    pub fov: f32,
+    pub view_mat: Mat4,
+    pub projection_mat: Mat4,
     pub proj_view_mat: Mat4,
     pub inv_proj_view_mat: Mat4,
+    pub near: f32,
+    pub far: f32,
+    pub fov_target: f32,
+    pub zoom_speed: f32,
 }
 
 ensure_aligned!(
@@ -27,7 +31,7 @@ ensure_aligned!(
         proj_view_mat,
         inv_proj_view_mat
     },
-    align <= 16 * 17 => size
+    align <= 16 * 18 => size
 );
 
 #[repr(C)]
@@ -59,11 +63,15 @@ impl Default for CameraUniform {
         let proj_view_mat = projection_mat; // identity matrix for view_mat so it's the same
         CameraUniform {
             pos: Vec3::ZERO,
-            _padding: 0,
+            fov: 60.0,
             view_mat: Mat4::IDENTITY,
             projection_mat,
             proj_view_mat,
             inv_proj_view_mat: Mat4::IDENTITY,
+            near: 0.1,
+            far: 1000.0,
+            fov_target: 60.0,
+            zoom_speed: 1.0,
         }
     }
 }
@@ -72,11 +80,15 @@ impl CameraUniform {
     pub const fn empty() -> Self {
         CameraUniform {
             pos: Vec3::ZERO,
-            _padding: 0,
+            fov: 60.0,
             view_mat: Mat4::IDENTITY,
             projection_mat: Mat4::IDENTITY,
             proj_view_mat: Mat4::IDENTITY,
             inv_proj_view_mat: Mat4::IDENTITY,
+            near: 0.1,
+            far: 1000.0,
+            fov_target: 60.0,
+            zoom_speed: 1.0,
         }
     }
 

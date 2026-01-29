@@ -732,14 +732,12 @@ impl World {
         if obj.transform.is_dirty() {
             let pos = obj.transform.position();
             let view_mat = obj.transform.view_matrix_rigid().to_mat4();
-            let view_proj_mat = active_camera.projection * view_mat;
-            let inv_view_proj = view_proj_mat.inverse();
             batch.push(RenderMsg::UpdateActiveCamera(
                 target_id,
                 Box::new(move |cam| {
                     cam.view_mat = view_mat;
-                    cam.proj_view_mat = view_proj_mat;
-                    cam.inv_proj_view_mat = inv_view_proj;
+                    cam.proj_view_mat = cam.projection_mat * cam.view_mat;
+                    cam.inv_proj_view_mat = cam.proj_view_mat.inverse();
                     cam.pos = pos;
                 }),
             ));
@@ -747,13 +745,22 @@ impl World {
 
         if active_camera.is_projection_dirty() {
             let proj_mat = active_camera.projection;
+            let fov = active_camera.fov();
+            let near = active_camera.near();
+            let far = active_camera.fov();
+            let fov_target = active_camera.fov_target();
+            let zoom_speed = active_camera.zoom_speed;
             batch.push(RenderMsg::UpdateActiveCamera(
                 target_id,
                 Box::new(move |cam| {
                     cam.projection_mat = proj_mat;
-                    let view_proj_mat = cam.projection_mat * cam.view_mat;
-                    cam.proj_view_mat = view_proj_mat;
-                    cam.inv_proj_view_mat = view_proj_mat.inverse();
+                    cam.fov = fov;
+                    cam.proj_view_mat = cam.projection_mat * cam.view_mat;
+                    cam.inv_proj_view_mat = cam.proj_view_mat.inverse();
+                    cam.near = near;
+                    cam.far = far;
+                    cam.fov_target = fov_target;
+                    cam.zoom_speed = zoom_speed;
                 }),
             ));
             active_camera.clear_projection_dirty();

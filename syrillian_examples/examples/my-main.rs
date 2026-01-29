@@ -272,7 +272,7 @@ impl MyMain {
 
         text3d.set_size(1.0);
         text3d.set_alignment(TextAlignment::Center);
-        text.transform.set_position(-15., 2., 2.);
+        text.transform.set_position(-15., 6., 2.);
         text.transform.set_euler_rotation_deg(0., 90., 0.);
         text3d.set_rainbow_mode(true);
 
