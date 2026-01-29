@@ -227,7 +227,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
                     .state
                     .device
                     .create_buffer_init(&BufferInitDescriptor {
-                        label: Some("Text 2D Glyph Data"),
+                        label: Some("Text Glyph Data"),
                         contents: bytemuck::cast_slice(&self.glyph_data[..]),
                         usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                     });
@@ -404,7 +404,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         let device = &renderer.state.device;
 
         let glyph_vbo = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Text 2D Glyph Data"),
+            label: Some("Text Glyph Data"),
             contents: bytemuck::cast_slice(&self.glyph_data[..]),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });

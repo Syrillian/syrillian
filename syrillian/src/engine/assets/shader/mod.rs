@@ -184,6 +184,7 @@ impl StoreDefaults for Shader {
         store_add_checked_many!(store,
             HShader::FALLBACK_ID => Shader::new_default("Fallback", SHADER_FALLBACK3D),
             HShader::DIM2_ID => Shader::new_default("2D Default", SHADER_DIM2)
+                .color_only()
                 .with_depth_enabled(false),
             HShader::DIM3_ID => Shader::new_fragment("3D Default", SHADER_DIM3),
             HShader::POST_PROCESS_ID => Shader::new_post_process("Post Process", SHADER_FS_COPY),
@@ -244,6 +245,7 @@ impl StoreDefaults for Shader {
                 .shader_type(ShaderType::Custom)
                 .name("Text 2D Shader")
                 .code(ShaderCode::Full(SHADER_TEXT2D.to_string()))
+                .color_target(ONLY_COLOR_TARGET)
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediates>() as u32)
                 .depth_enabled(false)
@@ -371,6 +373,7 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(DEBUG_TEXT2D_GEOMETRY.to_string()))
                 .polygon_mode(PolygonMode::Line)
                 .vertex_buffers(DEBUG_TEXT)
+                .color_target(ONLY_COLOR_TARGET)
                 .immediate_size(size_of::<TextImmediates>() as u32)
                 .depth_enabled(false)
                 .build()
@@ -569,6 +572,11 @@ impl Shader {
         self.color_target
     }
 
+    pub fn color_only(mut self) -> Self {
+        self.color_target = ONLY_COLOR_TARGET;
+        self
+    }
+
     pub fn vertex_buffers(&self) -> &'static [VertexBufferLayout<'static>] {
         self.vertex_buffers
     }
@@ -577,7 +585,6 @@ impl Shader {
         if self.stage() == ShaderType::PostProcessing {
             return self;
         }
-
         self.depth_enabled = enabled;
         self
     }

@@ -39,13 +39,16 @@ fn median3(a: vec3<f32>) -> f32 {
 
 @fragment
 fn text_2d_fs_main(in: VOut) -> @location(0) vec4<f32> {
-    let msdf = textureSample(t_diffuse, s_diffuse, in.uv).rgb;
-    let sig = median3(msdf);
-    var dist = (sig - 0.5) * pc.msdf_range_px;
+    let msdf = textureSampleLevel(t_diffuse, s_diffuse, in.uv, 0.0).rgb;
 
-    let w = max(fwidth(dist), 1e-4);
-    let alpha = smoothstep(-w, w, dist);
+    let sd = median3(msdf) - 0.5;
 
-    if (alpha <= 0.01) { discard; }
+    let tex_size = vec2<f32>(textureDimensions(t_diffuse));
+    let unit_range = vec2<f32>(pc.msdf_range_px) / tex_size;
+    let screen_tex_size = vec2<f32>(1.0) / fwidth(in.uv);
+    let screen_px_range = max(0.5 * dot(unit_range, screen_tex_size), 1.0);
+
+    let alpha = clamp(sd * screen_px_range + 0.5, 0.0, 1.0);
+
     return vec4(pc.color, alpha);
 }
