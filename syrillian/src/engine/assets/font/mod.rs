@@ -55,7 +55,7 @@ impl<T: StoreTypeFallback> Default for H<T> {
 pub const DEFAULT_ATLAS_SIZE: u32 = 1024;
 
 impl Font {
-    /// The default atlas glyph size is 100 pixels
+    /// The default atlas glyph size is 1024 pixels
     pub fn new(family_name: impl Into<String>, atlas_em_px: Option<u32>) -> Option<Self> {
         let family_name = family_name.into();
         let atlas_em_px = atlas_em_px.unwrap_or(DEFAULT_ATLAS_SIZE);

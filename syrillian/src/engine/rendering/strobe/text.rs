@@ -1,4 +1,4 @@
-use crate::assets::HFont;
+use crate::assets::{HFont, HShader};
 use crate::core::{ModelUniform, ObjectHash};
 use crate::math::{Vec2, Vec3};
 use crate::rendering::glyph::{GlyphRenderData, generate_glyph_geometry_stream};
@@ -39,10 +39,8 @@ impl UiElement for UiTextDraw {
 
     fn render(&self, ctx: &mut UiDrawContext) {
         let shader = match ctx.gpu_ctx().pass_type {
-            RenderPassType::Color2D => Some(ctx.cache().shader(crate::assets::HShader::TEXT_2D)),
-            RenderPassType::PickingUi => {
-                Some(ctx.cache().shader(crate::assets::HShader::TEXT_2D_PICKING))
-            }
+            RenderPassType::Color2D => Some(ctx.cache().shader(HShader::TEXT_2D)),
+            RenderPassType::PickingUi => Some(ctx.cache().shader(HShader::TEXT_2D_PICKING)),
             _ => None,
         };
         let Some(shader) = shader else {
