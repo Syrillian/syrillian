@@ -11,8 +11,9 @@ use crate::engine::assets::{H, HShader, StoreTypeFallback, StoreTypeName};
 use crate::rendering::proxies::text_proxy::TextImmediates;
 use crate::rendering::{
     AssetCache, DEFAULT_COLOR_TARGETS, DEFAULT_PP_COLOR_TARGETS, DEFAULT_VBL,
-    DEFAULT_VBL_STEP_INSTANCE, PICKING_TEXTURE_FORMAT,
+    DEFAULT_VBL_STEP_INSTANCE, ONLY_COLOR_TARGET, PICKING_TEXTURE_FORMAT,
 };
+use crate::strobe::UiLineData;
 use crate::utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE, WGPU_VEC4_ALIGN};
 use crate::{store_add_checked, store_add_checked_many};
 use bon::Builder;
@@ -104,15 +105,16 @@ impl H<Shader> {
     pub const TEXT_2D_PICKER_ID: u32 = 7;
     pub const TEXT_3D_ID: u32 = 8;
     pub const TEXT_3D_PICKER_ID: u32 = 9;
-    pub const POST_PROCESS_SSR_ID: u32 = 10;
+    pub const LINE_2D_ID: u32 = 10;
+    pub const POST_PROCESS_SSR_ID: u32 = 11;
 
-    pub const DEBUG_EDGES_ID: u32 = 11;
-    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 12;
-    pub const DEBUG_LINES_ID: u32 = 13;
-    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 14;
-    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 15;
-    pub const DEBUG_LIGHT_ID: u32 = 16;
-    pub const MAX_BUILTIN_ID: u32 = 16;
+    pub const DEBUG_EDGES_ID: u32 = 12;
+    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 13;
+    pub const DEBUG_LINES_ID: u32 = 14;
+    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 15;
+    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 16;
+    pub const DEBUG_LIGHT_ID: u32 = 17;
+    pub const MAX_BUILTIN_ID: u32 = 17;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -144,6 +146,9 @@ impl H<Shader> {
     // Default 3D Text picking shader.
     pub const TEXT_3D_PICKING: H<Shader> = H::new(Self::TEXT_3D_PICKER_ID);
 
+    // Shader for drawing single 2D lines.
+    pub const LINE_2D: H<Shader> = H::new(Self::LINE_2D_ID);
+
     // Post processing shader for screen space reflection
     pub const POST_PROCESS_SSR: H<Shader> = H::new(Self::POST_PROCESS_SSR_ID);
 
@@ -169,6 +174,7 @@ const SHADER_TEXT2D: &str = include_str!("shaders/text2d.wgsl");
 const SHADER_TEXT2D_PICKER: &str = include_str!("shaders/picking_text2d.wgsl");
 const SHADER_TEXT3D: &str = include_str!("shaders/text3d.wgsl");
 const SHADER_TEXT3D_PICKER: &str = include_str!("shaders/picking_text3d.wgsl");
+const SHADER_LINE2D: &str = include_str!("shaders/line.wgsl");
 const SHADER_FS_COPY: &str = include_str!("shaders/fullscreen_passthrough.wgsl");
 const SHADER_POST_PROCESS_SSR: &str = include_str!("shaders/ssr_post_process.wgsl");
 
@@ -290,6 +296,21 @@ impl StoreDefaults for Shader {
                 .immediate_size(size_of::<TextImmediates>() as u32)
                 .shadow_transparency(true)
                 .color_target(PICKING_COLOR_TARGET)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::LINE_2D_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Line 2D Shader")
+                .code(ShaderCode::Full(SHADER_LINE2D.to_string()))
+                .color_target(ONLY_COLOR_TARGET)
+                .topology(PrimitiveTopology::TriangleList)
+                .vertex_buffers(&[])
+                .immediate_size(size_of::<UiLineData>() as u32)
+                .depth_enabled(false)
                 .build()
         );
 

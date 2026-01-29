@@ -3,7 +3,7 @@ use crate::core::ObjectHash;
 use crate::rendering::lights::LightProxy;
 use crate::rendering::message::RenderMsg;
 use crate::rendering::proxies::SceneProxy;
-use crate::strobe::{CacheId, UiDraw, UiImageDraw, UiTextDraw};
+use crate::strobe::{CacheId, UiDraw, UiImageDraw, UiLineDraw, UiTextDraw};
 use crate::{ViewportId, World};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::RwLock;
@@ -94,5 +94,12 @@ impl UiContext {
             .strobe
             .draws
             .push(UiDraw::image(self.current_id, target, Box::new(image)));
+    }
+
+    pub fn line(&self, world: &mut World, target: ViewportId, line: UiLineDraw) {
+        world
+            .strobe
+            .draws
+            .push(UiDraw::line(self.current_id, target, Box::new(line)))
     }
 }

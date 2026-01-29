@@ -1,6 +1,6 @@
 use crate::ViewportId;
 use crate::strobe::ui_element::UiElement;
-use crate::strobe::{UiDrawContext, UiImageDraw, UiTextDraw};
+use crate::strobe::{UiDrawContext, UiImageDraw, UiLineDraw, UiTextDraw};
 
 pub type CacheId = u64;
 
@@ -18,6 +18,10 @@ impl UiDraw {
 
     pub fn text(cache_id: CacheId, target: ViewportId, text: Box<UiTextDraw>) -> Self {
         UiDraw(cache_id, target, text)
+    }
+
+    pub fn line(cache_id: CacheId, target: ViewportId, line: Box<UiLineDraw>) -> Self {
+        UiDraw(cache_id, target, line)
     }
 
     pub fn cache_id(&self) -> CacheId {
