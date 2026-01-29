@@ -315,7 +315,7 @@ impl MyMain {
         let mut light1 = spot.add_component::<SpotLightComponent>();
         light1.set_color(1.0, 0.2, 0.2);
         light1.set_intensity(10000.);
-        light1.set_inner_angle(30.);
+        light1.set_inner_angle(20.);
         light1.set_outer_angle(30.);
 
         let mut spot2 = world.new_object("Spot 2");
@@ -326,7 +326,7 @@ impl MyMain {
         let mut light2 = spot2.add_component::<SpotLightComponent>();
         light2.set_color(0.2, 0.2, 1.0);
         light2.set_intensity(10000.);
-        light2.set_inner_angle(30.);
+        light2.set_inner_angle(20.);
         light2.set_outer_angle(30.);
 
         (light1, light2)
