@@ -104,14 +104,15 @@ impl H<Shader> {
     pub const TEXT_2D_PICKER_ID: u32 = 7;
     pub const TEXT_3D_ID: u32 = 8;
     pub const TEXT_3D_PICKER_ID: u32 = 9;
+    pub const POST_PROCESS_SSR_ID: u32 = 10;
 
-    pub const DEBUG_EDGES_ID: u32 = 10;
-    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 11;
-    pub const DEBUG_LINES_ID: u32 = 12;
-    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 13;
-    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 14;
-    pub const DEBUG_LIGHT_ID: u32 = 15;
-    pub const MAX_BUILTIN_ID: u32 = 15;
+    pub const DEBUG_EDGES_ID: u32 = 11;
+    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 12;
+    pub const DEBUG_LINES_ID: u32 = 13;
+    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 14;
+    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 15;
+    pub const DEBUG_LIGHT_ID: u32 = 16;
+    pub const MAX_BUILTIN_ID: u32 = 16;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -143,6 +144,9 @@ impl H<Shader> {
     // Default 3D Text picking shader.
     pub const TEXT_3D_PICKING: H<Shader> = H::new(Self::TEXT_3D_PICKER_ID);
 
+    // Post processing shader for screen space reflection
+    pub const POST_PROCESS_SSR: H<Shader> = H::new(Self::POST_PROCESS_SSR_ID);
+
     // An addon shader ID that is used for drawing debug edges on meshes
     pub const DEBUG_EDGES: H<Shader> = H::new(Self::DEBUG_EDGES_ID);
 
@@ -166,6 +170,7 @@ const SHADER_TEXT2D_PICKER: &str = include_str!("shaders/picking_text2d.wgsl");
 const SHADER_TEXT3D: &str = include_str!("shaders/text3d.wgsl");
 const SHADER_TEXT3D_PICKER: &str = include_str!("shaders/picking_text3d.wgsl");
 const SHADER_FS_COPY: &str = include_str!("shaders/fullscreen_passthrough.wgsl");
+const SHADER_POST_PROCESS_SSR: &str = include_str!("shaders/ssr_post_process.wgsl");
 
 const DEBUG_EDGES_SHADER: &str = include_str!("shaders/debug/edges.wgsl");
 const DEBUG_VERTEX_NORMAL_SHADER: &str = include_str!("shaders/debug/vertex_normals.wgsl");
@@ -286,6 +291,11 @@ impl StoreDefaults for Shader {
                 .build()
         );
 
+        store_add_checked!(
+            store,
+            HShader::POST_PROCESS_SSR_ID,
+            Shader::new_post_process("SSR Post Process", SHADER_POST_PROCESS_SSR)
+        );
 
         store_add_checked!(
             store,
@@ -423,6 +433,7 @@ impl StoreType for Shader {
             HShader::TEXT_2D_ID => "2D Text Shader",
             HShader::TEXT_3D_ID => "3D Text Shader",
             HShader::POST_PROCESS_ID => "Post Process Shader",
+            HShader::POST_PROCESS_SSR_ID => "SSR Post Process Shader",
 
             HShader::DEBUG_EDGES_ID => "Debug Edges Shader",
             HShader::DEBUG_VERTEX_NORMALS_ID => "Debug Vertex Normals Shader",

@@ -88,8 +88,10 @@ pub struct RenderViewport {
     config: SurfaceConfiguration,
     depth_texture: Texture,
     offscreen_surface: OffscreenSurface,
+    ssr_surface: OffscreenSurface,
     picking_surface: PickingSurface,
-    post_process_data: PostProcessData,
+    post_process_ssr: PostProcessData,
+    post_process_final: PostProcessData,
     g_normal: Texture,
     g_material: Texture,
     render_data: RenderUniformData,
@@ -115,20 +117,25 @@ impl RenderViewport {
 
         let picking_surface = PickingSurface::new(&state.device, &config);
         let offscreen_surface = OffscreenSurface::new(&state.device, &config);
+        let ssr_surface = OffscreenSurface::new(&state.device, &config);
         let depth_texture = Self::create_depth_texture(&state.device, &config);
-        let depth_view = depth_texture.create_view(&TextureViewDescriptor::default());
         let normal_texture = Self::create_g_buffer("GBuffer (Normals)", &state.device, &config);
-        let normal_view = normal_texture.create_view(&TextureViewDescriptor::default());
         let material_texture = Self::create_material_texture(&state.device, &config);
-        let material_view = material_texture.create_view(&TextureViewDescriptor::default());
-
-        let post_process_data = PostProcessData::new(
+        let post_process_ssr = PostProcessData::new(
             &state.device,
             (*pp_bgl).clone(),
             offscreen_surface.view().clone(),
-            depth_view,
-            normal_view,
-            material_view,
+            depth_texture.create_view(&TextureViewDescriptor::default()),
+            normal_texture.create_view(&TextureViewDescriptor::default()),
+            material_texture.create_view(&TextureViewDescriptor::default()),
+        );
+        let post_process_final = PostProcessData::new(
+            &state.device,
+            (*pp_bgl).clone(),
+            ssr_surface.view().clone(),
+            depth_texture.create_view(&TextureViewDescriptor::default()),
+            normal_texture.create_view(&TextureViewDescriptor::default()),
+            material_texture.create_view(&TextureViewDescriptor::default()),
         );
 
         let render_data = RenderUniformData::empty(&state.device, &render_bgl);
@@ -139,8 +146,10 @@ impl RenderViewport {
             config,
             depth_texture,
             offscreen_surface,
+            ssr_surface,
             picking_surface,
-            post_process_data,
+            post_process_ssr,
+            post_process_final,
             g_normal: normal_texture,
             g_material: material_texture,
             render_data,
@@ -176,25 +185,31 @@ impl RenderViewport {
         self.surface.configure(&state.device, &self.config);
 
         self.offscreen_surface.recreate(&state.device, &self.config);
+        self.ssr_surface.recreate(&state.device, &self.config);
         self.depth_texture = Self::create_depth_texture(&state.device, &self.config);
         self.g_normal = Self::create_g_buffer("GBuffer (Normals)", &state.device, &self.config);
         self.g_material = Self::create_material_texture(&state.device, &self.config);
         self.picking_surface.recreate(&state.device, &self.config);
         let pp_bgl = cache.bgl_post_process();
-        let depth_view = self
-            .depth_texture
-            .create_view(&TextureViewDescriptor::default());
-        let normal_view = self.g_normal.create_view(&TextureViewDescriptor::default());
-        let material_view = self
-            .g_material
-            .create_view(&TextureViewDescriptor::default());
-        self.post_process_data = PostProcessData::new(
+        self.post_process_ssr = PostProcessData::new(
             &state.device,
             (*pp_bgl).clone(),
             self.offscreen_surface.view().clone(),
-            depth_view.clone(),
-            normal_view,
-            material_view,
+            self.depth_texture
+                .create_view(&TextureViewDescriptor::default()),
+            self.g_normal.create_view(&TextureViewDescriptor::default()),
+            self.g_material
+                .create_view(&TextureViewDescriptor::default()),
+        );
+        self.post_process_final = PostProcessData::new(
+            &state.device,
+            (*pp_bgl).clone(),
+            self.ssr_surface.view().clone(),
+            self.depth_texture
+                .create_view(&TextureViewDescriptor::default()),
+            self.g_normal.create_view(&TextureViewDescriptor::default()),
+            self.g_material
+                .create_view(&TextureViewDescriptor::default()),
         );
     }
 
@@ -995,35 +1010,65 @@ impl Renderer {
             .create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Final Pass Copy Encoder"),
             });
-        let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
-            label: Some("Post Process Render Pass"),
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view: color_view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(Color::BLACK),
-                    store: StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            ..RenderPassDescriptor::default()
-        });
+        {
+            let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("SSR Post Process Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: viewport.ssr_surface.view(),
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                ..RenderPassDescriptor::default()
+            });
 
-        let post_shader = self.cache.shader_post_process();
-        let groups = post_shader.bind_groups();
-        pass.set_pipeline(post_shader.solid_pipeline());
-        pass.set_bind_group(
-            groups.render,
-            viewport.render_data.uniform.bind_group(),
-            &[],
-        );
-        if let Some(idx) = groups.post_process {
-            pass.set_bind_group(idx, viewport.post_process_data.uniform.bind_group(), &[]);
+            let ssr_shader = self.cache.shader_post_process_ssr();
+            let groups = ssr_shader.bind_groups();
+            pass.set_pipeline(ssr_shader.solid_pipeline());
+            pass.set_bind_group(
+                groups.render,
+                viewport.render_data.uniform.bind_group(),
+                &[],
+            );
+            if let Some(idx) = groups.post_process {
+                pass.set_bind_group(idx, viewport.post_process_ssr.uniform.bind_group(), &[]);
+            }
+            pass.draw(0..6, 0..1);
         }
-        pass.draw(0..6, 0..1);
 
-        drop(pass);
+        {
+            let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Post Process Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: color_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                ..RenderPassDescriptor::default()
+            });
+
+            let post_shader = self.cache.shader_post_process();
+            let groups = post_shader.bind_groups();
+            pass.set_pipeline(post_shader.solid_pipeline());
+            pass.set_bind_group(
+                groups.render,
+                viewport.render_data.uniform.bind_group(),
+                &[],
+            );
+            if let Some(idx) = groups.post_process {
+                pass.set_bind_group(idx, viewport.post_process_final.uniform.bind_group(), &[]);
+            }
+            pass.draw(0..6, 0..1);
+        }
 
         self.state.queue.submit(Some(encoder.finish()));
     }
