@@ -881,10 +881,10 @@ impl World {
             .collect()
     }
 
-    pub fn capture_offscreen_texture(&self, target: ViewportId, path: impl Into<PathBuf>) -> bool {
+    pub fn capture_offscreen_textures(&self, target: ViewportId, path: impl Into<PathBuf>) -> bool {
         self.channels
             .render_tx
-            .send(RenderMsg::CaptureOffscreenTexture(target, path.into()))
+            .send(RenderMsg::CaptureOffscreenTextures(target, path.into()))
             .is_ok()
     }
 

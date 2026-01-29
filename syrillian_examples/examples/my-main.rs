@@ -126,6 +126,10 @@ impl AppState for MyMain {
         self.handle_debug_overlays(world);
         world.input.auto_quit_on_escape();
 
+        // if world.input.is_key_down(KeyCode::KeyH) {
+        //     world.capture_offscreen_textures(ViewportId::PRIMARY, "E:/SS");
+        // }
+
         Ok(())
     }
 }

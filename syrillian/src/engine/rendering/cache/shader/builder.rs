@@ -22,7 +22,7 @@ pub const DEFAULT_COLOR_TARGETS: &[Option<ColorTargetState>] = &[
         write_mask: ColorWrites::all(),
     }),
     Some(ColorTargetState {
-        format: TextureFormat::Bgra8Unorm,
+        format: TextureFormat::Rg16Float,
         blend: Some(BlendState::REPLACE),
         write_mask: ColorWrites::all(),
     }),

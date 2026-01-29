@@ -210,7 +210,9 @@ impl RenderViewport {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Depth32Float,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            usage: TextureUsages::COPY_SRC
+                | TextureUsages::RENDER_ATTACHMENT
+                | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
     }
@@ -230,8 +232,10 @@ impl RenderViewport {
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: TextureFormat::Bgra8Unorm,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            format: TextureFormat::Rg16Float,
+            usage: TextureUsages::COPY_SRC
+                | TextureUsages::RENDER_ATTACHMENT
+                | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
     }
@@ -248,7 +252,9 @@ impl RenderViewport {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Bgra8Unorm,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            usage: TextureUsages::COPY_SRC
+                | TextureUsages::RENDER_ATTACHMENT
+                | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
     }
@@ -393,7 +399,7 @@ impl Renderer {
     }
 
     /// Export the offscreen render target for a viewport as a PNG image.
-    pub fn export_offscreen_png(
+    pub fn export_offscreen_pngs(
         &self,
         target: ViewportId,
         path: impl AsRef<std::path::Path>,
@@ -405,14 +411,34 @@ impl Renderer {
                 reason: "render target not found",
             })?;
 
+        let path = path.as_ref();
+
+        save_texture_to_png(
+            &self.state.device,
+            &self.state.queue,
+            &viewport.g_normal,
+            path.join("g_normal.png"),
+        )?;
+
+        save_texture_to_png(
+            &self.state.device,
+            &self.state.queue,
+            &viewport.g_material,
+            path.join("g_material.png"),
+        )?;
+
+        save_texture_to_png(
+            &self.state.device,
+            &self.state.queue,
+            &viewport.depth_texture,
+            path.join("offscreen_depth.png"),
+        )?;
+
         save_texture_to_png(
             &self.state.device,
             &self.state.queue,
             viewport.offscreen_surface.texture(),
-            viewport.config.format,
-            viewport.config.width,
-            viewport.config.height,
-            path,
+            path.join("offscreen_surface.png"),
         )
     }
 
@@ -433,9 +459,6 @@ impl Renderer {
             &self.state.device,
             &self.state.queue,
             viewport.picking_surface.texture(),
-            PICKING_TEXTURE_FORMAT,
-            viewport.config.width,
-            viewport.config.height,
             path,
         )
     }
@@ -446,14 +469,10 @@ impl Renderer {
         texture: &GpuTexture,
         path: impl AsRef<std::path::Path>,
     ) -> Result<(), TextureExportError> {
-        let size = texture.size;
         save_texture_to_png(
             &self.state.device,
             &self.state.queue,
             &texture.texture,
-            texture.format,
-            size.width,
-            size.height,
             path,
         )
     }
@@ -1062,8 +1081,8 @@ impl Renderer {
                     self.handle_message(message);
                 }
             }
-            RenderMsg::CaptureOffscreenTexture(target, path) => {
-                if let Err(e) = self.export_offscreen_png(target, &path) {
+            RenderMsg::CaptureOffscreenTextures(target, path) => {
+                if let Err(e) = self.export_offscreen_pngs(target, &path) {
                     warn!("Couldn't capture offscreen texture: {e}");
                 }
             }

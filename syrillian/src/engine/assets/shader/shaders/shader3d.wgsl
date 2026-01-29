@@ -12,6 +12,16 @@ fn saturate3(v: vec3<f32>) -> vec3<f32> { return clamp(v, vec3<f32>(0.0), vec3<f
 fn safe_rsqrt(x: f32) -> f32 { return inverseSqrt(max(x, 1e-8)); }
 fn safe_normalize(v: vec3<f32>) -> vec3<f32> { return v * safe_rsqrt(dot(v, v)); }
 
+fn oct_encode(n: vec3<f32>) -> vec2<f32> {
+    let denom = max(abs(n.x) + abs(n.y) + abs(n.z), 1e-6);
+    var v = n / denom;
+    var enc = v.xy;
+    if (v.z < 0.0) {
+        enc = (1.0 - abs(enc.yx)) * sign(enc);
+    }
+    return enc;
+}
+
 // orthonormalize t against n to build a stable tbn basis
 fn ortho_tangent(T: vec3<f32>, N: vec3<f32>) -> vec3<f32> {
     return safe_normalize(T - N * dot(N, T));
@@ -368,17 +378,11 @@ fn eval_sun(
 @fragment
 fn fs_main_3d(in: FInput) -> FOutput {
     var out: FOutput;
-    out.out_normal = vec4(in.normal, 1.0);
-    out.out_material = vec4(material.roughness, material.metallic, 0.0, material.alpha);
 
     // Base color (linear)
     var base_rgba: vec4<f32>;
     if mat_has_texture_diffuse(material) {
         base_rgba = textureSample(t_diffuse, s_diffuse, in.uv);
-        if mat_is_grayscale_diffuse(material) {
-            out.out_color = vec4(vec3(base_rgba.r), base_rgba.g);
-            return out;
-        }
     } else {
         base_rgba = vec4<f32>(material.diffuse, 1.0);
     }
@@ -407,6 +411,14 @@ fn fs_main_3d(in: FInput) -> FOutput {
         N = safe_normalize(in.normal);
     }
     let V = safe_normalize(camera.position - in.position);   // to viewer
+    let n_enc = oct_encode(N);
+    out.out_normal = vec4(n_enc, 0.0, 1.0);
+    out.out_material = vec4(roughness, metallic, 0.0, material.alpha);
+
+    if mat_has_texture_diffuse(material) && mat_is_grayscale_diffuse(material) {
+        out.out_color = vec4(vec3(base_rgba.r), base_rgba.g);
+        return out;
+    }
 
     if mat_is_lit(material) {
         // start with a dim ambient term (energy‑aware)

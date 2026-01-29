@@ -26,7 +26,7 @@ pub enum RenderMsg {
     ProxyState(TypedComponentId, bool), // enabled
     PickRequest(PickRequest),
     CommandBatch(Vec<RenderMsg>),
-    CaptureOffscreenTexture(ViewportId, PathBuf),
+    CaptureOffscreenTextures(ViewportId, PathBuf),
     CapturePickingTexture(ViewportId, PathBuf),
     CaptureTexture(HTexture2D, PathBuf),
     UpdateStrobe(StrobeFrame),
@@ -45,7 +45,7 @@ impl Debug for RenderMsg {
             RenderMsg::ProxyState(_, enable) => &format!("Proxy Enabled: {enable}"),
             RenderMsg::PickRequest(..) => "Pick Request",
             RenderMsg::CommandBatch(inner) => &format!("Command Batch {inner:?}"),
-            RenderMsg::CaptureOffscreenTexture(_, _) => "Capture Offscreen Texture",
+            RenderMsg::CaptureOffscreenTextures(_, _) => "Capture Offscreen Texture",
             RenderMsg::CapturePickingTexture(_, _) => "Capture Picking Texture",
             RenderMsg::CaptureTexture(_, _) => "Capture Texture",
             RenderMsg::UpdateStrobe(_) => "Update Strobe Draw List",

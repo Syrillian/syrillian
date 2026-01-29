@@ -55,6 +55,7 @@ more-asserts = "0.3"
 bitflags = { version = "2.10", features = ["bytemuck"] }
 inventory = "0.3"
 parking_lot = "0.12"
+half = "2.7"
 
 [build-dependencies]
 chrono = "0.4"
