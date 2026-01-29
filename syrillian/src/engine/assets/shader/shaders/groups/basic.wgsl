@@ -17,3 +17,9 @@ struct FInput {
     @location(5) bone_idx:   vec4<u32>,
     @location(6) bone_w:     vec4<f32>,
 }
+
+struct FOutput {
+      @location(0) out_color    : vec4<f32>,
+      @location(1) out_normal   : vec4<f32>,
+      @location(2) out_material : vec4<f32>,
+}

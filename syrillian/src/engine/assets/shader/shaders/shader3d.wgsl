@@ -366,13 +366,18 @@ fn eval_sun(
 }
 
 @fragment
-fn fs_main_3d(in: FInput) -> @location(0) vec4<f32> {
+fn fs_main_3d(in: FInput) -> FOutput {
+    var out: FOutput;
+    out.out_normal = vec4(in.normal, 1.0);
+    out.out_material = vec4(material.roughness, material.metallic, 0.0, material.alpha);
+
     // Base color (linear)
     var base_rgba: vec4<f32>;
     if mat_has_texture_diffuse(material) {
         base_rgba = textureSample(t_diffuse, s_diffuse, in.uv);
         if mat_is_grayscale_diffuse(material) {
-            return vec4(vec3(base_rgba.r), base_rgba.g);
+            out.out_color = vec4(vec3(base_rgba.r), base_rgba.g);
+            return out;
         }
     } else {
         base_rgba = vec4<f32>(material.diffuse, 1.0);
@@ -429,7 +434,8 @@ fn fs_main_3d(in: FInput) -> @location(0) vec4<f32> {
 
     // filmic tonemapping
     let color_tm = tonemap_ACES(Lo);
-    return vec4<f32>(color_tm, base_rgba.a * material.alpha);
+    out.out_color = vec4(color_tm, base_rgba.a * material.alpha);
+    return out;
 }
 
 

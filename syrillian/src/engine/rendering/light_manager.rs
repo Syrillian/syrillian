@@ -191,7 +191,7 @@ impl LightManager {
 
         let bgl = cache.bgl_light();
         let count: u32 = 0;
-        let uniform = ShaderUniform::builder(&bgl)
+        let uniform = ShaderUniform::builder((*bgl).clone())
             .with_buffer_data(&count)
             .with_storage_buffer_data(&[DUMMY_POINT_LIGHT])
             .build(device);
@@ -212,14 +212,14 @@ impl LightManager {
         });
 
         let bgl = cache.bgl_shadow();
-        let shadow_uniform = ShaderUniform::builder(&bgl)
-            .with_texture(&texture.view)
-            .with_sampler(&shadow_sampler)
+        let shadow_uniform = ShaderUniform::builder((*bgl).clone())
+            .with_texture(texture.view.clone())
+            .with_sampler(shadow_sampler.clone())
             .build(device);
 
-        let empty_shadow_uniform = ShaderUniform::builder(&bgl)
-            .with_texture(&empty_texture.view)
-            .with_sampler(&shadow_sampler)
+        let empty_shadow_uniform = ShaderUniform::builder((*bgl).clone())
+            .with_texture(empty_texture.view.clone())
+            .with_sampler(shadow_sampler.clone())
             .build(device);
 
         Self {
@@ -244,7 +244,7 @@ impl LightManager {
         let data = self.uniform.buffer(LightUniformIndex::Lights);
         if size_of_val(proxies) > data.size() as usize {
             let bgl = cache.bgl_light();
-            self.uniform = ShaderUniform::builder(&bgl)
+            self.uniform = ShaderUniform::builder((*bgl).clone())
                 .with_buffer(count.clone())
                 .with_storage_buffer_data(proxies)
                 .build(device);

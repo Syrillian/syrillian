@@ -54,7 +54,7 @@ impl StoreType for BGL {
     }
 }
 
-const TWO_DEFAULT_ENTRIES: [BindGroupLayoutEntry; 2] = [
+const RENDER_ENTRIES: [BindGroupLayoutEntry; 2] = [
     BindGroupLayoutEntry {
         binding: 0,
         visibility: ShaderStages::VERTEX_FRAGMENT,
@@ -180,7 +180,7 @@ const SHADOW_ENTRIES: [BindGroupLayoutEntry; 2] = [
     },
 ];
 
-const PP_ENTRIES: [BindGroupLayoutEntry; 3] = [
+const PP_ENTRIES: [BindGroupLayoutEntry; 5] = [
     BindGroupLayoutEntry {
         binding: 0,
         visibility: ShaderStages::FRAGMENT,
@@ -207,6 +207,26 @@ const PP_ENTRIES: [BindGroupLayoutEntry; 3] = [
         },
         count: None,
     },
+    BindGroupLayoutEntry {
+        binding: 3,
+        visibility: ShaderStages::VERTEX_FRAGMENT,
+        ty: BindingType::Texture {
+            sample_type: TextureSampleType::Float { filterable: false },
+            view_dimension: TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 4,
+        visibility: ShaderStages::VERTEX_FRAGMENT,
+        ty: BindingType::Texture {
+            sample_type: TextureSampleType::Float { filterable: false },
+            view_dimension: TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    },
 ];
 
 impl StoreDefaults for BGL {
@@ -216,7 +236,7 @@ impl StoreDefaults for BGL {
             HBGL::RENDER_ID,
             BGL {
                 label: HBGL::RENDER.ident(),
-                entries: TWO_DEFAULT_ENTRIES.to_vec()
+                entries: RENDER_ENTRIES.to_vec()
             }
         );
 
@@ -225,7 +245,7 @@ impl StoreDefaults for BGL {
             HBGL::MODEL_ID,
             BGL {
                 label: HBGL::MODEL.ident(),
-                entries: TWO_DEFAULT_ENTRIES.to_vec()
+                entries: RENDER_ENTRIES.to_vec()
             }
         );
 

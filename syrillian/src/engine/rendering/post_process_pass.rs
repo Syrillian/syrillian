@@ -11,6 +11,8 @@ pub enum PostProcessUniformIndex {
     Color = 0,
     Sampler = 1,
     Depth = 2,
+    GNormal = 3,
+    GMaterial = 4,
 }
 
 pub struct PostProcessData {
@@ -20,9 +22,11 @@ pub struct PostProcessData {
 impl PostProcessData {
     pub(crate) fn new(
         device: &Device,
-        layout: &BindGroupLayout,
-        color_view: &TextureView,
-        depth_view: &TextureView,
+        layout: BindGroupLayout,
+        color_view: TextureView,
+        depth_view: TextureView,
+        g_normal_view: TextureView,
+        g_material_view: TextureView,
     ) -> Self {
         let sampler = device.create_sampler(&SamplerDescriptor {
             label: Some("PostProcess Sampler"),
@@ -36,9 +40,11 @@ impl PostProcessData {
         });
 
         let uniform = ShaderUniform::<PostProcessUniformIndex>::builder(layout)
-            .with_texture(color_view)
-            .with_sampler(&sampler)
+            .with_texture(color_view.clone())
+            .with_sampler(sampler)
             .with_texture(depth_view)
+            .with_texture(g_normal_view)
+            .with_texture(g_material_view)
             .build(device);
 
         Self { uniform }

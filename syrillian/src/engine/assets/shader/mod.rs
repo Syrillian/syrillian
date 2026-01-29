@@ -9,7 +9,10 @@ use crate::assets::HBGL;
 use crate::engine::assets::generic_store::{HandleName, Store, StoreDefaults, StoreType};
 use crate::engine::assets::{H, HShader, StoreTypeFallback, StoreTypeName};
 use crate::rendering::proxies::text_proxy::TextImmediates;
-use crate::rendering::{AssetCache, DEFAULT_COLOR_TARGET, DEFAULT_VBL, PICKING_TEXTURE_FORMAT};
+use crate::rendering::{
+    AssetCache, DEFAULT_COLOR_TARGETS, DEFAULT_PP_COLOR_TARGETS, DEFAULT_VBL,
+    PICKING_TEXTURE_FORMAT,
+};
 use crate::utils::sizes::{VEC2_SIZE, VEC4_SIZE};
 use crate::{store_add_checked, store_add_checked_many};
 use bon::Builder;
@@ -63,7 +66,7 @@ pub struct Shader {
     topology: PrimitiveTopology,
     #[builder(default = &DEFAULT_VBL)]
     vertex_buffers: &'static [VertexBufferLayout<'static>],
-    #[builder(default = DEFAULT_COLOR_TARGET)]
+    #[builder(default = DEFAULT_COLOR_TARGETS)]
     color_target: &'static [Option<ColorTargetState>],
     #[builder(default = 0)]
     immediate_size: u32,
@@ -489,7 +492,7 @@ impl Shader {
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
-            color_target: DEFAULT_COLOR_TARGET,
+            color_target: DEFAULT_PP_COLOR_TARGETS,
             immediate_size: 0,
             shadow_transparency: false,
             depth_enabled: false,
@@ -508,7 +511,7 @@ impl Shader {
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
-            color_target: DEFAULT_COLOR_TARGET,
+            color_target: DEFAULT_COLOR_TARGETS,
             immediate_size: 0,
             shadow_transparency: false,
             depth_enabled: true,
@@ -527,7 +530,7 @@ impl Shader {
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
-            color_target: DEFAULT_COLOR_TARGET,
+            color_target: DEFAULT_COLOR_TARGETS,
             immediate_size: 0,
             shadow_transparency: false,
             depth_enabled: true,

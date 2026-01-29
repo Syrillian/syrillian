@@ -90,6 +90,8 @@ pub struct RenderViewport {
     offscreen_surface: OffscreenSurface,
     picking_surface: PickingSurface,
     post_process_data: PostProcessData,
+    g_normal: Texture,
+    g_material: Texture,
     render_data: RenderUniformData,
     start_time: Instant,
     delta_time: Duration,
@@ -111,16 +113,22 @@ impl RenderViewport {
         let render_bgl = cache.bgl_render();
         let pp_bgl = cache.bgl_post_process();
 
+        let picking_surface = PickingSurface::new(&state.device, &config);
         let offscreen_surface = OffscreenSurface::new(&state.device, &config);
         let depth_texture = Self::create_depth_texture(&state.device, &config);
         let depth_view = depth_texture.create_view(&TextureViewDescriptor::default());
-        let picking_surface = PickingSurface::new(&state.device, &config);
+        let normal_texture = Self::create_g_buffer("GBuffer (Normals)", &state.device, &config);
+        let normal_view = normal_texture.create_view(&TextureViewDescriptor::default());
+        let material_texture = Self::create_material_texture(&state.device, &config);
+        let material_view = material_texture.create_view(&TextureViewDescriptor::default());
 
         let post_process_data = PostProcessData::new(
             &state.device,
-            &pp_bgl,
-            offscreen_surface.view(),
-            &depth_view,
+            (*pp_bgl).clone(),
+            offscreen_surface.view().clone(),
+            depth_view,
+            normal_view,
+            material_view,
         );
 
         let render_data = RenderUniformData::empty(&state.device, &render_bgl);
@@ -133,6 +141,8 @@ impl RenderViewport {
             offscreen_surface,
             picking_surface,
             post_process_data,
+            g_normal: normal_texture,
+            g_material: material_texture,
             render_data,
             start_time: Instant::now(),
             delta_time: Duration::default(),
@@ -172,11 +182,17 @@ impl RenderViewport {
         let depth_view = self
             .depth_texture
             .create_view(&TextureViewDescriptor::default());
+        let normal_view = self.g_normal.create_view(&TextureViewDescriptor::default());
+        let material_view = self
+            .g_material
+            .create_view(&TextureViewDescriptor::default());
         self.post_process_data = PostProcessData::new(
             &state.device,
-            &pp_bgl,
-            self.offscreen_surface.view(),
-            &depth_view,
+            (*pp_bgl).clone(),
+            self.offscreen_surface.view().clone(),
+            depth_view.clone(),
+            normal_view,
+            material_view,
         );
     }
 
@@ -192,6 +208,44 @@ impl RenderViewport {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Depth32Float,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+    }
+
+    fn create_g_buffer(
+        which: &'static str,
+        device: &Device,
+        config: &SurfaceConfiguration,
+    ) -> Texture {
+        device.create_texture(&TextureDescriptor {
+            label: Some(which),
+            size: Extent3d {
+                width: config.width.max(1),
+                height: config.height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Bgra8Unorm,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+    }
+
+    fn create_material_texture(device: &Device, config: &SurfaceConfiguration) -> Texture {
+        device.create_texture(&TextureDescriptor {
+            label: Some("Material Property Texture"),
+            size: Extent3d {
+                width: config.width.max(1),
+                height: config.height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Bgra8Unorm,
             usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
@@ -1078,17 +1132,43 @@ impl Renderer {
         viewport: &RenderViewport,
         ctx: &mut FrameCtx,
     ) -> RenderPass<'a> {
+        let g_normal_view = viewport
+            .g_normal
+            .create_view(&TextureViewDescriptor::default());
+        let g_material_view = viewport
+            .g_material
+            .create_view(&TextureViewDescriptor::default());
         encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Offscreen Render Pass"),
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view: viewport.offscreen_surface.view(),
-                depth_slice: None,
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(Color::BLACK),
-                    store: StoreOp::Store,
-                },
-            })],
+            color_attachments: &[
+                Some(RenderPassColorAttachment {
+                    view: viewport.offscreen_surface.view(),
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                }),
+                Some(RenderPassColorAttachment {
+                    view: &g_normal_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                }),
+                Some(RenderPassColorAttachment {
+                    view: &g_material_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                }),
+            ],
             depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                 view: &ctx.depth_view,
                 depth_ops: Some(Operations {

@@ -410,7 +410,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         });
 
         let model_bgl = renderer.cache.bgl_model();
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder(&model_bgl)
+        let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
             .with_buffer_data(&self.translation)
             .with_buffer_data(&BoneData::DUMMY)
             .build(device);

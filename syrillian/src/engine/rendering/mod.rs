@@ -44,6 +44,7 @@ pub mod texture_export;
 pub(crate) mod uniform;
 
 pub mod debug_renderer;
+pub mod post_process;
 pub mod strobe;
 
 pub use cache::*;

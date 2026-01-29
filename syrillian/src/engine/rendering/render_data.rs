@@ -111,7 +111,7 @@ impl RenderUniformData {
     pub fn empty(device: &Device, render_bgl: &BindGroupLayout) -> Self {
         let camera_data = CameraUniform::empty();
         let system_data = SystemUniform::empty();
-        let uniform = ShaderUniform::<RenderUniformIndex>::builder(render_bgl)
+        let uniform = ShaderUniform::<RenderUniformIndex>::builder((*render_bgl).clone())
             .with_buffer_data(&camera_data)
             .with_buffer_data(&system_data)
             .build(device);

@@ -249,7 +249,7 @@ impl MeshSceneProxy {
         let model_bgl = renderer.cache.bgl_model();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder(&model_bgl)
+        let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
             .with_buffer_data(&mesh_data)
             .with_buffer_data_slice(self.bone_data.bones.as_slice())
             .build(device);

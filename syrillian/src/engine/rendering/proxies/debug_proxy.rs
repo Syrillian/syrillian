@@ -143,7 +143,7 @@ impl DebugSceneProxy {
         let mesh_data = ModelUniform {
             model_mat: (*model_mat).into(),
         };
-        let uniform = ShaderUniform::builder(&bgl)
+        let uniform = ShaderUniform::builder((*bgl).clone())
             .with_buffer_data(&mesh_data)
             .with_buffer_data(&BoneData::DUMMY)
             .build(device);
