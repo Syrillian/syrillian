@@ -119,7 +119,7 @@ impl State {
         let size = Self::clamp_size(size);
 
         Ok(SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
             format,
             width: size.width,
             height: size.height,
@@ -159,7 +159,7 @@ impl State {
         let preferred_format = Self::preferred_surface_format(&caps.formats)?;
         let size = Self::clamp_size(window.inner_size());
         let config = SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
             format: preferred_format,
             width: size.width,
             height: size.height,

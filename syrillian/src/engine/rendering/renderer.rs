@@ -25,23 +25,28 @@ use crate::rendering::render_data::RenderUniformData;
 use crate::rendering::strobe::StrobeRenderer;
 use crate::rendering::texture_export::{TextureExportError, save_texture_to_png};
 use crate::rendering::{GPUDrawCtx, RenderPassType, State};
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Sender;
 use itertools::Itertools;
-use snafu::ResultExt;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem;
 use std::sync::{Arc, RwLock};
 use syrillian_utils::debug_panic;
-use tracing::{error, instrument, trace, warn};
+use tracing::{instrument, trace, warn};
 use web_time::{Duration, Instant};
 use wgpu::*;
 use winit::dpi::PhysicalSize;
-use winit::window::{Window, WindowId};
 
 pub const PICKING_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 const PICKING_ROW_PITCH: u32 = 256;
+
+pub struct RenderedFrame {
+    pub target: ViewportId,
+    pub texture: Texture,
+    pub size: PhysicalSize<u32>,
+    pub format: TextureFormat,
+}
 
 struct PickingSurface {
     texture: Texture,
@@ -83,12 +88,11 @@ impl PickingSurface {
 }
 
 pub struct RenderViewport {
-    window: Window,
-    surface: Surface<'static>,
     config: SurfaceConfiguration,
     depth_texture: Texture,
     offscreen_surface: OffscreenSurface,
     ssr_surface: OffscreenSurface,
+    final_surface: OffscreenSurface,
     picking_surface: PickingSurface,
     post_process_ssr: PostProcessData,
     post_process_final: PostProcessData,
@@ -102,15 +106,8 @@ pub struct RenderViewport {
 }
 
 impl RenderViewport {
-    fn new(
-        window: Window,
-        surface: Surface<'static>,
-        mut config: SurfaceConfiguration,
-        state: &State,
-        cache: &AssetCache,
-    ) -> Self {
+    fn new(mut config: SurfaceConfiguration, state: &State, cache: &AssetCache) -> Self {
         Self::clamp_config(&mut config);
-        surface.configure(&state.device, &config);
 
         let render_bgl = cache.bgl_render();
         let pp_bgl = cache.bgl_post_process();
@@ -118,6 +115,7 @@ impl RenderViewport {
         let picking_surface = PickingSurface::new(&state.device, &config);
         let offscreen_surface = OffscreenSurface::new(&state.device, &config);
         let ssr_surface = OffscreenSurface::new(&state.device, &config);
+        let final_surface = OffscreenSurface::new(&state.device, &config);
         let depth_texture = Self::create_depth_texture(&state.device, &config);
         let normal_texture = Self::create_g_buffer("GBuffer (Normals)", &state.device, &config);
         let material_texture = Self::create_material_texture(&state.device, &config);
@@ -141,12 +139,11 @@ impl RenderViewport {
         let render_data = RenderUniformData::empty(&state.device, &render_bgl);
 
         RenderViewport {
-            window,
-            surface,
             config,
             depth_texture,
             offscreen_surface,
             ssr_surface,
+            final_surface,
             picking_surface,
             post_process_ssr,
             post_process_final,
@@ -166,26 +163,13 @@ impl RenderViewport {
     }
 
     #[instrument(skip_all)]
-    fn recreate_surface(&mut self, state: &State) {
-        self.surface.configure(&state.device, &self.config);
-    }
-
-    #[instrument(skip_all)]
-    fn resize(&mut self, new_size: PhysicalSize<u32>, state: &State, cache: &AssetCache) {
-        let Ok(mut new_config) = state
-            .surface_config(&self.surface, new_size)
-            .context(StateErr)
-        else {
-            warn!("Couldn't acquire surface config for surface reconfiguration");
-            return;
-        };
-
-        Self::clamp_config(&mut new_config);
-        self.config = new_config;
-        self.surface.configure(&state.device, &self.config);
+    fn resize(&mut self, mut config: SurfaceConfiguration, state: &State, cache: &AssetCache) {
+        Self::clamp_config(&mut config);
+        self.config = config;
 
         self.offscreen_surface.recreate(&state.device, &self.config);
         self.ssr_surface.recreate(&state.device, &self.config);
+        self.final_surface.recreate(&state.device, &self.config);
         self.depth_texture = Self::create_depth_texture(&state.device, &self.config);
         self.g_normal = Self::create_g_buffer("GBuffer (Normals)", &state.device, &self.config);
         self.g_material = Self::create_material_texture(&state.device, &self.config);
@@ -294,8 +278,7 @@ impl RenderViewport {
     }
 
     fn update_system_data(&mut self, queue: &Queue) {
-        let window_size = self.window.inner_size();
-        let window_size = UVec2::new(window_size.width.max(1), window_size.height.max(1));
+        let window_size = UVec2::new(self.config.width.max(1), self.config.height.max(1));
 
         let system_data = &mut self.render_data.system_data;
         system_data.screen_size = window_size;
@@ -311,14 +294,6 @@ impl RenderViewport {
         self.last_frame_time = Instant::now();
     }
 
-    fn window(&self) -> &Window {
-        &self.window
-    }
-
-    fn window_mut(&mut self) -> &mut Window {
-        &mut self.window
-    }
-
     fn size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
             width: self.config.width,
@@ -329,12 +304,10 @@ impl RenderViewport {
 
 #[allow(dead_code)]
 pub struct Renderer {
-    pub state: Box<State>,
+    pub state: Arc<State>,
     pub cache: AssetCache,
     shadow_render_data: RenderUniformData,
     viewports: HashMap<ViewportId, RenderViewport>,
-    window_map: HashMap<WindowId, ViewportId>,
-    game_rx: Receiver<RenderMsg>,
     proxies: HashMap<TypedComponentId, SceneProxyBinding>,
     sorted_proxies: Vec<(u32, TypedComponentId)>,
     strobe: RefCell<StrobeRenderer>,
@@ -346,37 +319,29 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(
-        game_rx: Receiver<RenderMsg>,
-        pick_result_tx: Sender<PickResult>,
-        main_window: Window,
+        state: Arc<State>,
         store: Arc<AssetStore>,
+        pick_result_tx: Sender<PickResult>,
+        primary_config: SurfaceConfiguration,
     ) -> Result<Self> {
-        let (state, surface, config) = State::new(&main_window).context(StateErr)?;
-        let cache = AssetCache::new(store, &state);
+        let cache = AssetCache::new(store, state.as_ref());
 
         let render_bgl = cache.bgl_render();
         let shadow_render_data = RenderUniformData::empty(&state.device, &render_bgl);
         let lights = LightManager::new(&cache, &state.device);
         let start_time = Instant::now();
 
-        main_window.request_redraw();
-
-        let mut window_map = HashMap::new();
-        window_map.insert(main_window.id(), ViewportId::PRIMARY);
-
         let mut viewports = HashMap::new();
         viewports.insert(
             ViewportId::PRIMARY,
-            RenderViewport::new(main_window, surface, config, &state, &cache),
+            RenderViewport::new(primary_config, state.as_ref(), &cache),
         );
 
         Ok(Renderer {
-            state: Box::new(state),
+            state,
             cache,
             shadow_render_data,
             viewports,
-            window_map,
-            game_rx,
             start_time,
             proxies: HashMap::new(),
             sorted_proxies: Vec::new(),
@@ -397,20 +362,6 @@ impl Renderer {
         } else {
             None
         }
-    }
-
-    pub fn find_render_target_id(&self, window_id: &WindowId) -> Option<ViewportId> {
-        self.window_map.get(window_id).copied()
-    }
-
-    pub fn window(&self, viewport: ViewportId) -> Option<&Window> {
-        self.viewports.get(&viewport).map(RenderViewport::window)
-    }
-
-    pub fn window_mut(&mut self, viewport: ViewportId) -> Option<&mut Window> {
-        self.viewports
-            .get_mut(&viewport)
-            .map(RenderViewport::window_mut)
     }
 
     /// Export the offscreen render target for a viewport as a PNG image.
@@ -506,23 +457,13 @@ impl Renderer {
         self.start_time
     }
 
-    #[instrument(skip_all)]
-    pub fn handle_events(&mut self) {
-        loop {
-            let Ok(msg) = self.game_rx.try_recv() else {
-                break;
-            };
-            self.handle_message(msg);
-        }
-    }
-
-    pub fn resize(&mut self, target_id: ViewportId, new_size: PhysicalSize<u32>) -> bool {
+    pub fn resize(&mut self, target_id: ViewportId, config: SurfaceConfiguration) -> bool {
         let Some(viewport) = self.viewports.get_mut(&target_id) else {
             warn!("Invalid Viewport {target_id:?} referenced");
             return false;
         };
 
-        viewport.resize(new_size, &self.state, &self.cache);
+        viewport.resize(config, &self.state, &self.cache);
 
         true
     }
@@ -534,7 +475,7 @@ impl Renderer {
         };
 
         viewport.tick_delta_time();
-        let rendered = self.render_frame(target_id, &mut viewport);
+        let rendered = self.render_frame_inner(target_id, &mut viewport);
 
         self.viewports.insert(target_id, viewport);
 
@@ -571,7 +512,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    pub fn render_frame(&mut self, target_id: ViewportId, viewport: &mut RenderViewport) -> bool {
+    fn render_frame_inner(&mut self, target_id: ViewportId, viewport: &mut RenderViewport) -> bool {
         let mut ctx = viewport.begin_render();
 
         let frustum = Frustum::from_matrix(&viewport.render_data.camera_data.proj_view_mat);
@@ -583,30 +524,52 @@ impl Renderer {
         }
 
         self.render(target_id, viewport, &mut ctx);
+        self.render_final_pass(viewport, viewport.final_surface.view());
 
-        match self.end_render(viewport) {
-            Ok(ctx) => ctx,
-            Err(RenderError::Surface {
-                source: SurfaceError::Lost,
-            }) => {
-                warn!("Lost Window Surface. Recreating");
-                let size = viewport.size();
-                viewport.resize(size, &self.state, &self.cache);
-                return true; // drop frame but don't cancel
+        if self.cache.last_refresh().elapsed().as_secs_f32() > 5.0 {
+            trace!("Refreshing cache...");
+            let refreshed_count = self.cache.refresh_all();
+            if cfg!(debug_assertions) && refreshed_count != 0 {
+                trace!("Refreshed cache elements {}", refreshed_count);
             }
-            Err(RenderError::Surface {
-                source: SurfaceError::OutOfMemory,
-            }) => {
-                error!("The application ran out of GPU memory!");
-                return false;
-            }
-            Err(e) => {
-                error!("Surface error: {e}");
-                return false;
-            }
-        };
+        }
 
         true
+    }
+
+    #[instrument(skip_all)]
+    pub fn render_frame(&mut self, target_id: ViewportId) -> Option<RenderedFrame> {
+        let mut viewport = self.viewports.remove(&target_id)?;
+        viewport.tick_delta_time();
+
+        let rendered = self.render_frame_inner(target_id, &mut viewport);
+        let frame = if rendered {
+            Some(RenderedFrame {
+                target: target_id,
+                texture: viewport.final_surface.texture().clone(),
+                size: viewport.size(),
+                format: viewport.config.format,
+            })
+        } else {
+            None
+        };
+
+        self.viewports.insert(target_id, viewport);
+
+        frame
+    }
+
+    pub fn render_all(&mut self) -> Vec<RenderedFrame> {
+        let targets: Vec<_> = self.viewports.keys().copied().collect();
+        let mut frames = Vec::with_capacity(targets.len());
+
+        for target in targets {
+            if let Some(frame) = self.render_frame(target) {
+                frames.push(frame);
+            }
+        }
+
+        frames
     }
 
     #[instrument(skip_all)]
@@ -973,36 +936,6 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    fn end_render(&mut self, viewport: &mut RenderViewport) -> Result<()> {
-        let mut output = viewport.surface.get_current_texture().context(SurfaceErr)?;
-        if output.suboptimal {
-            warn!("Surface Output is suboptimal. Recreating...");
-            drop(output);
-            viewport.recreate_surface(&self.state);
-            output = viewport.surface.get_current_texture().context(SurfaceErr)?;
-        }
-
-        let color_view = output
-            .texture
-            .create_view(&TextureViewDescriptor::default());
-
-        self.render_final_pass(viewport, &color_view);
-
-        viewport.window.pre_present_notify();
-        output.present();
-
-        if self.cache.last_refresh().elapsed().as_secs_f32() > 5.0 {
-            trace!("Refreshing cache...");
-            let refreshed_count = self.cache.refresh_all();
-            if cfg!(debug_assertions) && refreshed_count != 0 {
-                trace!("Refreshed cache elements {}", refreshed_count);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
     fn render_final_pass(&mut self, viewport: &RenderViewport, color_view: &TextureView) {
         let mut encoder = self
             .state
@@ -1074,7 +1007,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    fn handle_message(&mut self, msg: RenderMsg) {
+    pub fn handle_message(&mut self, msg: RenderMsg) {
         match msg {
             RenderMsg::RegisterProxy(cid, object_hash, mut proxy, local_to_world) => {
                 trace!("Registered Proxy for #{:?}", cid.0);
@@ -1144,10 +1077,15 @@ impl Renderer {
             RenderMsg::UpdateStrobe(frame) => {
                 self.strobe.borrow_mut().update_frame(frame);
             }
+            RenderMsg::FrameEnd(_, _) => {}
         }
     }
 
-    pub fn add_window(&mut self, target_id: ViewportId, window: Window) -> Result<()> {
+    pub fn add_viewport(
+        &mut self,
+        target_id: ViewportId,
+        config: SurfaceConfiguration,
+    ) -> Result<()> {
         if self.viewports.contains_key(&target_id) {
             warn!(
                 "Viewport #{:?} already exists; ignoring duplicate add",
@@ -1156,18 +1094,14 @@ impl Renderer {
             return Ok(());
         }
 
-        let surface = self.state.create_surface(&window).context(StateErr)?;
-        let config = self
-            .state
-            .surface_config(&surface, window.inner_size())
-            .context(StateErr)?;
-
-        self.window_map.insert(window.id(), target_id);
-
-        let viewport = RenderViewport::new(window, surface, config, &self.state, &self.cache);
+        let viewport = RenderViewport::new(config, &self.state, &self.cache);
         self.viewports.insert(target_id, viewport);
 
         Ok(())
+    }
+
+    pub fn remove_viewport(&mut self, target_id: ViewportId) {
+        self.viewports.remove(&target_id);
     }
 
     #[instrument(skip_all)]
@@ -1394,11 +1328,11 @@ mod tests {
     }
 
     impl SceneProxy for TestProxy {
-        fn setup_render(&mut self, _: &Renderer, _: &Affine3A) -> Box<dyn Any> {
+        fn setup_render(&mut self, _: &Renderer, _: &Affine3A) -> Box<dyn Any + Send> {
             Box::new(())
         }
 
-        fn update_render(&mut self, _: &Renderer, _: &mut dyn Any, _: &Affine3A) {}
+        fn update_render(&mut self, _: &Renderer, _: &mut (dyn Any + Send), _: &Affine3A) {}
 
         fn render(&self, _renderer: &Renderer, _ctx: &GPUDrawCtx, _binding: &SceneProxyBinding) {}
 

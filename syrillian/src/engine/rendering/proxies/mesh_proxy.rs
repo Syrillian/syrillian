@@ -62,14 +62,18 @@ impl RuntimeMeshData {
 }
 
 impl SceneProxy for MeshSceneProxy {
-    fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Affine3A) -> Box<dyn Any> {
+    fn setup_render(
+        &mut self,
+        renderer: &Renderer,
+        local_to_world: &Affine3A,
+    ) -> Box<dyn Any + Send> {
         Box::new(self.setup_mesh_data(renderer, local_to_world))
     }
 
     fn update_render(
         &mut self,
         renderer: &Renderer,
-        data: &mut dyn Any,
+        data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
     ) {
         let data: &mut RuntimeMeshData = proxy_data_mut!(data);

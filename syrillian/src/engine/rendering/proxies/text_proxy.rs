@@ -398,7 +398,11 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 }
 
 impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
-    fn setup_render(&mut self, renderer: &Renderer, _local_to_world: &Affine3A) -> Box<dyn Any> {
+    fn setup_render(
+        &mut self,
+        renderer: &Renderer,
+        _local_to_world: &Affine3A,
+    ) -> Box<dyn Any + Send> {
         self.regenerate_geometry(renderer);
 
         let device = &renderer.state.device;
@@ -421,7 +425,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
     fn update_render(
         &mut self,
         renderer: &Renderer,
-        data: &mut dyn Any,
+        data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
     ) {
         let data: &mut TextRenderData = proxy_data_mut!(data);
