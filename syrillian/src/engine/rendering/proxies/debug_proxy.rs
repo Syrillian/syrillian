@@ -54,7 +54,7 @@ pub struct DebugSceneProxy {
 }
 
 impl SceneProxy for DebugSceneProxy {
-    fn setup_render(&mut self, renderer: &Renderer, model_mat: &Affine3A) -> Box<dyn Any> {
+    fn setup_render(&mut self, renderer: &Renderer, model_mat: &Affine3A) -> Box<dyn Any + Send> {
         let line_data = self.new_line_buffer(&renderer.state.device);
         let transform = self.override_transform.unwrap_or(*model_mat);
         let model_uniform =
@@ -69,7 +69,7 @@ impl SceneProxy for DebugSceneProxy {
     fn update_render(
         &mut self,
         renderer: &Renderer,
-        data: &mut dyn Any,
+        data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
     ) {
         let data: &mut GPUDebugProxyData = proxy_data_mut!(data);

@@ -8,6 +8,7 @@ use crate::rendering::picking::PickRequest;
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::render_data::CameraUniform;
 use crate::rendering::strobe::StrobeFrame;
+use crossbeam_channel::Sender;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 
@@ -30,6 +31,7 @@ pub enum RenderMsg {
     CapturePickingTexture(ViewportId, PathBuf),
     CaptureTexture(HTexture2D, PathBuf),
     UpdateStrobe(StrobeFrame),
+    FrameEnd(ViewportId, Sender<()>),
 }
 
 impl Debug for RenderMsg {
@@ -49,6 +51,7 @@ impl Debug for RenderMsg {
             RenderMsg::CapturePickingTexture(_, _) => "Capture Picking Texture",
             RenderMsg::CaptureTexture(_, _) => "Capture Texture",
             RenderMsg::UpdateStrobe(_) => "Update Strobe Draw List",
+            RenderMsg::FrameEnd(_, _) => "Frame End",
         };
 
         write!(f, "{name}")

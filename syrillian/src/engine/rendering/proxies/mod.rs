@@ -17,8 +17,9 @@ pub use text_proxy::*;
 
 #[macro_export]
 macro_rules! proxy_data_mut {
-    ($data:expr) => {
-        if let Some(data) = ($data as &mut dyn std::any::Any).downcast_mut() {
+    ($data:expr) => {{
+        let data_any = $crate::rendering::proxies::AsAny::as_any_mut($data);
+        if let Some(data) = data_any.downcast_mut() {
             data
         } else {
             ::syrillian::utils::debug_panic!(
@@ -26,13 +27,14 @@ macro_rules! proxy_data_mut {
             );
             return;
         }
-    };
+    }};
 }
 
 #[macro_export]
 macro_rules! proxy_data {
-    ($data:expr) => {
-        if let Some(data) = ($data as &dyn std::any::Any).downcast_ref() {
+    ($data:expr) => {{
+        let data_any = $crate::rendering::proxies::AsAny::as_any($data);
+        if let Some(data) = data_any.downcast_ref() {
             data
         } else {
             ::syrillian_utils::debug_panic!(
@@ -40,15 +42,59 @@ macro_rules! proxy_data {
             );
             return;
         }
-    };
+    }};
 }
 
 pub const PROXY_PRIORITY_SOLID: u32 = 99;
 pub const PROXY_PRIORITY_TRANSPARENT: u32 = 999;
 
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl AsAny for dyn Any {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+impl AsAny for dyn Any + Send {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+impl AsAny for dyn SceneProxy {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 pub trait SceneProxy: Send + Any + Debug {
-    fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Affine3A) -> Box<dyn Any>;
-    fn update_render(&mut self, renderer: &Renderer, data: &mut dyn Any, local_to_world: &Affine3A);
+    fn setup_render(
+        &mut self,
+        renderer: &Renderer,
+        local_to_world: &Affine3A,
+    ) -> Box<dyn Any + Send>;
+    fn update_render(
+        &mut self,
+        renderer: &Renderer,
+        data: &mut (dyn Any + Send),
+        local_to_world: &Affine3A,
+    );
     fn render(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding);
 
     fn render_shadows(
@@ -78,7 +124,7 @@ pub struct SceneProxyBinding {
     pub component_id: TypedComponentId,
     pub object_hash: ObjectHash,
     pub local_to_world: Affine3A,
-    proxy_data: Box<dyn Any>,
+    proxy_data: Box<dyn Any + Send>,
     pub proxy: Box<dyn SceneProxy>,
     pub enabled: bool,
 }
@@ -88,7 +134,7 @@ impl SceneProxyBinding {
         component_id: TypedComponentId,
         object_hash: ObjectHash,
         local_to_world: Affine3A,
-        proxy_data: Box<dyn Any>,
+        proxy_data: Box<dyn Any + Send>,
         proxy: Box<dyn SceneProxy>,
     ) -> Self {
         Self {

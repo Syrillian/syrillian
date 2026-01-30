@@ -53,20 +53,29 @@ impl Component for RigidBodyComponent {
     }
 
     fn post_fixed_update(&mut self, _world: &mut World) {
-        let mut parent = self.parent();
         let Some(rb) = self.body_mut() else {
             debug_panic!("de-synced - remake_rigid_body();");
             return;
         };
 
-        parent.transform.set_position_vec(rb.translation());
-        if rb.is_rotation_locked().iter().all(|l| !l) {
-            parent.transform.set_rotation(*rb.rotation());
-        }
-
         let pos = *rb.position();
         self.prev_iso = self.curr_iso;
         self.curr_iso = pos;
+    }
+
+    fn post_update(&mut self, _world: &mut World) {
+        let mut parent = self.parent();
+        let pose = self.world_render_isometry();
+
+        let Some(rb) = self.body() else {
+            debug_panic!("de-synced - remake_rigid_body();");
+            return;
+        };
+
+        parent.transform.set_position_vec(pose.translation);
+        if rb.is_rotation_locked().iter().all(|l| !l) {
+            parent.transform.set_rotation(pose.rotation);
+        }
     }
 
     fn delete(&mut self, world: &mut World) {
@@ -117,6 +126,10 @@ impl RigidBodyComponent {
 
     pub fn is_kinematic(&self) -> bool {
         self.kinematic
+    }
+
+    pub fn world_render_isometry(&self) -> Pose {
+        self.render_isometry(self.world().physics.alpha)
     }
 
     pub fn render_isometry(&self, alpha: f32) -> Pose {

@@ -444,6 +444,7 @@ impl MyMain {
             let Some(collider) = self.player.get_component::<Collider3D>() else {
                 return;
             };
+
             let player_collider = collider.phys_handle.unwrap_or_else(ColliderHandle::invalid);
             let ray = Ray::new(
                 camera_obj.transform.position(),
@@ -496,7 +497,6 @@ impl MyMain {
             let rotation: Quat = obj.transform.rotation();
             let camera_rotation: Quat = camera_obj.transform.rotation();
             let target_rotation = rotation.slerp(camera_rotation, 10.0 * delta);
-            // let next_rot = smooth_rot(rotation, target_rotation, delta, 15.0);
             let next_pos = position.lerp(target_position, 100.03 * delta);
             if let Some(mut rb) = obj.get_component::<RigidBodyComponent>() {
                 rb.set_kinematic(true);
