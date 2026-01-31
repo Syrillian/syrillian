@@ -39,7 +39,6 @@ pub struct State {
     pub(crate) adapter: Adapter,
     pub(crate) device: Arc<Device>,
     pub(crate) queue: Arc<Queue>,
-    pub(crate) preferred_format: TextureFormat,
 }
 
 impl State {
@@ -117,12 +116,20 @@ impl State {
         }
     }
 
-    pub fn surface_config(
+    pub fn surface_config<'a>(
         &self,
-        surface: &Surface<'static>,
+        surface: &Surface<'a>,
         size: PhysicalSize<u32>,
     ) -> Result<SurfaceConfiguration> {
-        let caps = surface.get_capabilities(&self.adapter);
+        Self::_surface_config(&self.adapter, surface, size)
+    }
+
+    fn _surface_config<'a>(
+        adapter: &Adapter,
+        surface: &Surface<'a>,
+        size: PhysicalSize<u32>,
+    ) -> Result<SurfaceConfiguration> {
+        let caps = surface.get_capabilities(adapter);
         let format = Self::preferred_surface_format(&caps.formats)?;
         let size = Self::clamp_size(size);
 
@@ -163,27 +170,8 @@ impl State {
         let surface = unsafe { mem::transmute::<Surface<'_>, Surface<'static>>(surface) };
         let adapter = block_on(Self::setup_adapter(&instance, Some(&surface)));
         let (device, queue) = block_on(Self::get_device_and_queue(&adapter))?;
-        let caps = surface.get_capabilities(&adapter);
-        let preferred_format = Self::preferred_surface_format(&caps.formats)?;
         let size = Self::clamp_size(window.inner_size());
-        let config = SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
-            format: preferred_format,
-            width: size.width,
-            height: size.height,
-            present_mode: caps
-                .present_modes
-                .first()
-                .copied()
-                .unwrap_or(wgpu::PresentMode::Fifo),
-            alpha_mode: caps
-                .alpha_modes
-                .first()
-                .copied()
-                .unwrap_or(wgpu::CompositeAlphaMode::Auto),
-            view_formats: vec![],
-            desired_maximum_frame_latency: 1,
-        };
+        let config = Self::_surface_config(&adapter, &surface, size)?;
 
         Ok((
             State {
@@ -191,7 +179,6 @@ impl State {
                 adapter,
                 device,
                 queue,
-                preferred_format,
             },
             surface,
             config,
