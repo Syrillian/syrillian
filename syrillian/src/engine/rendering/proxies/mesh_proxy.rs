@@ -186,7 +186,7 @@ impl SceneProxy for MeshSceneProxy {
     }
 
     fn bounds(&self, local_to_world: &Affine3A) -> Option<BoundingSphere> {
-        Some((self.bounding * 5.0).transformed(&(*local_to_world).into()))
+        Some(self.bounding.transformed(&(*local_to_world).into()))
     }
 }
 

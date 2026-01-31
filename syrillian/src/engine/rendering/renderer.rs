@@ -7,24 +7,26 @@
 use super::error::*;
 use crate::ViewportId;
 use crate::components::TypedComponentId;
-use crate::core::BoundingSphere;
+use crate::core::ObjectHash;
 use crate::engine::assets::{AssetStore, HTexture2D};
 use crate::engine::rendering::FrameCtx;
 use crate::engine::rendering::cache::{AssetCache, GpuTexture};
 use crate::engine::rendering::offscreen_surface::OffscreenSurface;
 use crate::engine::rendering::post_process_pass::PostProcessData;
-use crate::math::{Mat4, UVec2, Vec3, Vec4};
+use crate::math::{Affine3A, UVec2};
 #[cfg(debug_assertions)]
 use crate::rendering::DebugRenderer;
 use crate::rendering::light_manager::LightManager;
 use crate::rendering::lights::LightType;
 use crate::rendering::message::RenderMsg;
 use crate::rendering::picking::{PickRequest, PickResult, color_bytes_to_hash};
-use crate::rendering::proxies::SceneProxyBinding;
-use crate::rendering::render_data::RenderUniformData;
+use crate::rendering::proxies::{SceneProxy, SceneProxyBinding};
+use crate::rendering::render_data::{CameraUniform, RenderUniformData};
 use crate::rendering::strobe::StrobeRenderer;
 use crate::rendering::texture_export::{TextureExportError, save_texture_to_png};
-use crate::rendering::{GPUDrawCtx, RenderPassType, State};
+use crate::rendering::{
+    Frustum, FrustumSide, GPUDrawCtx, ProxyUpdateCommand, RenderPassType, State,
+};
 use crossbeam_channel::Sender;
 use itertools::Itertools;
 use std::cell::RefCell;
@@ -314,7 +316,6 @@ pub struct Renderer {
     pub cache: AssetCache,
     viewports: HashMap<ViewportId, RenderViewport>,
     proxies: HashMap<TypedComponentId, SceneProxyBinding>,
-    sorted_proxies: Vec<(u32, TypedComponentId)>,
     strobe: RefCell<StrobeRenderer>,
     start_time: Instant,
     pick_result_tx: Sender<PickResult>,
@@ -346,7 +347,6 @@ impl Renderer {
             viewports,
             start_time,
             proxies: HashMap::new(),
-            sorted_proxies: Vec::new(),
             strobe: RefCell::new(StrobeRenderer::default()),
             pick_result_tx,
             pending_pick_requests: Vec::new(),
@@ -485,22 +485,18 @@ impl Renderer {
             vp.update_render_data(&self.state.queue);
         }
 
-        self.resort_proxies();
-
         self.lights
             .update(&self.cache, &self.state.queue, &self.state.device);
     }
 
     #[instrument(skip_all)]
     #[profiling::function]
-    fn resort_proxies(&mut self) {
-        let frustum = self
-            .viewports
-            .get(&ViewportId::PRIMARY)
-            .map(|vp| Frustum::from_matrix(&vp.render_data.camera_data.proj_view_mat));
+    fn sorted_proxies(&self, camera_data: &CameraUniform) -> Vec<TypedComponentId> {
+        let frustum = camera_data.frustum();
 
-        self.sorted_proxies =
-            sorted_enabled_proxy_ids(&self.proxies, self.cache.store(), frustum.as_ref());
+        // FIXME: Sorting is bound to primary viewport. Transparent objects probably wont render
+        //        right on other windows
+        sorted_enabled_proxy_ids(&self.proxies, self.cache.store(), Some(&frustum))
     }
 
     #[instrument(skip_all)]
@@ -511,14 +507,6 @@ impl Renderer {
         viewport: &mut RenderViewport,
     ) -> RenderedFrame {
         let mut ctx = viewport.begin_render();
-
-        let frustum = Frustum::from_matrix(&viewport.render_data.camera_data.proj_view_mat);
-        self.sorted_proxies =
-            sorted_enabled_proxy_ids(&self.proxies, self.cache.store(), Some(&frustum));
-
-        if let Some(request) = self.take_pick_request(target_id) {
-            self.picking_pass(viewport, &mut ctx, request);
-        }
 
         self.render(target_id, viewport, &mut ctx);
 
@@ -581,6 +569,7 @@ impl Renderer {
         viewport: &RenderViewport,
         ctx: &mut FrameCtx,
         request: PickRequest,
+        sorted_proxies: &[TypedComponentId],
     ) {
         let mut encoder = self
             .state
@@ -621,7 +610,7 @@ impl Renderer {
                 ctx,
                 pass,
                 RenderPassType::Picking,
-                &self.sorted_proxies,
+                sorted_proxies,
                 &viewport.render_data,
             );
         }
@@ -735,8 +724,14 @@ impl Renderer {
 
     #[instrument(skip_all)]
     fn render(&mut self, target_id: ViewportId, viewport: &RenderViewport, ctx: &mut FrameCtx) {
+        let main_sorted_proxies = self.sorted_proxies(&viewport.render_data.camera_data);
+
+        if let Some(request) = self.take_pick_request(target_id) {
+            self.picking_pass(viewport, ctx, request, &main_sorted_proxies);
+        }
+
         self.shadow_pass(ctx);
-        self.main_pass(target_id, viewport, ctx);
+        self.main_pass(target_id, viewport, ctx, &main_sorted_proxies);
     }
 
     #[instrument(skip_all)]
@@ -810,6 +805,8 @@ impl Renderer {
         render_data: &RenderUniformData,
         layer: u32,
     ) {
+        let sorted_proxies = self.sorted_proxies(&render_data.camera_data);
+
         let Some(layer_view) = self.lights.shadow_layer(&self.cache, layer) else {
             debug_panic!("Shadow layer view {layer} was not found");
             return;
@@ -821,13 +818,19 @@ impl Renderer {
             ctx,
             pass,
             RenderPassType::Shadow,
-            &self.sorted_proxies,
+            &sorted_proxies,
             render_data,
         );
     }
 
     #[instrument(skip_all)]
-    fn main_pass(&mut self, target_id: ViewportId, viewport: &RenderViewport, ctx: &mut FrameCtx) {
+    fn main_pass(
+        &mut self,
+        target_id: ViewportId,
+        viewport: &RenderViewport,
+        ctx: &mut FrameCtx,
+        sorted_proxies: &[TypedComponentId],
+    ) {
         let mut encoder = self
             .state
             .device
@@ -842,7 +845,7 @@ impl Renderer {
                 ctx,
                 pass,
                 RenderPassType::Color,
-                &self.sorted_proxies,
+                sorted_proxies,
                 &viewport.render_data,
             );
         }
@@ -880,7 +883,7 @@ impl Renderer {
         frame_ctx: &FrameCtx,
         pass: RenderPass,
         pass_type: RenderPassType,
-        proxies: &[(u32, TypedComponentId)],
+        proxies: &[TypedComponentId],
         render_uniform: &RenderUniformData,
     ) {
         let shadow_bind_group = match pass_type {
@@ -910,14 +913,15 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    fn render_proxies(&self, ctx: &mut GPUDrawCtx, proxies: &[(u32, TypedComponentId)]) {
+    fn render_proxies(&self, ctx: &mut GPUDrawCtx, proxies: &[TypedComponentId]) {
         ctx.transparency_pass = false;
 
-        for proxy in proxies.iter().map(|(_, ctid)| self.proxies.get(ctid)) {
-            let Some(proxy) = proxy else {
+        for proxy in proxies {
+            let Some(proxy) = self.proxies.get(proxy) else {
                 debug_panic!("Sorted proxy not in proxy list");
                 continue;
             };
+
             proxy.render_by_pass(self, ctx);
         }
 
@@ -932,11 +936,12 @@ impl Renderer {
 
         ctx.transparency_pass = true;
 
-        for proxy in proxies.iter().map(|(_, ctid)| self.proxies.get(ctid)) {
-            let Some(proxy) = proxy else {
+        for proxy in proxies {
+            let Some(proxy) = self.proxies.get(proxy) else {
                 debug_panic!("Sorted proxy not in proxy list");
                 continue;
             };
+
             proxy.render_by_pass(self, ctx);
         }
     }
@@ -1016,32 +1021,17 @@ impl Renderer {
     #[instrument(skip_all)]
     pub fn handle_message(&mut self, msg: RenderMsg) {
         match msg {
-            RenderMsg::RegisterProxy(cid, object_hash, mut proxy, local_to_world) => {
-                trace!("Registered Proxy for #{:?}", cid.0);
-                let data = proxy.setup_render(self, &local_to_world);
-                let binding = SceneProxyBinding::new(cid, object_hash, local_to_world, data, proxy);
-                self.proxies.insert(cid, binding);
+            RenderMsg::RegisterProxy(cid, object_hash, proxy, local_to_world) => {
+                self.register_proxy(cid, object_hash, proxy, &local_to_world)
             }
             RenderMsg::RegisterLightProxy(cid, proxy) => {
-                trace!("Registered Light Proxy for #{:?}", cid.0);
                 self.lights.add_proxy(cid, *proxy);
             }
-            RenderMsg::RemoveProxy(cid) => {
-                self.proxies.remove(&cid);
-                self.lights.remove_proxy(cid);
-            }
-            RenderMsg::UpdateTransform(cid, ltw) => {
-                if let Some(cid) = self.proxies.get_mut(&cid) {
-                    cid.update_transform(ltw);
-                }
-            }
-            RenderMsg::ProxyUpdate(cid, command) => {
-                if let Some(binding) = self.proxies.get_mut(&cid) {
-                    command(binding.proxy.as_mut());
-                }
-            }
+            RenderMsg::RemoveProxy(cid) => self.remove_proxy(&cid),
+            RenderMsg::UpdateTransform(cid, ltw) => self.update_proxy_transform(&cid, ltw),
+            RenderMsg::ProxyUpdate(cid, command) => self.update_proxy(&cid, command),
             RenderMsg::LightProxyUpdate(cid, command) => {
-                self.lights.execute_light_command(cid, command);
+                self.lights.execute_light_command(cid, command)
             }
             RenderMsg::UpdateActiveCamera(render_target_id, camera_data) => {
                 if let Some(vp) = self.viewports.get_mut(&render_target_id) {
@@ -1086,6 +1076,36 @@ impl Renderer {
             }
             RenderMsg::FrameEnd(_, _) => {}
         }
+    }
+
+    fn update_proxy(&mut self, cid: &TypedComponentId, command: ProxyUpdateCommand) {
+        if let Some(binding) = self.proxies.get_mut(cid) {
+            command(binding.proxy.as_mut());
+        }
+    }
+
+    fn update_proxy_transform(&mut self, cid: &TypedComponentId, ltw: Affine3A) {
+        if let Some(cid) = self.proxies.get_mut(cid) {
+            cid.update_transform(ltw);
+        }
+    }
+
+    fn remove_proxy(&mut self, cid: &TypedComponentId) {
+        self.proxies.remove(cid);
+        self.lights.remove_proxy(*cid);
+    }
+
+    fn register_proxy(
+        &mut self,
+        cid: TypedComponentId,
+        object_hash: ObjectHash,
+        mut proxy: Box<dyn SceneProxy>,
+        local_to_world: &Affine3A,
+    ) {
+        trace!("Registered Proxy for #{:?}", cid.0);
+        let data = proxy.setup_render(self, local_to_world);
+        let binding = SceneProxyBinding::new(cid, object_hash, *local_to_world, data, proxy);
+        self.proxies.insert(cid, binding);
     }
 
     pub fn add_viewport(
@@ -1218,7 +1238,7 @@ fn sorted_enabled_proxy_ids(
     proxies: &HashMap<TypedComponentId, SceneProxyBinding>,
     store: &AssetStore,
     frustum: Option<&Frustum>,
-) -> Vec<(u32, TypedComponentId)> {
+) -> Vec<TypedComponentId> {
     proxies
         .iter()
         .filter(|(_, binding)| binding.enabled)
@@ -1237,87 +1257,8 @@ fn sorted_enabled_proxy_ids(
             Some((tid, priority, distance))
         })
         .sorted_by_key(|(_, priority, distance)| (*priority, -(*distance * 100000.0) as i64))
-        .map(|(tid, priority, _)| (priority, *tid))
+        .map(|(tid, _, _)| *tid)
         .collect()
-}
-
-#[derive(Debug, Clone, Copy)]
-struct FrustumPlane {
-    normal: Vec3,
-    d: f32,
-}
-
-impl FrustumPlane {
-    fn distance_to(&self, sphere: &BoundingSphere) -> f32 {
-        self.normal.dot(sphere.center) + self.d
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Frustum {
-    planes: [FrustumPlane; 6],
-}
-
-#[allow(unused)]
-enum FrustumSide {
-    Left,
-    Right,
-    Bottom,
-    Top,
-    Near,
-    Far,
-}
-
-impl Frustum {
-    #[instrument(skip_all)]
-    fn from_matrix(m: &Mat4) -> Self {
-        let row0 = m.row(0);
-        let row1 = m.row(1);
-        let row2 = m.row(2);
-        let row3 = m.row(3);
-
-        let plane_from = |v: Vec4| {
-            let normal = Vec3::new(v.x, v.y, v.z);
-            let len = normal.length();
-            if len > 0.0 {
-                FrustumPlane {
-                    normal: normal / len,
-                    d: v.w / len,
-                }
-            } else {
-                FrustumPlane { normal, d: v.w }
-            }
-        };
-
-        let planes = [
-            plane_from(row3 + row0), // left
-            plane_from(row3 - row0), // right
-            plane_from(row3 + row1), // bottom
-            plane_from(row3 - row1), // top
-            plane_from(row3 + row2), // near
-            plane_from(row3 - row2), // far
-        ];
-
-        Frustum { planes }
-    }
-
-    pub fn side(&self, side: FrustumSide) -> &FrustumPlane {
-        match side {
-            FrustumSide::Left => &self.planes[0],
-            FrustumSide::Right => &self.planes[1],
-            FrustumSide::Bottom => &self.planes[2],
-            FrustumSide::Top => &self.planes[3],
-            FrustumSide::Near => &self.planes[4],
-            FrustumSide::Far => &self.planes[5],
-        }
-    }
-
-    #[instrument(skip_all)]
-    fn intersects_sphere(&self, sphere: &BoundingSphere) -> bool {
-        self.planes
-            .iter()
-            .all(|p| p.distance_to(sphere) >= -sphere.radius)
-    }
 }
 
 #[cfg(test)]
@@ -1371,7 +1312,7 @@ mod tests {
         let id_mid = insert_proxy::<MarkerMid>(&mut proxies, 50, true);
 
         let sorted = sorted_enabled_proxy_ids(&proxies, &store, None);
-        assert_eq!(sorted, vec![(10, id_low), (50, id_mid), (900, id_high)]);
+        assert_eq!(sorted, vec![id_low, id_mid, id_high]);
     }
 
     #[test]
@@ -1386,8 +1327,8 @@ mod tests {
         let id_disabled = insert_proxy::<MarkerDisabled>(&mut proxies, 1, false);
 
         let sorted = sorted_enabled_proxy_ids(&proxies, &store, None);
-        assert_eq!(sorted, vec![(5, id_enabled)]);
-        assert!(!sorted.contains(&(1, id_disabled)));
+        assert_eq!(sorted, vec![id_enabled]);
+        assert!(!sorted.contains(&id_disabled));
     }
 
     fn insert_proxy<T: 'static>(

@@ -13,7 +13,7 @@ use itertools::Itertools;
 use std::convert::TryFrom;
 use std::mem;
 use syrillian_utils::debug_panic;
-use tracing::warn;
+use tracing::{trace, warn};
 use wgpu::{
     AddressMode, Device, FilterMode, MipmapFilterMode, Queue, Sampler, SamplerDescriptor,
     TextureUsages, TextureView, TextureViewDescriptor,
@@ -96,6 +96,7 @@ impl LightManager {
 
     #[profiling::function]
     pub fn add_proxy(&mut self, owner: TypedComponentId, proxy: LightProxy) {
+        trace!("Registered Light Proxy for #{:?}", owner.0);
         if let Some((idx, _)) = self
             .proxy_owners
             .iter()

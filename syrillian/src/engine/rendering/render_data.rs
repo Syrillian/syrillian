@@ -1,6 +1,7 @@
 use crate::core::Transform;
 use crate::ensure_aligned;
 use crate::math::{Mat4, UVec2, Vec3};
+use crate::rendering::Frustum;
 use crate::rendering::lights::LightProxy;
 use crate::rendering::uniform::ShaderUniform;
 use std::f32::consts::FRAC_PI_2;
@@ -106,6 +107,10 @@ impl CameraUniform {
 
         self.proj_view_mat = proj_matrix * self.view_mat;
         self.inv_proj_view_mat = self.proj_view_mat.inverse();
+    }
+
+    pub fn frustum(&self) -> Frustum {
+        Frustum::from_matrix(&self.proj_view_mat)
     }
 }
 

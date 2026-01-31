@@ -44,11 +44,13 @@ pub mod texture_export;
 pub(crate) mod uniform;
 
 pub mod debug_renderer;
+pub mod frustum;
 pub mod post_process;
 pub mod strobe;
 
 pub use cache::*;
 pub use context::*;
+pub use frustum::*;
 pub use message::*;
 pub use picking::*;
 
