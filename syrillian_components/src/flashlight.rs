@@ -34,6 +34,14 @@ pub struct FlashlightComponent {
     pub roll_from_strafe: f32,
     /// Max roll angle in degrees.
     pub max_roll: f32,
+    /// Speed threshold (m/s) where running tilt begins.
+    pub run_threshold: f32,
+    /// Amount of extra pitch/yaw bobbing when running.
+    pub run_tilt_amount: Vec2,
+    /// Amplitude of random noise added to the tilt (pitch, yaw).
+    pub tilt_noise_amplitude: Vec2,
+    /// Frequency of the random noise (x, y).
+    pub tilt_noise_frequency: Vec2,
 
     #[dont_reflect]
     base_rotation: Quat,
@@ -48,7 +56,11 @@ pub struct FlashlightComponent {
     #[dont_reflect]
     bob_phase: Vec2,
     #[dont_reflect]
+    noise_phase: Vec2,
+    #[dont_reflect]
     bob_offset: Vec3,
+    #[dont_reflect]
+    bob_rot_offset: Vec2,
     #[dont_reflect]
     last_parent_pos: Vec3,
     #[dont_reflect]
@@ -64,7 +76,7 @@ impl Default for FlashlightComponent {
             sway_rotation: Vec2::new(0.28, 0.4),
             sway_position: Vec2::new(0.0006, 0.0008),
             sway_smoothing: 10.0,
-            bob_amplitude: Vec2::new(0.12, 0.13),
+            bob_amplitude: Vec2::new(0.015, 0.03),
             bob_frequency: Vec2::new(6.0, 12.0),
             bob_speed_scale: 10.35,
             bob_smoothing: 10.0,
@@ -72,13 +84,19 @@ impl Default for FlashlightComponent {
             lag_smoothing: 12.0,
             roll_from_strafe: 10.8,
             max_roll: 6.0,
+            run_threshold: 4.5,
+            run_tilt_amount: Vec2::new(5.0, 1.0),
+            tilt_noise_amplitude: Vec2::new(2.5, 2.5),
+            tilt_noise_frequency: Vec2::new(7.3, 5.1),
             base_rotation: Quat::IDENTITY,
             current_pos: Vec3::ZERO,
             current_rot: Quat::IDENTITY,
             sway_pos: Vec3::ZERO,
             sway_rot: Vec2::ZERO,
             bob_phase: Vec2::ZERO,
+            noise_phase: Vec2::ZERO,
             bob_offset: Vec3::ZERO,
+            bob_rot_offset: Vec2::ZERO,
             last_parent_pos: Vec3::ZERO,
             initialized: false,
         }
@@ -152,18 +170,36 @@ impl Component for FlashlightComponent {
         );
         self.sway_pos = self.sway_pos.lerp(sway_pos_target, sway_t);
 
-        let bob_scale = (speed * self.bob_speed_scale).clamp(0.0, 2.0);
+        let bob_freq_scale = (speed * self.bob_speed_scale).clamp(0.0, 2.0);
         self.bob_phase.x =
-            (self.bob_phase.x + dt * self.bob_frequency.x * bob_scale) % std::f32::consts::TAU;
+            (self.bob_phase.x + dt * self.bob_frequency.x * bob_freq_scale) % std::f32::consts::TAU;
         self.bob_phase.y =
-            (self.bob_phase.y + dt * self.bob_frequency.y * bob_scale) % std::f32::consts::TAU;
+            (self.bob_phase.y + dt * self.bob_frequency.y * bob_freq_scale) % std::f32::consts::TAU;
+
         let bob_target = Vec3::new(
             self.bob_phase.x.sin() * self.bob_amplitude.x,
             self.bob_phase.y.sin() * self.bob_amplitude.y,
             0.0,
         );
+
+        self.noise_phase.x = (self.noise_phase.x
+            + dt * self.tilt_noise_frequency.x * bob_freq_scale)
+            % std::f32::consts::TAU;
+        self.noise_phase.y = (self.noise_phase.y
+            + dt * self.tilt_noise_frequency.y * bob_freq_scale)
+            % std::f32::consts::TAU;
+
+        let run_intensity = (speed - self.run_threshold).max(0.0);
+        let bob_rot_target = Vec2::new(
+            self.bob_phase.y.sin() * self.run_tilt_amount.x
+                + self.noise_phase.x.sin() * self.tilt_noise_amplitude.x,
+            self.bob_phase.x.cos() * self.run_tilt_amount.y
+                + self.noise_phase.y.cos() * self.tilt_noise_amplitude.y,
+        ) * run_intensity;
+
         let bob_t = smooth_factor(self.bob_smoothing, dt);
         self.bob_offset = self.bob_offset.lerp(bob_target, bob_t);
+        self.bob_rot_offset = self.bob_rot_offset.lerp(bob_rot_target, bob_t);
 
         let lag_offset = Vec3::new(
             -local_vel.x * self.movement_lag.x,
@@ -180,8 +216,8 @@ impl Component for FlashlightComponent {
             .to_radians();
         let sway_rot_q = Quat::from_euler(
             EulerRot::XYZ,
-            self.sway_rot.x.to_radians(),
-            self.sway_rot.y.to_radians(),
+            (self.sway_rot.x + self.bob_rot_offset.x).to_radians(),
+            (self.sway_rot.y + self.bob_rot_offset.y).to_radians(),
             roll,
         );
 
