@@ -44,6 +44,8 @@ impl RenderThreadInner {
     }
 
     fn run(mut self) {
+        profiling::register_thread!("render");
+
         loop {
             let render_rx = self.render_rx.clone();
             let control_rx = self.control_rx.clone();
@@ -80,6 +82,7 @@ impl RenderThreadInner {
         }
     }
 
+    #[profiling::function]
     fn handle_render_msg(&mut self, msg: RenderMsg) -> bool {
         match msg {
             RenderMsg::FrameEnd(_, world_done_tx) => {
@@ -107,6 +110,8 @@ impl RenderThreadInner {
                 #[cfg(target_arch = "wasm32")]
                 drop(present_done_rx);
                 let _ = world_done_tx.send(());
+
+                profiling::finish_frame!();
             }
             msg => {
                 self.renderer.handle_message(msg);
@@ -134,7 +139,7 @@ impl RenderThread {
         primary_config: SurfaceConfiguration,
     ) -> Result<Self, crate::rendering::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
-        let (frame_tx, frame_rx) = bounded(2);
+        let (frame_tx, frame_rx) = bounded(1);
         let inner = RenderThreadInner::new(
             state,
             store,

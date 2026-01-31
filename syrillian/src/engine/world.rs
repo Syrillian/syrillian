@@ -27,7 +27,7 @@ use slotmap::{Key, SlotMap};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::mem;
-use std::mem::swap;
+use std::mem::{swap, take};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
@@ -287,6 +287,7 @@ impl World {
     /// The binding persists as long as the world is alive (or until it is rebound). This
     /// enables having multiple worlds active on different threads without relying on a
     /// single global mutable pointer.
+    #[profiling::function]
     pub fn bind_thread(&mut self) {
         self.thread_binding = Some(WorldBinding::bind(self));
     }
@@ -294,6 +295,7 @@ impl World {
     /// Replace the channels used to communicate with the render and windowing threads.
     ///
     /// This lets a world be moved between render targets without reconstructing it.
+    #[profiling::function]
     pub fn rewire_channels(&mut self, channels: WorldChannels) {
         self.channels = channels;
         self.input
@@ -301,6 +303,7 @@ impl World {
     }
 
     /// Retrieves a reference to a game object by its ID
+    #[profiling::function]
     pub fn get_object(&self, obj: GameObjectId) -> Option<&GameObject> {
         self.objects
             .get(obj)
@@ -308,6 +311,7 @@ impl World {
     }
 
     /// Retrieves a mutable reference to a game object by its ID
+    #[profiling::function]
     pub fn get_object_mut(&mut self, obj: GameObjectId) -> Option<&mut GameObject> {
         if !self.objects.get(obj).is_some_and(|o| o.is_alive()) {
             return None;
@@ -321,6 +325,7 @@ impl World {
     }
 
     /// Internal: retain a strong reference to keep a game object alive.
+    #[profiling::function]
     pub(crate) fn retain_object(&mut self, obj: GameObjectId) -> bool {
         let Some(entry) = self.objects.get(obj) else {
             return false;
@@ -339,6 +344,7 @@ impl World {
     }
 
     /// Internal: release a strong reference and destroy the object if needed.
+    #[profiling::function]
     pub(crate) fn release_object(&mut self, obj: GameObjectId) {
         let Some(count) = self.object_ref_counts.get_mut(&obj) else {
             return;
@@ -355,6 +361,7 @@ impl World {
         }
     }
 
+    #[profiling::function]
     fn finalize_object_removal(&mut self, obj: GameObjectId) {
         self.pending_deletions.remove(&obj);
         self.object_ref_counts.remove(&obj);
@@ -366,6 +373,7 @@ impl World {
         self.objects.remove(obj);
     }
 
+    #[profiling::function]
     pub(crate) fn schedule_object_removal(&mut self, obj: GameObjectId) {
         if !self.objects.contains_key(obj) {
             return;
@@ -380,6 +388,7 @@ impl World {
         }
     }
 
+    #[profiling::function]
     fn detach_relationships(&mut self, obj: GameObjectId) {
         let parent = self.objects.get(obj).and_then(|o| o.parent);
         if let Some(parent_id) = parent {
@@ -408,6 +417,7 @@ impl World {
         }
     }
 
+    #[profiling::function]
     fn allocate_object_hash(&mut self, id: GameObjectId) -> ObjectHash {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::Hasher;
@@ -432,6 +442,7 @@ impl World {
     }
 
     /// Creates a new game object with the given name
+    #[profiling::function]
     pub fn new_object<S: Into<String>>(&mut self, name: S) -> GameObjectId {
         let obj = GameObject {
             id: GameObjectId::null(),
@@ -545,6 +556,7 @@ impl World {
         }
     }
 
+    #[profiling::function]
     fn process_pick_results(&mut self) {
         while let Ok(result) = self.channels.pick_result_rx.try_recv() {
             let Some(obj_hash) = result.hash else {
@@ -572,6 +584,7 @@ impl World {
         }
     }
 
+    #[profiling::function]
     fn maybe_request_pick(&mut self) {
         if self.click_listeners.is_empty() || self.input.is_cursor_locked() {
             return;
@@ -636,13 +649,23 @@ impl World {
     }
 
     /// Runs possible physics update if the timestep time has elapsed yet
+    #[profiling::function]
     pub fn fixed_update(&mut self) {
         while self.physics.is_due() {
-            self.execute_component_func(Component::fixed_update);
+            {
+                profiling::scope!("Component fixed_update");
+                self.execute_component_func(Component::fixed_update);
+            }
 
-            self.physics.step();
+            {
+                profiling::scope!("Physics Step");
+                self.physics.step();
+            }
 
-            self.execute_component_func(Component::post_fixed_update);
+            {
+                profiling::scope!("Component post_fixed_update");
+                self.execute_component_func(Component::post_fixed_update);
+            }
         }
 
         let rem = self.physics.current_timepoint.elapsed();
@@ -656,33 +679,95 @@ impl World {
     ///
     /// If you're using the App runtime, this will be handled for you. Only call this function
     /// if you are trying to use a detached world context.
+    #[profiling::function]
     pub fn update(&mut self) {
         self.process_pick_results();
         self.maybe_request_pick();
-        self.execute_component_func(Component::update);
-        self.execute_component_func(Component::late_update);
+        {
+            profiling::scope!("Component update");
+            self.execute_component_func(Component::update);
+        }
+        {
+            profiling::scope!("Component late_update");
+            self.execute_component_func(Component::late_update);
+        }
     }
 
     /// Performs late update operations after the main update
     ///
     /// If you're using the App runtime, this will be handled for you. Only call this function
     /// if you are trying to use a detached world context.
+    #[profiling::function]
     pub fn post_update(&mut self) {
         let world = self as *mut World;
-        self.execute_component_func(Component::post_update);
+        {
+            profiling::scope!("Component post_update");
+            self.execute_component_func(Component::post_update);
+        }
 
+        self.execute_component_on_gui(world);
+        self.sync_fresh_components();
+        self.sync_removed_components();
+
+        let mut command_batch = Vec::with_capacity(self.components.len());
+
+        self.sync_updated_transforms(&mut command_batch);
+        self.sync_component_proxies(world, &mut command_batch);
+        self.sync_viewport_cameras(&mut command_batch);
+
+        self.strobe.sort();
+
+        {
+            profiling::scope!("Submit Render command batch");
+            self.channels
+                .render_tx
+                .send(RenderMsg::CommandBatch(command_batch))
+                .unwrap();
+        }
+
+        {
+            profiling::scope!("Update strobe");
+            let _ = self
+                .channels
+                .render_tx
+                .send(RenderMsg::UpdateStrobe(mem::take(&mut self.strobe)));
+        }
+    }
+
+    #[profiling::function]
+    fn sync_viewport_cameras(&mut self, command_batch: &mut Vec<RenderMsg>) {
+        for target_id in self.channels.viewports.keys().copied() {
+            if let Some(mut camera) = self
+                .active_camera_for_target(target_id)
+                .and_then(|c| c.upgrade(self))
+            {
+                Self::push_camera_updates(target_id, command_batch, &mut camera);
+            }
+        }
+    }
+
+    #[profiling::function]
+    fn sync_component_proxies(&mut self, world: *mut World, command_batch: &mut Vec<RenderMsg>) {
+        for (ctid, comp) in self.components.iter_mut() {
+            let ctx = CPUDrawCtx::new(ctid, command_batch);
+            unsafe {
+                comp.update_proxy(&*world, ctx);
+            }
+        }
+    }
+
+    fn execute_component_on_gui(&mut self, world: *mut World) {
+        profiling::scope!("Component on_gui");
         for mut comp in self.components.iter_refs() {
             let ctx = UiContext::new(comp.ctx.parent.hash, comp.ctx.tid);
             unsafe {
                 comp.on_gui(&mut *world, ctx);
             }
         }
+    }
 
-        self.sync_fresh_components();
-        self.sync_removed_components();
-
-        let mut command_batch = Vec::with_capacity(self.components.len());
-
+    #[profiling::function]
+    fn sync_updated_transforms(&mut self, command_batch: &mut Vec<RenderMsg>) {
         for (_, obj) in self.objects.iter() {
             if !obj.is_alive() || !obj.transform.is_dirty() {
                 continue;
@@ -694,80 +779,25 @@ impl World {
                 ));
             }
         }
-        for (ctid, comp) in self.components.iter_mut() {
-            let ctx = CPUDrawCtx::new(ctid, &mut command_batch);
-            unsafe {
-                comp.update_proxy(&*world, ctx);
-            }
-        }
-
-        for target_id in self.channels.viewports.keys().copied() {
-            if let Some(mut camera) = self
-                .active_camera_for_target(target_id)
-                .and_then(|c| c.upgrade(self))
-            {
-                Self::push_camera_updates(target_id, &mut command_batch, &mut camera);
-            }
-        }
-
-        self.strobe.sort();
-
-        self.channels
-            .render_tx
-            .send(RenderMsg::CommandBatch(command_batch))
-            .unwrap();
-
-        let _ = self
-            .channels
-            .render_tx
-            .send(RenderMsg::UpdateStrobe(mem::take(&mut self.strobe)));
     }
 
+    #[profiling::function]
     fn push_camera_updates(
         target_id: ViewportId,
         batch: &mut Vec<RenderMsg>,
         active_camera: &mut CRef<CameraComponent>,
     ) {
-        let obj = active_camera.parent();
-        if obj.transform.is_dirty() {
-            let pos = obj.transform.position();
-            let view_mat = obj.transform.view_matrix_rigid().to_mat4();
-            batch.push(RenderMsg::UpdateActiveCamera(
-                target_id,
-                Box::new(move |cam| {
-                    cam.view_mat = view_mat;
-                    cam.proj_view_mat = cam.projection_mat * cam.view_mat;
-                    cam.inv_proj_view_mat = cam.proj_view_mat.inverse();
-                    cam.pos = pos;
-                }),
-            ));
+        if let Some(transform_update) = active_camera.maybe_transform_update(target_id) {
+            batch.push(transform_update);
         }
 
-        if active_camera.is_projection_dirty() {
-            let proj_mat = active_camera.projection;
-            let fov = active_camera.fov();
-            let near = active_camera.near();
-            let far = active_camera.fov();
-            let fov_target = active_camera.fov_target();
-            let zoom_speed = active_camera.zoom_speed;
-            batch.push(RenderMsg::UpdateActiveCamera(
-                target_id,
-                Box::new(move |cam| {
-                    cam.projection_mat = proj_mat;
-                    cam.fov = fov;
-                    cam.proj_view_mat = cam.projection_mat * cam.view_mat;
-                    cam.inv_proj_view_mat = cam.proj_view_mat.inverse();
-                    cam.near = near;
-                    cam.far = far;
-                    cam.fov_target = fov_target;
-                    cam.zoom_speed = zoom_speed;
-                }),
-            ));
-            active_camera.clear_projection_dirty();
+        if let Some(update) = active_camera.maybe_projection_update(target_id) {
+            batch.push(update);
         }
     }
 
     /// Internally sync removed components to the Render Thread for proxy deletion
+    #[profiling::function]
     fn sync_removed_components(&mut self) {
         if self.components.removed.is_empty() {
             return;
@@ -785,13 +815,13 @@ impl World {
     }
 
     /// Internally sync new components to the Render Thread for proxy creation
+    #[profiling::function]
     fn sync_fresh_components(&mut self) {
         if self.components.fresh.is_empty() {
             return;
         }
 
-        let mut fresh = Vec::new();
-        swap(&mut fresh, &mut self.components.fresh);
+        let fresh = take(&mut self.components.fresh);
         for cid in fresh {
             let Some(mut comp) = self.components.get_dyn(cid) else {
                 continue;
@@ -822,6 +852,7 @@ impl World {
     ///
     /// If you're using the App runtime, this will be handled for you. Only call this function
     /// if you are trying to use a detached world context.
+    #[profiling::function]
     pub fn next_frame(&mut self) {
         for child in self.objects.values_mut() {
             if child.is_alive() {
@@ -835,6 +866,7 @@ impl World {
     /// Finds a game object by its name
     ///
     /// Note: If multiple objects have the same name, only the first one found will be returned.
+    #[profiling::function]
     pub fn find_object_by_name(&self, name: &str) -> Option<GameObjectId> {
         self.objects
             .iter()
@@ -846,6 +878,7 @@ impl World {
     ///
     /// This method recursively traverses the entire scene graph to find all components
     /// of the specified type.
+    #[profiling::function]
     pub fn find_all_components_of_type<C: Component + 'static>(&self) -> Vec<CRef<C>> {
         let mut collection = Vec::new();
 
@@ -857,6 +890,7 @@ impl World {
     }
 
     /// Helper method to recursively collect components of a specific type from a game object and its children
+    #[profiling::function]
     fn find_components_of_children<C: Component + 'static>(
         collection: &mut Vec<CRef<C>>,
         obj: GameObjectId,
@@ -873,6 +907,7 @@ impl World {
     }
 
     /// Find all objects that contain a property with the given key
+    #[profiling::function]
     pub fn find_objects_with_property(&self, key: &str) -> Vec<GameObjectId> {
         self.objects
             .iter()
@@ -881,6 +916,7 @@ impl World {
     }
 
     /// Find all objects that contain a property with the given key and value
+    #[profiling::function]
     pub fn find_objects_with_property_value(&self, key: &str, value: &Value) -> Vec<GameObjectId> {
         self.objects
             .iter()
@@ -888,6 +924,7 @@ impl World {
             .collect()
     }
 
+    #[profiling::function]
     pub fn capture_offscreen_textures(&self, target: ViewportId, path: impl Into<PathBuf>) -> bool {
         self.channels
             .render_tx
@@ -895,6 +932,7 @@ impl World {
             .is_ok()
     }
 
+    #[profiling::function]
     pub fn capture_picking_texture(&self, target: ViewportId, path: impl Into<PathBuf>) -> bool {
         self.channels
             .render_tx
@@ -935,6 +973,7 @@ impl World {
 
     /// Marks a game object for deletion. This will immediately run the object internal destruction routine
     /// and also clean up any component-specific data.
+    #[profiling::function]
     pub fn delete_object(&mut self, object: GameObjectId) {
         if let Some(obj) = self.objects.get_mut(object)
             && obj.is_alive()
@@ -952,6 +991,7 @@ impl World {
     /// signaling that its internal destruction routine has been done, which includes its components and
     /// can now be safely unlinked.
     #[allow(dead_code)]
+    #[profiling::function]
     pub(crate) fn unlink_internal(&mut self, caller: GameObjectId) {
         if let Some(obj) = self.objects.get_mut(caller) {
             obj.mark_dead();

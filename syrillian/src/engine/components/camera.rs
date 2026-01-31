@@ -7,6 +7,7 @@ use snafu::Snafu;
 
 #[cfg(debug_assertions)]
 use crate::core::GameObjectId;
+use crate::rendering::RenderMsg;
 #[cfg(debug_assertions)]
 use crate::tracing;
 
@@ -53,7 +54,7 @@ impl CameraComponent {
         self.fov_target = fov;
     }
 
-    pub fn fov_target(&mut self) -> f32 {
+    pub fn fov_target(&self) -> f32 {
         self.fov_target
     }
 
@@ -157,6 +158,56 @@ impl CameraComponent {
         };
 
         debug.push_ray(ray, max_toi);
+    }
+
+    #[profiling::function]
+    pub fn maybe_transform_update(&mut self, target_id: ViewportId) -> Option<RenderMsg> {
+        let obj = self.parent();
+        if !obj.transform.is_dirty() {
+            return None;
+        }
+
+        let pos = obj.transform.position();
+        let view_mat = obj.transform.view_matrix_rigid().to_mat4();
+        Some(RenderMsg::UpdateActiveCamera(
+            target_id,
+            Box::new(move |cam| {
+                cam.view_mat = view_mat;
+                cam.proj_view_mat = cam.projection_mat * cam.view_mat;
+                cam.inv_proj_view_mat = cam.proj_view_mat.inverse();
+                cam.pos = pos;
+            }),
+        ))
+    }
+
+    #[profiling::function]
+    pub fn maybe_projection_update(&mut self, target_id: ViewportId) -> Option<RenderMsg> {
+        if !self.is_projection_dirty() {
+            return None;
+        }
+
+        self.clear_projection_dirty();
+
+        let proj_mat = self.projection;
+        let fov = self.fov();
+        let near = self.near();
+        let far = self.fov();
+        let fov_target = self.fov_target();
+        let zoom_speed = self.zoom_speed;
+
+        Some(RenderMsg::UpdateActiveCamera(
+            target_id,
+            Box::new(move |cam| {
+                cam.projection_mat = proj_mat;
+                cam.fov = fov;
+                cam.proj_view_mat = cam.projection_mat * cam.view_mat;
+                cam.inv_proj_view_mat = cam.proj_view_mat.inverse();
+                cam.near = near;
+                cam.far = far;
+                cam.fov_target = fov_target;
+                cam.zoom_speed = zoom_speed;
+            }),
+        ))
     }
 }
 

@@ -70,11 +70,28 @@ impl SceneProxy for MeshSceneProxy {
         Box::new(self.setup_mesh_data(renderer, local_to_world))
     }
 
-    fn update_render(
+    fn refresh_transform(
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
+    ) {
+        let data: &mut RuntimeMeshData = proxy_data_mut!(data);
+
+        data.mesh_data.model_mat = (*local_to_world).into();
+
+        renderer.state.queue.write_buffer(
+            data.uniform.buffer(MeshUniformIndex::MeshData),
+            0,
+            bytemuck::bytes_of(&data.mesh_data),
+        );
+    }
+
+    fn update_render(
+        &mut self,
+        renderer: &Renderer,
+        data: &mut (dyn Any + Send),
+        _local_to_world: &Affine3A,
     ) {
         let data: &mut RuntimeMeshData = proxy_data_mut!(data);
 
@@ -88,14 +105,6 @@ impl SceneProxy for MeshSceneProxy {
             );
             self.bones_dirty = false;
         }
-
-        data.mesh_data.model_mat = (*local_to_world).into();
-
-        renderer.state.queue.write_buffer(
-            data.uniform.buffer(MeshUniformIndex::MeshData),
-            0,
-            bytemuck::bytes_of(&data.mesh_data),
-        );
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {

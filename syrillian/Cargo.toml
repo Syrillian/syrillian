@@ -21,7 +21,7 @@ wgpu = { version = "28.0", default-features = false, features = ["wgsl"] }
 naga = { version = "28.0", features = ["stderr"] }
 winit = { version = "0.30" }
 bytemuck = "1.24"
-tracing = "0.1"
+tracing = { version = "0.1" }
 glamx = { version = "0.1", features = ["bytemuck", "mint", "nalgebra"] }
 num-traits = "0.2"
 itertools = "0.14"
@@ -56,6 +56,9 @@ bitflags = { version = "2.10", features = ["bytemuck"] }
 inventory = "0.3"
 parking_lot = "0.12"
 half = "2.7"
+profiling = "1.0"
+#profiling = { version = "1.0", features = ["profile-with-puffin"] }
+#puffin_http = "0.16"
 
 [build-dependencies]
 chrono = "0.4"

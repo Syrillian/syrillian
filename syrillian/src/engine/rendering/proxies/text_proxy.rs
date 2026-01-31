@@ -203,7 +203,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         &mut self,
         renderer: &Renderer,
         data: &mut TextRenderData,
-        local_to_world: &Affine3A,
+        _local_to_world: &Affine3A,
     ) {
         let hot_font = renderer.cache.font(self.font);
         let glyphs_ready = hot_font.pump(&renderer.cache, &renderer.state.queue, 10);
@@ -216,8 +216,6 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         if self.glyph_data.len() < expected_glyphs {
             self.text_dirty = true;
         }
-
-        self.translation.update(&(*local_to_world).into());
 
         if self.text_dirty {
             self.regenerate_geometry(renderer);
@@ -247,13 +245,6 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             let time = renderer.start_time().elapsed().as_secs_f32() * 100.;
             self.pc.color = hsv_to_rgb(time % 360., 1.0, 1.0);
         }
-
-        let mesh_buffer = data.uniform.buffer(MeshUniformIndex::MeshData);
-
-        renderer
-            .state
-            .queue
-            .write_buffer(mesh_buffer, 0, bytemuck::bytes_of(&self.translation));
     }
 
     pub fn render(&self, renderer: &Renderer, data: &TextRenderData, ctx: &GPUDrawCtx) {
@@ -420,6 +411,23 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
             .build(device);
 
         Box::new(TextRenderData { uniform, glyph_vbo })
+    }
+
+    fn refresh_transform(
+        &mut self,
+        renderer: &Renderer,
+        data: &mut (dyn Any + Send),
+        local_to_world: &Affine3A,
+    ) {
+        let data: &mut TextRenderData = proxy_data_mut!(data);
+
+        let mesh_buffer = data.uniform.buffer(MeshUniformIndex::MeshData);
+        self.translation.update(&(*local_to_world).into());
+
+        renderer
+            .state
+            .queue
+            .write_buffer(mesh_buffer, 0, bytemuck::bytes_of(&self.translation));
     }
 
     fn update_render(

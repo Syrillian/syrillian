@@ -33,6 +33,7 @@ impl OffscreenSurface {
         OffscreenSurface { texture, view }
     }
 
+    #[profiling::function]
     pub fn recreate(&mut self, device: &Device, config: &SurfaceConfiguration) {
         *self = Self::new(device, config);
     }

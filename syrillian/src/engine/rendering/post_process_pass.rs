@@ -40,7 +40,7 @@ impl PostProcessData {
         });
 
         let uniform = ShaderUniform::<PostProcessUniformIndex>::builder(layout)
-            .with_texture(color_view.clone())
+            .with_texture(color_view)
             .with_sampler(sampler)
             .with_texture(depth_view)
             .with_texture(g_normal_view)

@@ -71,8 +71,11 @@ impl<S: AppState> GameThreadInner<S> {
         render_event_rx: Receiver<RenderAppEvent>,
     ) -> JoinHandle<()> {
         std::thread::spawn(move || {
+            profiling::register_thread!("game");
+
             let state = S::default();
             Self::spawn_local(state, asset_store, channels, render_event_rx).run();
+
             debug!("Game thread exited");
         })
     }
@@ -237,6 +240,7 @@ impl<S: AppState> GameThreadInner<S> {
         }
     }
 
+    #[profiling::function]
     pub fn pump_events(&mut self) -> bool {
         let mut keep_running = true;
         loop {
@@ -278,6 +282,7 @@ impl<S: AppState> GameThreadInner<S> {
         keep_running
     }
 
+    #[profiling::function]
     pub fn init(&mut self) -> bool {
         if let Err(e) = self.state.init(&mut self.world) {
             error!("World init function hook returned: {e}");
@@ -288,6 +293,7 @@ impl<S: AppState> GameThreadInner<S> {
         true
     }
 
+    #[profiling::function]
     pub fn input(&mut self, target: ViewportId, event: WindowEvent) -> bool {
         self.active_target = target;
         self.world.input.set_active_target(target);
@@ -296,12 +302,14 @@ impl<S: AppState> GameThreadInner<S> {
         true
     }
 
+    #[profiling::function]
     pub fn device_event(&mut self, _device: DeviceId, event: &DeviceEvent) -> bool {
         self.world.input.process_device_input_event(event);
 
         true
     }
 
+    #[profiling::function]
     pub fn resize(&mut self, target: ViewportId, size: PhysicalSize<u32>) -> bool {
         self.world.set_viewport_size(target, size);
 
@@ -309,6 +317,7 @@ impl<S: AppState> GameThreadInner<S> {
     }
 
     // TODO: Think about if renderer delta time should be linked to world tick time
+    #[profiling::function]
     pub fn update(&mut self, target: ViewportId) -> bool {
         let world = self.world.as_mut();
         if world.is_shutting_down() {
@@ -316,6 +325,7 @@ impl<S: AppState> GameThreadInner<S> {
             return self.signal_frame_end(target);
         }
 
+        profiling::scope!("update");
         if let Err(e) = self.state.update(world) {
             error!("Error happened when calling update function hook: {e}");
         }
@@ -338,6 +348,7 @@ impl<S: AppState> GameThreadInner<S> {
         self.signal_frame_end(target)
     }
 
+    #[profiling::function]
     fn signal_frame_end(&mut self, target: ViewportId) -> bool {
         let (frame_done_tx, frame_done_rx) = bounded(0);
         if self

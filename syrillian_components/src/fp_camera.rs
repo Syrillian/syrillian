@@ -87,7 +87,7 @@ impl Default for FPSCameraConfig {
     fn default() -> Self {
         // Make sure to change the document comments if you change these
         FPSCameraConfig {
-            mouse_sensitivity: Vec2::new(0.6, 0.6),
+            mouse_sensitivity: Vec2::new(1.2, 1.2),
             controller_sensitivity: Vec2::new(1.0, 1.0),
             max_pitch: 89.9,
             max_roll: 1.0,

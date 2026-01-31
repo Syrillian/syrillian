@@ -89,6 +89,12 @@ pub trait SceneProxy: Send + Any + Debug {
         renderer: &Renderer,
         local_to_world: &Affine3A,
     ) -> Box<dyn Any + Send>;
+    fn refresh_transform(
+        &mut self,
+        renderer: &Renderer,
+        data: &mut (dyn Any + Send),
+        local_to_world: &Affine3A,
+    );
     fn update_render(
         &mut self,
         renderer: &Renderer,
@@ -124,6 +130,7 @@ pub struct SceneProxyBinding {
     pub component_id: TypedComponentId,
     pub object_hash: ObjectHash,
     pub local_to_world: Affine3A,
+    transform_dirty: bool,
     proxy_data: Box<dyn Any + Send>,
     pub proxy: Box<dyn SceneProxy>,
     pub enabled: bool,
@@ -141,6 +148,7 @@ impl SceneProxyBinding {
             component_id,
             object_hash,
             local_to_world,
+            transform_dirty: false,
             proxy_data,
             proxy,
             enabled: true,
@@ -153,6 +161,15 @@ impl SceneProxyBinding {
 
     pub fn update_transform(&mut self, local_to_world: Affine3A) {
         self.local_to_world = local_to_world;
+        self.transform_dirty = true;
+    }
+
+    pub fn ensure_fresh_transform(&mut self, renderer: &Renderer) {
+        if self.transform_dirty {
+            self.proxy
+                .refresh_transform(renderer, self.proxy_data.as_mut(), &self.local_to_world);
+            self.transform_dirty = false;
+        }
     }
 
     pub fn update(&mut self, renderer: &Renderer) {
