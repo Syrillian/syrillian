@@ -5,11 +5,13 @@ use crate::rendering::AssetCache;
 use crate::rendering::Renderer;
 use crate::rendering::lights::{LightProxy, LightType, LightUniformIndex, ShadowUniformIndex};
 use crate::rendering::message::LightProxyCommand;
+use crate::rendering::render_data::RenderUniformData;
 use crate::rendering::uniform::ShaderUniform;
 #[cfg(debug_assertions)]
 use crate::try_activate_shader;
 use itertools::Itertools;
 use std::convert::TryFrom;
+use std::mem;
 use syrillian_utils::debug_panic;
 use tracing::warn;
 use wgpu::{
@@ -23,6 +25,7 @@ pub struct LightManager {
     proxy_owners: Vec<TypedComponentId>,
     proxies: Vec<LightProxy>,
     shadow_assignments: Vec<ShadowAssignment>,
+    render_data: Vec<RenderUniformData>,
 
     uniform: ShaderUniform<LightUniformIndex>,
     shadow_uniform: ShaderUniform<ShadowUniformIndex>,
@@ -39,8 +42,16 @@ pub struct ShadowAssignment {
 }
 
 impl LightManager {
-    pub fn update_shadow_map_ids(&mut self, layers: u32) -> u32 {
+    #[profiling::function]
+    pub fn update_shadow_map_ids(
+        &mut self,
+        layers: u32,
+        device: &Device,
+        cache: &AssetCache,
+    ) -> u32 {
         self.shadow_assignments.clear();
+
+        let render_bgl = cache.bgl_render();
 
         let mut next_layer = 0;
         for (idx, light) in self.proxies.iter_mut().enumerate() {
@@ -63,24 +74,18 @@ impl LightManager {
 
             light.shadow_map_id = next_layer;
 
-            match light_type {
-                LightType::Point => {
-                    for face in 0..6 {
-                        self.shadow_assignments.push(ShadowAssignment {
-                            layer: next_layer + face,
-                            light_index: idx,
-                            face: face as u8,
-                        });
-                    }
-                }
-                LightType::Spot => {
-                    self.shadow_assignments.push(ShadowAssignment {
-                        layer: next_layer,
-                        light_index: idx,
-                        face: 0,
-                    });
-                }
-                LightType::Sun => {}
+            for face in 0..required_layers {
+                self.shadow_assignments.push(ShadowAssignment {
+                    layer: next_layer + face,
+                    light_index: idx,
+                    face: face as u8,
+                });
+            }
+
+            while self.shadow_assignments.len() >= self.render_data.len() {
+                profiling::scope!("add render uniform");
+                self.render_data
+                    .push(RenderUniformData::empty(device, &render_bgl));
             }
 
             next_layer += required_layers;
@@ -89,6 +94,7 @@ impl LightManager {
         next_layer
     }
 
+    #[profiling::function]
     pub fn add_proxy(&mut self, owner: TypedComponentId, proxy: LightProxy) {
         if let Some((idx, _)) = self
             .proxy_owners
@@ -102,6 +108,7 @@ impl LightManager {
         }
     }
 
+    #[profiling::function]
     pub fn remove_proxy(&mut self, owner: TypedComponentId) {
         let Some((pos, _)) = self
             .proxy_owners
@@ -115,6 +122,7 @@ impl LightManager {
         self.proxies.remove(pos);
     }
 
+    #[profiling::function]
     pub fn execute_light_command(&mut self, owner: TypedComponentId, cmd: LightProxyCommand) {
         let Some((pos, _)) = self
             .proxy_owners
@@ -175,6 +183,7 @@ impl LightManager {
         self.proxies.get(index)
     }
 
+    #[profiling::function]
     pub fn new(cache: &AssetCache, device: &Device) -> Self {
         const DUMMY_POINT_LIGHT: LightProxy = LightProxy::dummy();
 
@@ -225,7 +234,8 @@ impl LightManager {
         Self {
             proxy_owners: vec![],
             proxies: vec![],
-            shadow_assignments: Vec::new(),
+            shadow_assignments: vec![],
+            render_data: vec![],
             uniform,
             shadow_uniform,
             empty_shadow_uniform,
@@ -234,6 +244,7 @@ impl LightManager {
         }
     }
 
+    #[profiling::function]
     pub fn update(&mut self, cache: &AssetCache, queue: &Queue, device: &Device) {
         let proxies = proxy_buffer_slice(&self.proxies);
         let size = proxies.len();
@@ -251,6 +262,31 @@ impl LightManager {
         } else {
             queue.write_buffer(data, 0, bytemuck::cast_slice(proxies));
         }
+
+        let mut render_data = mem::take(&mut self.render_data);
+
+        for (render_data, assignment) in render_data.iter_mut().zip(self.shadow_assignments.iter())
+        {
+            let Some(light) = self.light(assignment.light_index) else {
+                debug_panic!("Invalid Light Index was stored");
+                continue;
+            };
+
+            let Ok(light_type) = LightType::try_from(light.type_id) else {
+                debug_panic!("Invalid Light Type Id was stored");
+                continue;
+            };
+
+            match light_type {
+                LightType::Point => {
+                    render_data.update_shadow_camera_for_point(light, assignment.face, queue)
+                }
+                LightType::Spot => render_data.update_shadow_camera_for_spot(light, queue),
+                LightType::Sun => {}
+            }
+        }
+
+        self.render_data = render_data;
     }
 
     #[cfg(debug_assertions)]
@@ -279,6 +315,14 @@ impl LightManager {
                 LightType::Spot => pass.draw(0..2, 0..9),
             }
         }
+    }
+
+    pub fn render_data(&self, assignment: u32) -> Option<&RenderUniformData> {
+        self.render_data.get(assignment as usize)
+    }
+
+    pub fn all_render_data(&self) -> &[RenderUniformData] {
+        &self.render_data
     }
 }
 

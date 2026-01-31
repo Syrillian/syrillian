@@ -92,7 +92,7 @@ pub struct RenderViewport {
     depth_texture: Texture,
     offscreen_surface: OffscreenSurface,
     ssr_surface: OffscreenSurface,
-    final_surface: OffscreenSurface,
+    final_surfaces: [OffscreenSurface; 2],
     picking_surface: PickingSurface,
     post_process_ssr: PostProcessData,
     post_process_final: PostProcessData,
@@ -115,7 +115,10 @@ impl RenderViewport {
         let picking_surface = PickingSurface::new(&state.device, &config);
         let offscreen_surface = OffscreenSurface::new(&state.device, &config);
         let ssr_surface = OffscreenSurface::new(&state.device, &config);
-        let final_surface = OffscreenSurface::new(&state.device, &config);
+        let final_surfaces = [
+            OffscreenSurface::new(&state.device, &config),
+            OffscreenSurface::new(&state.device, &config),
+        ];
         let depth_texture = Self::create_depth_texture(&state.device, &config);
         let normal_texture = Self::create_g_buffer("GBuffer (Normals)", &state.device, &config);
         let material_texture = Self::create_material_texture(&state.device, &config);
@@ -143,7 +146,7 @@ impl RenderViewport {
             depth_texture,
             offscreen_surface,
             ssr_surface,
-            final_surface,
+            final_surfaces,
             picking_surface,
             post_process_ssr,
             post_process_final,
@@ -163,13 +166,15 @@ impl RenderViewport {
     }
 
     #[instrument(skip_all)]
+    #[profiling::function]
     fn resize(&mut self, mut config: SurfaceConfiguration, state: &State, cache: &AssetCache) {
         Self::clamp_config(&mut config);
         self.config = config;
 
         self.offscreen_surface.recreate(&state.device, &self.config);
         self.ssr_surface.recreate(&state.device, &self.config);
-        self.final_surface.recreate(&state.device, &self.config);
+        self.final_surfaces[0].recreate(&state.device, &self.config);
+        self.final_surfaces[1].recreate(&state.device, &self.config);
         self.depth_texture = Self::create_depth_texture(&state.device, &self.config);
         self.g_normal = Self::create_g_buffer("GBuffer (Normals)", &state.device, &self.config);
         self.g_material = Self::create_material_texture(&state.device, &self.config);
@@ -259,6 +264,7 @@ impl RenderViewport {
     }
 
     #[instrument(skip_all)]
+    #[profiling::function]
     fn begin_render(&mut self) -> FrameCtx {
         self.frame_count += 1;
 
@@ -306,7 +312,6 @@ impl RenderViewport {
 pub struct Renderer {
     pub state: Arc<State>,
     pub cache: AssetCache,
-    shadow_render_data: RenderUniformData,
     viewports: HashMap<ViewportId, RenderViewport>,
     proxies: HashMap<TypedComponentId, SceneProxyBinding>,
     sorted_proxies: Vec<(u32, TypedComponentId)>,
@@ -326,8 +331,6 @@ impl Renderer {
     ) -> Result<Self> {
         let cache = AssetCache::new(store, state.as_ref());
 
-        let render_bgl = cache.bgl_render();
-        let shadow_render_data = RenderUniformData::empty(&state.device, &render_bgl);
         let lights = LightManager::new(&cache, &state.device);
         let start_time = Instant::now();
 
@@ -340,7 +343,6 @@ impl Renderer {
         Ok(Renderer {
             state,
             cache,
-            shadow_render_data,
             viewports,
             start_time,
             proxies: HashMap::new(),
@@ -352,6 +354,7 @@ impl Renderer {
         })
     }
 
+    #[profiling::function]
     fn take_pick_request(&mut self, target: ViewportId) -> Option<PickRequest> {
         if let Some(idx) = self
             .pending_pick_requests
@@ -468,24 +471,12 @@ impl Renderer {
         true
     }
 
-    pub fn redraw(&mut self, target_id: ViewportId) -> bool {
-        let Some(mut viewport) = self.viewports.remove(&target_id) else {
-            warn!("Invalid Viewport {target_id:?} referenced");
-            return false;
-        };
-
-        viewport.tick_delta_time();
-        let rendered = self.render_frame_inner(target_id, &mut viewport);
-
-        self.viewports.insert(target_id, viewport);
-
-        rendered
-    }
-
     #[instrument(skip_all)]
+    #[profiling::function]
     pub fn update(&mut self) {
         let mut proxies = mem::take(&mut self.proxies);
         for proxy in proxies.values_mut() {
+            proxy.ensure_fresh_transform(self);
             proxy.update(self);
         }
         self.proxies = proxies;
@@ -501,6 +492,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
+    #[profiling::function]
     fn resort_proxies(&mut self) {
         let frustum = self
             .viewports
@@ -512,7 +504,12 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
-    fn render_frame_inner(&mut self, target_id: ViewportId, viewport: &mut RenderViewport) -> bool {
+    #[profiling::function]
+    fn render_frame_inner(
+        &mut self,
+        target_id: ViewportId,
+        viewport: &mut RenderViewport,
+    ) -> RenderedFrame {
         let mut ctx = viewport.begin_render();
 
         let frustum = Frustum::from_matrix(&viewport.render_data.camera_data.proj_view_mat);
@@ -524,7 +521,6 @@ impl Renderer {
         }
 
         self.render(target_id, viewport, &mut ctx);
-        self.render_final_pass(viewport, viewport.final_surface.view());
 
         if self.cache.last_refresh().elapsed().as_secs_f32() > 5.0 {
             trace!("Refreshing cache...");
@@ -534,45 +530,52 @@ impl Renderer {
             }
         }
 
-        true
+        self.finish_frame(target_id, viewport)
     }
 
     #[instrument(skip_all)]
-    pub fn render_frame(&mut self, target_id: ViewportId) -> Option<RenderedFrame> {
-        let mut viewport = self.viewports.remove(&target_id)?;
+    pub fn render_frame(
+        &mut self,
+        target_id: ViewportId,
+        viewport: &mut RenderViewport,
+    ) -> RenderedFrame {
         viewport.tick_delta_time();
-
-        let rendered = self.render_frame_inner(target_id, &mut viewport);
-        let frame = if rendered {
-            Some(RenderedFrame {
-                target: target_id,
-                texture: viewport.final_surface.texture().clone(),
-                size: viewport.size(),
-                format: viewport.config.format,
-            })
-        } else {
-            None
-        };
-
-        self.viewports.insert(target_id, viewport);
-
-        frame
+        self.render_frame_inner(target_id, viewport)
     }
 
+    pub fn finish_frame(
+        &mut self,
+        target_id: ViewportId,
+        viewport: &mut RenderViewport,
+    ) -> RenderedFrame {
+        let final_color = &viewport.final_surfaces[viewport.frame_count % 2];
+        self.render_final_pass(viewport, final_color.view());
+
+        RenderedFrame {
+            target: target_id,
+            texture: final_color.texture().clone(),
+            size: viewport.size(),
+            format: viewport.config.format,
+        }
+    }
+
+    #[profiling::function]
     pub fn render_all(&mut self) -> Vec<RenderedFrame> {
-        let targets: Vec<_> = self.viewports.keys().copied().collect();
+        let mut targets = mem::take(&mut self.viewports);
         let mut frames = Vec::with_capacity(targets.len());
 
-        for target in targets {
-            if let Some(frame) = self.render_frame(target) {
-                frames.push(frame);
-            }
+        for (id, target) in &mut targets {
+            let frame = self.render_frame(*id, target);
+            frames.push(frame);
         }
+
+        self.viewports = targets;
 
         frames
     }
 
     #[instrument(skip_all)]
+    #[profiling::function]
     fn picking_pass(
         &mut self,
         viewport: &RenderViewport,
@@ -737,6 +740,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
+    #[profiling::function]
     fn shadow_pass(&mut self, ctx: &mut FrameCtx) {
         self.lights
             .update(&self.cache, &self.state.queue, &self.state.device);
@@ -746,22 +750,33 @@ impl Renderer {
             .shadow_array(&self.cache.store().render_texture_arrays)
             .unwrap()
             .array_layers;
-        let light_count = self.lights.update_shadow_map_ids(shadow_layers);
-
-        let assignments: Vec<_> = self
-            .lights
-            .shadow_assignments()
-            .iter()
-            .copied()
-            .take(light_count as usize)
-            .collect();
+        let light_count =
+            self.lights
+                .update_shadow_map_ids(shadow_layers, &self.state.device, &self.cache);
 
         // Shadow map ids and assignments may change when capacity is constrained, so upload the
         // updated proxy data again before the main pass consumes it.
         self.lights
             .update(&self.cache, &self.state.queue, &self.state.device);
 
-        for assignment in assignments {
+        let mut encoder = self
+            .state
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Shadow Pass Encoder"),
+            });
+
+        let assignments = self
+            .lights
+            .shadow_assignments()
+            .iter()
+            .copied()
+            .zip(self.lights.all_render_data())
+            .take(light_count as usize);
+
+        for (assignment, render_data) in assignments {
+            profiling::scope!("render shadow");
+
             let Some(light) = self.lights.light(assignment.light_index).copied() else {
                 debug_panic!("Invalid light index");
                 continue;
@@ -773,51 +788,42 @@ impl Renderer {
             };
 
             match light_type {
-                LightType::Spot => {
-                    if assignment.face == 0 {
-                        self.shadow_render_data
-                            .update_shadow_camera_for_spot(&light, &self.state.queue);
-                        self.prepare_shadow_map(ctx, assignment.layer);
-                    }
+                LightType::Spot if assignment.face == 0 => {
+                    self.prepare_shadow_map(&mut encoder, ctx, render_data, assignment.layer);
                 }
+                LightType::Spot => debug_panic!("Requested to render more than one spotlight face"),
                 LightType::Point => {
-                    self.shadow_render_data.update_shadow_camera_for_point(
-                        &light,
-                        assignment.face,
-                        &self.state.queue,
-                    );
-                    self.prepare_shadow_map(ctx, assignment.layer);
+                    self.prepare_shadow_map(&mut encoder, ctx, render_data, assignment.layer);
                 }
                 LightType::Sun => {}
             }
         }
+
+        self.state.queue.submit(Some(encoder.finish()));
     }
 
     #[instrument(skip_all)]
-    fn prepare_shadow_map(&mut self, ctx: &mut FrameCtx, layer: u32) {
-        let mut encoder = self
-            .state
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("Shadow Pass Encoder"),
-            });
-
+    fn prepare_shadow_map(
+        &self,
+        encoder: &mut CommandEncoder,
+        ctx: &mut FrameCtx,
+        render_data: &RenderUniformData,
+        layer: u32,
+    ) {
         let Some(layer_view) = self.lights.shadow_layer(&self.cache, layer) else {
             debug_panic!("Shadow layer view {layer} was not found");
             return;
         };
 
-        let pass = self.prepare_shadow_pass(&mut encoder, &layer_view);
+        let pass = self.prepare_shadow_pass(encoder, &layer_view);
 
         self.render_scene(
             ctx,
             pass,
             RenderPassType::Shadow,
             &self.sorted_proxies,
-            &self.shadow_render_data,
+            render_data,
         );
-
-        self.state.queue.submit(Some(encoder.finish()));
     }
 
     #[instrument(skip_all)]
@@ -936,6 +942,7 @@ impl Renderer {
     }
 
     #[instrument(skip_all)]
+    #[profiling::function]
     fn render_final_pass(&mut self, viewport: &RenderViewport, color_view: &TextureView) {
         let mut encoder = self
             .state
@@ -1206,6 +1213,7 @@ impl Renderer {
 }
 
 #[instrument(skip_all)]
+#[profiling::function]
 fn sorted_enabled_proxy_ids(
     proxies: &HashMap<TypedComponentId, SceneProxyBinding>,
     store: &AssetStore,
@@ -1330,6 +1338,14 @@ mod tests {
     impl SceneProxy for TestProxy {
         fn setup_render(&mut self, _: &Renderer, _: &Affine3A) -> Box<dyn Any + Send> {
             Box::new(())
+        }
+
+        fn refresh_transform(
+            &mut self,
+            _renderer: &Renderer,
+            _data: &mut (dyn Any + Send),
+            _local_to_world: &Affine3A,
+        ) {
         }
 
         fn update_render(&mut self, _: &Renderer, _: &mut (dyn Any + Send), _: &Affine3A) {}

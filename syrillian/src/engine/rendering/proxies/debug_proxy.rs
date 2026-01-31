@@ -66,16 +66,13 @@ impl SceneProxy for DebugSceneProxy {
         })
     }
 
-    fn update_render(
+    fn refresh_transform(
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
     ) {
         let data: &mut GPUDebugProxyData = proxy_data_mut!(data);
-
-        // TODO: Reuse or Resize buffer
-        data.line_data = self.new_line_buffer(&renderer.state.device);
 
         let transform = self.override_transform.unwrap_or(*local_to_world);
         self.update_mesh_buffer(
@@ -85,6 +82,18 @@ impl SceneProxy for DebugSceneProxy {
             &renderer.state.queue,
             &transform,
         );
+    }
+
+    fn update_render(
+        &mut self,
+        renderer: &Renderer,
+        data: &mut (dyn Any + Send),
+        _local_to_world: &Affine3A,
+    ) {
+        let data: &mut GPUDebugProxyData = proxy_data_mut!(data);
+
+        // TODO: Reuse or Resize buffer
+        data.line_data = self.new_line_buffer(&renderer.state.device);
     }
 
     fn render(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {

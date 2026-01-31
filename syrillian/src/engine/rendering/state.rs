@@ -9,8 +9,8 @@ use snafu::{ResultExt, Snafu, ensure};
 use std::mem;
 use std::sync::Arc;
 use wgpu::{
-    Adapter, CreateSurfaceError, Device, DeviceDescriptor, ExperimentalFeatures, Features,
-    Instance, InstanceDescriptor, Limits, MemoryHints, PowerPreference, Queue,
+    Adapter, Backends, CreateSurfaceError, Device, DeviceDescriptor, ExperimentalFeatures,
+    Features, Instance, InstanceDescriptor, Limits, MemoryHints, PowerPreference, Queue,
     RequestAdapterOptions, RequestDeviceError, Surface, SurfaceConfiguration, TextureFormat,
 };
 use winit::dpi::PhysicalSize;
@@ -44,7 +44,15 @@ pub struct State {
 
 impl State {
     fn setup_instance() -> Instance {
-        Instance::new(&InstanceDescriptor::from_env_or_default())
+        let mut desc = InstanceDescriptor::from_env_or_default();
+        desc.backends ^= Backends::VULKAN;
+        Instance::new(&desc)
+        // Instance::new(&InstanceDescriptor {
+        //     backends: Backends::DX12,
+        //     flags: Default::default(),
+        //     memory_budget_thresholds: Default::default(),
+        //     backend_options: Default::default(),
+        // })
     }
 
     async fn setup_adapter(instance: &Instance, surface: Option<&Surface<'static>>) -> Adapter {

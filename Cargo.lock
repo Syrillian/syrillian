@@ -3552,6 +3552,7 @@ dependencies = [
  "obj",
  "once_cell",
  "parking_lot",
+ "profiling",
  "rapier3d",
  "slotmap",
  "smallvec",

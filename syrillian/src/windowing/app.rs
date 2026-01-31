@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use tracing::{error, info, instrument, trace};
+use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::dpi::Size;
 use winit::error::EventLoopError;
@@ -66,6 +66,13 @@ impl<S: AppState> AppSettings<S> {
 impl<S: AppState> App<S> {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(mut self, event_loop: EventLoop<()>) -> Result<(), Box<dyn Error>> {
+        // let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
+        // let _puffin_server = puffin_http::Server::new(&server_addr)?;
+        // warn!("Serving profile data on {server_addr}. Run `puffin_viewer` to view it.");
+        // profiling::puffin::set_scopes_on(true);
+
+        profiling::register_thread!("window");
+
         event_loop.run_app(&mut self)?;
         Ok(())
     }
@@ -258,6 +265,7 @@ impl<S: AppState> ApplicationHandler for App<S> {
         // TODO: Reinit cache?
     }
 
+    #[profiling::function]
     #[instrument(skip_all)]
     fn window_event(
         &mut self,
@@ -291,6 +299,7 @@ impl<S: AppState> ApplicationHandler for App<S> {
 
         match event {
             WindowEvent::RedrawRequested => {
+                profiling::scope!("redraw requested");
                 if drives_update {
                     if let Some(batch) = render_thread.poll_batch() {
                         for frame in batch.frames {
