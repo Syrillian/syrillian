@@ -14,7 +14,7 @@ pub struct ShaderUniform<I: ShaderUniformIndex> {
 }
 
 pub struct ShaderUniformBuilder<'a, I: ShaderUniformIndex> {
-    bind_group_layout: &'a BindGroupLayout,
+    bind_group_layout: BindGroupLayout,
     data: SmallVec<[ResourceDesc<'a, I>; 1]>,
 }
 
@@ -25,8 +25,8 @@ pub enum ResourceDesc<'a, I: ShaderUniformIndex> {
     StorageBufferData { data: &'a [u8], name: I },
     StorageBuffer { buffer: Buffer, name: I },
     EmptyBuffer { size: u64, name: I, map: bool },
-    TextureView { view: &'a TextureView, name: I },
-    Sampler { sampler: &'a Sampler, name: I },
+    TextureView { view: TextureView, name: I },
+    Sampler { sampler: Sampler, name: I },
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ impl<'a, I: ShaderUniformIndex> ShaderUniformBuilder<'a, I> {
     #[inline]
     pub fn build(self, device: &Device) -> ShaderUniform<I> {
         let buffers = UniformBufferStorage::new(device, &self.data);
-        let bind_group = self.bind_group(device, self.bind_group_layout, &buffers);
+        let bind_group = self.bind_group(device, &self.bind_group_layout, &buffers);
 
         ShaderUniform {
             buffers,
@@ -117,14 +117,14 @@ impl<'a, I: ShaderUniformIndex> ShaderUniformBuilder<'a, I> {
     }
 
     #[inline]
-    pub fn with_texture(mut self, view: &'a TextureView) -> Self {
+    pub fn with_texture(mut self, view: TextureView) -> Self {
         let name = self._next_index();
         self.data.push(ResourceDesc::TextureView { view, name });
         self
     }
 
     #[inline]
-    pub fn with_sampler(mut self, sampler: &'a Sampler) -> Self {
+    pub fn with_sampler(mut self, sampler: Sampler) -> Self {
         let name = self._next_index();
         self.data.push(ResourceDesc::Sampler { sampler, name });
         self
@@ -155,7 +155,7 @@ impl<'a, I: ShaderUniformIndex> ShaderUniformBuilder<'a, I> {
 
 impl<I: ShaderUniformIndex> ShaderUniform<I> {
     #[inline]
-    pub fn builder(bind_group_layout: &BindGroupLayout) -> ShaderUniformBuilder<'_, I> {
+    pub fn builder<'a>(bind_group_layout: BindGroupLayout) -> ShaderUniformBuilder<'a, I> {
         ShaderUniformBuilder {
             bind_group_layout,
             data: smallvec![],

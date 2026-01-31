@@ -62,15 +62,36 @@ impl RuntimeMeshData {
 }
 
 impl SceneProxy for MeshSceneProxy {
-    fn setup_render(&mut self, renderer: &Renderer, local_to_world: &Affine3A) -> Box<dyn Any> {
+    fn setup_render(
+        &mut self,
+        renderer: &Renderer,
+        local_to_world: &Affine3A,
+    ) -> Box<dyn Any + Send> {
         Box::new(self.setup_mesh_data(renderer, local_to_world))
+    }
+
+    fn refresh_transform(
+        &mut self,
+        renderer: &Renderer,
+        data: &mut (dyn Any + Send),
+        local_to_world: &Affine3A,
+    ) {
+        let data: &mut RuntimeMeshData = proxy_data_mut!(data);
+
+        data.mesh_data.model_mat = (*local_to_world).into();
+
+        renderer.state.queue.write_buffer(
+            data.uniform.buffer(MeshUniformIndex::MeshData),
+            0,
+            bytemuck::bytes_of(&data.mesh_data),
+        );
     }
 
     fn update_render(
         &mut self,
         renderer: &Renderer,
-        data: &mut dyn Any,
-        local_to_world: &Affine3A,
+        data: &mut (dyn Any + Send),
+        _local_to_world: &Affine3A,
     ) {
         let data: &mut RuntimeMeshData = proxy_data_mut!(data);
 
@@ -84,14 +105,6 @@ impl SceneProxy for MeshSceneProxy {
             );
             self.bones_dirty = false;
         }
-
-        data.mesh_data.model_mat = (*local_to_world).into();
-
-        renderer.state.queue.write_buffer(
-            data.uniform.buffer(MeshUniformIndex::MeshData),
-            0,
-            bytemuck::bytes_of(&data.mesh_data),
-        );
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
@@ -173,7 +186,7 @@ impl SceneProxy for MeshSceneProxy {
     }
 
     fn bounds(&self, local_to_world: &Affine3A) -> Option<BoundingSphere> {
-        Some((self.bounding * 5.0).transformed(&(*local_to_world).into()))
+        Some(self.bounding.transformed(&(*local_to_world).into()))
     }
 }
 
@@ -249,7 +262,7 @@ impl MeshSceneProxy {
         let model_bgl = renderer.cache.bgl_model();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder(&model_bgl)
+        let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
             .with_buffer_data(&mesh_data)
             .with_buffer_data_slice(self.bone_data.bones.as_slice())
             .build(device);

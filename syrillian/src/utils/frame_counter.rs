@@ -21,12 +21,36 @@ impl FrameCounter {
         self.new_frame(frame_time);
     }
 
-    pub fn mean_delta_time(&self) -> f32 {
+    pub fn delta_mean(&self) -> f32 {
         self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32
     }
 
-    pub fn fps(&self) -> u32 {
-        (1.0 / self.mean_delta_time()) as u32
+    pub fn fps_mean(&self) -> u32 {
+        (1.0 / self.delta_mean()) as u32
+    }
+
+    pub fn fps_low(&self) -> u32 {
+        (1.0 / self.delta_high()) as u32
+    }
+
+    pub fn fps_high(&self) -> u32 {
+        (1.0 / self.delta_low()) as u32
+    }
+
+    pub fn delta_low(&self) -> f32 {
+        self.frame_times
+            .iter()
+            .copied()
+            .min_by(|a, b| a.total_cmp(b))
+            .unwrap_or_default()
+    }
+
+    pub fn delta_high(&self) -> f32 {
+        self.frame_times
+            .iter()
+            .copied()
+            .max_by(|a, b| a.total_cmp(b))
+            .unwrap_or_default()
     }
 }
 
@@ -49,7 +73,7 @@ mod tests {
         assert_eq!(counter.frame_times.len(), DEFAULT_RUNNING_SIZE);
         // last 5 are 0.02, preceding 55 are 0.01 -> mean should reflect both
         let expected = (55.0 * 0.01 + 5.0 * 0.02) / DEFAULT_RUNNING_SIZE as f32;
-        assert!((counter.mean_delta_time() - expected).abs() < 1e-6);
-        assert_eq!(counter.fps(), (1.0 / expected) as u32);
+        assert!((counter.delta_mean() - expected).abs() < 1e-6);
+        assert_eq!(counter.fps_mean(), (1.0 / expected) as u32);
     }
 }

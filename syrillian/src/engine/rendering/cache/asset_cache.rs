@@ -84,6 +84,10 @@ impl AssetCache {
         self.shaders.get(HShader::POST_PROCESS, self)
     }
 
+    pub fn shader_post_process_ssr(&self) -> Arc<RuntimeShader> {
+        self.shaders.get(HShader::POST_PROCESS_SSR, self)
+    }
+
     pub fn texture(&self, handle: HTexture2D) -> Arc<GpuTexture> {
         self.textures.get(handle, self)
     }

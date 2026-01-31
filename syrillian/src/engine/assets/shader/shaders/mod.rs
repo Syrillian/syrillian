@@ -63,6 +63,7 @@ test_custom_shader!(picking_mesh, "Mesh Picking Shader" => "picking_mesh.wgsl");
 test_custom_shader!(picking_ui, "UI Picking Shader" => "picking_ui.wgsl");
 test_custom_shader!(text2d, "Text 2D Shader" => "text2d.wgsl");
 test_custom_shader!(text3d, "Text 3D Shader" => "text3d.wgsl");
+test_custom_shader!(debug_line2d, "Debug Line 2D" => "line.wgsl");
 
 // Debug shaders
 test_custom_shader!(debug_edges, "Debug Edges Shader" => "debug/edges.wgsl");
@@ -74,3 +75,4 @@ test_custom_shader!(debug_light, "Debug Light Geometry Shader" => "debug/light.w
 
 // Post-Processing Shaders
 test_post_shader!(fullscreen_passthrough, "Fullscreen Passthrough Shader" => "fullscreen_passthrough.wgsl");
+test_post_shader!(ssr_post_process, "SSR Post Process Shader" => "ssr_post_process.wgsl");

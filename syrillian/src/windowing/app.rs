@@ -1,13 +1,18 @@
 use crate::AppState;
+use crate::ViewportId;
 use crate::assets::AssetStore;
 use crate::game_thread::GameAppEvent;
-use crate::rendering::Renderer;
+use crate::rendering::{RenderedFrame, State};
 use crate::windowing::game_thread::GameThread;
+use crate::windowing::presenter::Presenter;
+use crate::windowing::render_thread::RenderThread;
 use crate::world::WorldChannels;
 use crossbeam_channel::unbounded;
+use std::collections::HashMap;
 use std::error::Error;
 use std::marker::PhantomData;
-use tracing::{error, info, instrument, trace};
+use std::sync::Arc;
+use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::dpi::Size;
 use winit::error::EventLoopError;
@@ -20,8 +25,10 @@ use winit::platform::web::{EventLoopExtWebSys, WindowExtWebSys};
 
 pub struct App<S: AppState> {
     main_window_attributes: WindowAttributes,
-    renderer: Option<Renderer>,
+    presenter: Option<Presenter>,
+    render_thread: Option<RenderThread>,
     game_thread: Option<GameThread<S>>,
+    pending_frames: HashMap<ViewportId, RenderedFrame>,
 }
 
 pub struct AppSettings<S: AppState> {
@@ -46,8 +53,10 @@ impl<S: AppState> AppSettings<S> {
 
         let app = App {
             main_window_attributes: self.main_window,
-            renderer: None,
+            presenter: None,
+            render_thread: None,
             game_thread: None,
+            pending_frames: HashMap::new(),
         };
 
         Ok((event_loop, app))
@@ -57,6 +66,13 @@ impl<S: AppState> AppSettings<S> {
 impl<S: AppState> App<S> {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(mut self, event_loop: EventLoop<()>) -> Result<(), Box<dyn Error>> {
+        // let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
+        // let _puffin_server = puffin_http::Server::new(&server_addr)?;
+        // warn!("Serving profile data on {server_addr}. Run `puffin_viewer` to view it.");
+        // profiling::puffin::set_scopes_on(true);
+
+        profiling::register_thread!("window");
+
         event_loop.run_app(&mut self)?;
         Ok(())
     }
@@ -96,21 +112,34 @@ impl<S: AppState> App<S> {
 
         trace!("Created render surface");
 
-        let renderer = match Renderer::new(
+        let (state, surface, config) = match State::new(&main_window) {
+            Ok(state) => state,
+            Err(err) => {
+                error!("Couldn't create render state: {err}");
+                event_loop.exit();
+                return;
+            }
+        };
+        let state = Arc::new(state);
+
+        let presenter = Presenter::new(state.clone(), main_window, surface, config.clone());
+
+        let render_thread = match RenderThread::new(
+            state.clone(),
+            asset_store.clone(),
             render_state_rx,
             pick_result_tx,
-            main_window,
-            asset_store.clone(),
+            config.clone(),
         ) {
-            Ok(r) => r,
+            Ok(thread) => thread,
             Err(err) => {
-                error!("Couldn't create renderer: {err}");
+                error!("Couldn't create render thread: {err}");
                 event_loop.exit();
                 return;
             }
         };
 
-        trace!("Created Renderer");
+        trace!("Created Render Thread");
 
         let channels = WorldChannels::new(render_state_tx, game_event_tx, pick_result_rx);
         let game_thread = GameThread::new(asset_store.clone(), channels, game_event_rx);
@@ -121,25 +150,31 @@ impl<S: AppState> App<S> {
             return;
         }
 
-        self.renderer = Some(renderer);
+        if let Some(window) = presenter.window(ViewportId::PRIMARY) {
+            window.request_redraw();
+        }
+
+        self.presenter = Some(presenter);
+        self.render_thread = Some(render_thread);
         self.game_thread = Some(game_thread);
     }
 
     #[instrument(skip_all)]
     fn handle_events(
-        renderer: &mut Renderer,
+        presenter: &mut Presenter,
+        render_thread: &RenderThread,
         game_thread: &GameThread<S>,
         event_loop: &ActiveEventLoop,
     ) -> bool {
         for event in game_thread.game_event_rx.try_iter() {
             match event {
                 GameAppEvent::UpdateWindowTitle(event_target, title) => {
-                    if let Some(window) = renderer.window_mut(event_target) {
+                    if let Some(window) = presenter.window_mut(event_target) {
                         window.set_title(&title);
                     }
                 }
                 GameAppEvent::SetCursorMode(event_target, locked, visible) => {
-                    if let Some(window) = renderer.window_mut(event_target) {
+                    if let Some(window) = presenter.window_mut(event_target) {
                         if locked {
                             trace!("RT: Locked cursor");
                             window
@@ -173,9 +208,17 @@ impl<S: AppState> App<S> {
                         }
                     };
 
-                    if let Err(e) = renderer.add_window(event_target, window) {
-                        error!("Failed to create window: {e}");
+                    let Some(config) = presenter.add_window(event_target, window) else {
+                        error!("Failed to create window surface");
                         return false;
+                    };
+                    if let Err(e) = render_thread.add_viewport(event_target, config) {
+                        error!("Failed to create renderer viewport: {e}");
+                        return false;
+                    }
+
+                    if let Some(window) = presenter.window(event_target) {
+                        window.request_redraw();
                     }
                 }
                 GameAppEvent::Shutdown => return false,
@@ -186,15 +229,19 @@ impl<S: AppState> App<S> {
 
     #[instrument(skip_all)]
     fn handle_all_game_events(&mut self, event_loop: &ActiveEventLoop) -> bool {
-        let Some(renderer) = self.renderer.as_mut() else {
+        let Some(presenter) = self.presenter.as_mut() else {
             return true;
         };
 
-        let Some(game_thread) = self.game_thread.as_mut() else {
+        let Some(game_thread) = self.game_thread.as_ref() else {
             return true;
         };
 
-        Self::handle_events(renderer, game_thread, event_loop)
+        let Some(render_thread) = self.render_thread.as_ref() else {
+            return true;
+        };
+
+        Self::handle_events(presenter, render_thread, game_thread, event_loop)
     }
 }
 
@@ -218,6 +265,7 @@ impl<S: AppState> ApplicationHandler for App<S> {
         // TODO: Reinit cache?
     }
 
+    #[profiling::function]
     #[instrument(skip_all)]
     fn window_event(
         &mut self,
@@ -237,42 +285,57 @@ impl<S: AppState> ApplicationHandler for App<S> {
         let Some(game_thread) = self.game_thread.as_ref() else {
             return;
         };
-        let Some(renderer) = self.renderer.as_mut() else {
+        let Some(presenter) = self.presenter.as_mut() else {
+            return;
+        };
+        let Some(render_thread) = self.render_thread.as_mut() else {
             return;
         };
 
-        let target_id = renderer
+        let target_id = presenter
             .find_render_target_id(&window_id)
             .expect("runtime missing for window");
         let drives_update = target_id.is_primary();
 
         match event {
             WindowEvent::RedrawRequested => {
+                profiling::scope!("redraw requested");
                 if drives_update {
-                    match game_thread.next_frame(target_id) {
-                        Ok(()) => {
-                            renderer.handle_events();
-                            renderer.update();
+                    if let Some(batch) = render_thread.poll_batch() {
+                        for frame in batch.frames {
+                            self.pending_frames.insert(frame.target, frame);
                         }
-                        Err(_) => {
-                            event_loop.exit();
+
+                        if let Some(frame) = self.pending_frames.remove(&target_id)
+                            && !presenter.blit(target_id, &frame)
+                        {
+                            event_loop.exit(); // TODO: Maybe just remove the window
+                            let _ = batch.present_done_tx.send(());
                             return;
                         }
-                    }
-                }
 
-                if !renderer.redraw(target_id) {
-                    event_loop.exit(); // TODO: Possibly just remove the window
+                        let _ = batch.present_done_tx.send(());
+                    }
+                } else if let Some(frame) = self.pending_frames.remove(&target_id) {
+                    let _ = presenter.blit(target_id, &frame);
+                } else {
                     return;
                 }
 
-                if let Some(window) = renderer.window(target_id) {
+                if let Some(window) = presenter.window(target_id) {
                     window.request_redraw();
                 }
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
-                renderer.resize(target_id, size);
+                if let Some(config) = presenter.resize(target_id, size) {
+                    if render_thread.resize_viewport(target_id, config).is_err() {
+                        event_loop.exit();
+                    }
+                } else {
+                    event_loop.exit();
+                }
+                self.pending_frames.remove(&target_id);
                 if game_thread.resize(target_id, size).is_err() {
                     event_loop.exit();
                 }

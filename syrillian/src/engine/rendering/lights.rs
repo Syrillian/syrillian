@@ -82,6 +82,26 @@ pub trait Light: Component {
         let rad = angle.clamp(f32::EPSILON, 45. - f32::EPSILON).to_radians();
         self.data_mut(true).outer_angle = rad;
     }
+
+    fn radius(&self) -> f32 {
+        self.data().radius
+    }
+
+    fn intensity(&self) -> f32 {
+        self.data().intensity
+    }
+
+    fn color(&self) -> Vec3 {
+        self.data().color
+    }
+
+    fn direction(&self) -> Vec3 {
+        self.data().direction
+    }
+
+    fn up(&self) -> Vec3 {
+        self.data().up
+    }
 }
 
 #[repr(u32)]

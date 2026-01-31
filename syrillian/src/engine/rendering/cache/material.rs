@@ -107,14 +107,14 @@ impl CacheType for Material {
         let roughness = cache.texture_opt(self.roughness_texture, HTexture2D::FALLBACK_ROUGHNESS);
 
         // TODO: Add additional material mapping properties and such
-        let uniform = ShaderUniform::<MaterialUniformIndex>::builder(&mat_bgl)
+        let uniform = ShaderUniform::<MaterialUniformIndex>::builder((*mat_bgl).clone())
             .with_buffer_data(&data)
-            .with_texture(&diffuse.view)
-            .with_sampler(&diffuse.sampler)
-            .with_texture(&normal.view)
-            .with_sampler(&normal.sampler)
-            .with_texture(&roughness.view)
-            .with_sampler(&roughness.sampler)
+            .with_texture(diffuse.view.clone())
+            .with_sampler(diffuse.sampler.clone())
+            .with_texture(normal.view.clone())
+            .with_sampler(normal.sampler.clone())
+            .with_texture(roughness.view.clone())
+            .with_sampler(roughness.sampler.clone())
             .build(device);
 
         RuntimeMaterial {

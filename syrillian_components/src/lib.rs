@@ -38,6 +38,7 @@ pub mod animation;
 pub mod audio;
 pub mod button;
 pub mod collider;
+pub mod flashlight;
 pub mod fp_camera;
 pub mod fp_movement;
 pub mod freecam;
@@ -55,11 +56,13 @@ pub mod ui_rect;
 
 pub mod extensions;
 pub mod prefabs;
+pub mod profiler;
 
 pub use animation::AnimationComponent;
 pub use audio::{AudioEmitter, AudioReceiver};
 pub use button::Button;
 pub use collider::Collider3D;
+pub use flashlight::FlashlightComponent;
 pub use fp_camera::FirstPersonCameraController;
 pub use fp_movement::FirstPersonMovementController;
 pub use freecam::FreecamController;
@@ -71,6 +74,7 @@ pub use joints::{
 pub use light::{PointLightComponent, SpotLightComponent, Sun, SunLightComponent};
 pub use mesh_renderer::MeshRenderer;
 pub use panel::Panel;
+pub use profiler::Profiler;
 pub use rigid_body::RigidBodyComponent;
 pub use rotate::RotateComponent;
 pub use skeletal::SkeletalComponent;

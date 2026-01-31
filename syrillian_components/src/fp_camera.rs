@@ -87,7 +87,7 @@ impl Default for FPSCameraConfig {
     fn default() -> Self {
         // Make sure to change the document comments if you change these
         FPSCameraConfig {
-            mouse_sensitivity: Vec2::new(0.6, 0.6),
+            mouse_sensitivity: Vec2::new(1.2, 1.2),
             controller_sensitivity: Vec2::new(1.0, 1.0),
             max_pitch: 89.9,
             max_roll: 1.0,
@@ -245,14 +245,15 @@ impl FirstPersonCameraController {
 
         self.interp_yaw = self
             .interp_yaw
-            .lerp(self.yaw, self.config.look_smoothing * delta_time);
-        self.interp_pitch = self
-            .interp_pitch
-            .lerp(self.pitch, self.config.look_smoothing * delta_time);
+            .lerp(self.yaw, (self.config.look_smoothing * delta_time).min(1.0));
+        self.interp_pitch = self.interp_pitch.lerp(
+            self.pitch,
+            (self.config.look_smoothing * delta_time).min(1.0),
+        );
 
         self.smooth_roll = self
             .smooth_roll
-            .lerp(0., self.config.smoothing_speed * delta_time);
+            .lerp(0., (self.config.smoothing_speed * delta_time).min(1.0));
         let roll_rotation = Quat::from_axis_angle(Vec3::Z, self.smooth_roll.to_radians());
 
         let yaw_rot = Quat::from_axis_angle(Vec3::Y, self.interp_yaw.to_radians());
@@ -277,8 +278,8 @@ impl FirstPersonCameraController {
             * self.config.controller_sensitivity.y
             * 100.
             * delta_time;
-        let mouse_x = mouse_delta.x * self.config.mouse_sensitivity.x / 30.0;
-        let mouse_y = mouse_delta.y * self.config.mouse_sensitivity.y / 30.0;
+        let mouse_x = mouse_delta.x * self.config.mouse_sensitivity.x * 2.0 * delta_time;
+        let mouse_y = mouse_delta.y * self.config.mouse_sensitivity.y * 2.0 * delta_time;
         let max_pitch = self.config.max_pitch;
 
         self.yaw += mouse_x + controller_x;

@@ -9,8 +9,12 @@ use crate::assets::HBGL;
 use crate::engine::assets::generic_store::{HandleName, Store, StoreDefaults, StoreType};
 use crate::engine::assets::{H, HShader, StoreTypeFallback, StoreTypeName};
 use crate::rendering::proxies::text_proxy::TextImmediates;
-use crate::rendering::{AssetCache, DEFAULT_COLOR_TARGET, DEFAULT_VBL, PICKING_TEXTURE_FORMAT};
-use crate::utils::sizes::{VEC2_SIZE, VEC4_SIZE};
+use crate::rendering::{
+    AssetCache, DEFAULT_COLOR_TARGETS, DEFAULT_PP_COLOR_TARGETS, DEFAULT_VBL,
+    DEFAULT_VBL_STEP_INSTANCE, ONLY_COLOR_TARGET, PICKING_TEXTURE_FORMAT,
+};
+use crate::strobe::UiLineData;
+use crate::utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE, WGPU_VEC4_ALIGN};
 use crate::{store_add_checked, store_add_checked_many};
 use bon::Builder;
 use std::error::Error;
@@ -22,9 +26,6 @@ use wgpu::{
     PipelineLayoutDescriptor, PolygonMode, PrimitiveTopology, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexStepMode,
 };
-
-#[cfg(debug_assertions)]
-use crate::rendering::DEFAULT_VBL_STEP_INSTANCE;
 
 #[derive(Debug, Clone)]
 pub enum ShaderCode {
@@ -63,7 +64,7 @@ pub struct Shader {
     topology: PrimitiveTopology,
     #[builder(default = &DEFAULT_VBL)]
     vertex_buffers: &'static [VertexBufferLayout<'static>],
-    #[builder(default = DEFAULT_COLOR_TARGET)]
+    #[builder(default = DEFAULT_COLOR_TARGETS)]
     color_target: &'static [Option<ColorTargetState>],
     #[builder(default = 0)]
     immediate_size: u32,
@@ -104,14 +105,16 @@ impl H<Shader> {
     pub const TEXT_2D_PICKER_ID: u32 = 7;
     pub const TEXT_3D_ID: u32 = 8;
     pub const TEXT_3D_PICKER_ID: u32 = 9;
+    pub const LINE_2D_ID: u32 = 10;
+    pub const POST_PROCESS_SSR_ID: u32 = 11;
 
-    pub const DEBUG_EDGES_ID: u32 = 10;
-    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 11;
-    pub const DEBUG_LINES_ID: u32 = 12;
-    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 13;
-    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 14;
-    pub const DEBUG_LIGHT_ID: u32 = 15;
-    pub const MAX_BUILTIN_ID: u32 = 15;
+    pub const DEBUG_EDGES_ID: u32 = 12;
+    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 13;
+    pub const DEBUG_LINES_ID: u32 = 14;
+    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 15;
+    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 16;
+    pub const DEBUG_LIGHT_ID: u32 = 17;
+    pub const MAX_BUILTIN_ID: u32 = 17;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -143,6 +146,12 @@ impl H<Shader> {
     // Default 3D Text picking shader.
     pub const TEXT_3D_PICKING: H<Shader> = H::new(Self::TEXT_3D_PICKER_ID);
 
+    // Shader for drawing single 2D lines.
+    pub const LINE_2D: H<Shader> = H::new(Self::LINE_2D_ID);
+
+    // Post processing shader for screen space reflection
+    pub const POST_PROCESS_SSR: H<Shader> = H::new(Self::POST_PROCESS_SSR_ID);
+
     // An addon shader ID that is used for drawing debug edges on meshes
     pub const DEBUG_EDGES: H<Shader> = H::new(Self::DEBUG_EDGES_ID);
 
@@ -165,19 +174,15 @@ const SHADER_TEXT2D: &str = include_str!("shaders/text2d.wgsl");
 const SHADER_TEXT2D_PICKER: &str = include_str!("shaders/picking_text2d.wgsl");
 const SHADER_TEXT3D: &str = include_str!("shaders/text3d.wgsl");
 const SHADER_TEXT3D_PICKER: &str = include_str!("shaders/picking_text3d.wgsl");
+const SHADER_LINE2D: &str = include_str!("shaders/line.wgsl");
 const SHADER_FS_COPY: &str = include_str!("shaders/fullscreen_passthrough.wgsl");
+const SHADER_POST_PROCESS_SSR: &str = include_str!("shaders/ssr_post_process.wgsl");
 
-#[cfg(debug_assertions)]
 const DEBUG_EDGES_SHADER: &str = include_str!("shaders/debug/edges.wgsl");
-#[cfg(debug_assertions)]
 const DEBUG_VERTEX_NORMAL_SHADER: &str = include_str!("shaders/debug/vertex_normals.wgsl");
-#[cfg(debug_assertions)]
 const DEBUG_LINES_SHADER: &str = include_str!("shaders/debug/lines.wgsl");
-#[cfg(debug_assertions)]
 const DEBUG_TEXT2D_GEOMETRY: &str = include_str!("shaders/debug/text2d_geometry.wgsl");
-#[cfg(debug_assertions)]
 const DEBUG_TEXT3D_GEOMETRY: &str = include_str!("shaders/debug/text3d_geometry.wgsl");
-#[cfg(debug_assertions)]
 const DEBUG_LIGHT_SHADER: &str = include_str!("shaders/debug/light.wgsl");
 
 impl StoreDefaults for Shader {
@@ -185,6 +190,7 @@ impl StoreDefaults for Shader {
         store_add_checked_many!(store,
             HShader::FALLBACK_ID => Shader::new_default("Fallback", SHADER_FALLBACK3D),
             HShader::DIM2_ID => Shader::new_default("2D Default", SHADER_DIM2)
+                .color_only()
                 .with_depth_enabled(false),
             HShader::DIM3_ID => Shader::new_fragment("3D Default", SHADER_DIM3),
             HShader::POST_PROCESS_ID => Shader::new_post_process("Post Process", SHADER_FS_COPY),
@@ -245,6 +251,7 @@ impl StoreDefaults for Shader {
                 .shader_type(ShaderType::Custom)
                 .name("Text 2D Shader")
                 .code(ShaderCode::Full(SHADER_TEXT2D.to_string()))
+                .color_target(ONLY_COLOR_TARGET)
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediates>() as u32)
                 .depth_enabled(false)
@@ -292,117 +299,133 @@ impl StoreDefaults for Shader {
                 .build()
         );
 
-        #[cfg(debug_assertions)]
-        {
-            use crate::utils::sizes::{VEC3_SIZE, WGPU_VEC4_ALIGN};
-            use wgpu::{VertexAttribute, VertexFormat, VertexStepMode};
+        store_add_checked!(
+            store,
+            HShader::LINE_2D_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Line 2D Shader")
+                .code(ShaderCode::Full(SHADER_LINE2D.to_string()))
+                .color_target(ONLY_COLOR_TARGET)
+                .topology(PrimitiveTopology::TriangleList)
+                .vertex_buffers(&[])
+                .immediate_size(size_of::<UiLineData>() as u32)
+                .depth_enabled(false)
+                .build()
+        );
 
-            store_add_checked!(
-                store,
-                HShader::DEBUG_EDGES_ID,
-                Shader::builder()
-                    .shader_type(ShaderType::Custom)
-                    .name("Mesh Debug Edges Shader")
-                    .code(ShaderCode::Full(DEBUG_EDGES_SHADER.to_string()))
-                    .polygon_mode(PolygonMode::Line)
-                    .immediate_size(WGPU_VEC4_ALIGN as u32)
-                    .build()
-            );
+        store_add_checked!(
+            store,
+            HShader::POST_PROCESS_SSR_ID,
+            Shader::new_post_process("SSR Post Process", SHADER_POST_PROCESS_SSR)
+        );
 
-            store_add_checked!(
-                store,
-                HShader::DEBUG_VERTEX_NORMALS_ID,
-                Shader::builder()
-                    .shader_type(ShaderType::Custom)
-                    .name("Mesh Debug Vertices Shader")
-                    .code(ShaderCode::Full(DEBUG_VERTEX_NORMAL_SHADER.to_string()))
-                    .topology(PrimitiveTopology::LineList)
-                    .polygon_mode(PolygonMode::Line)
-                    .vertex_buffers(&DEFAULT_VBL_STEP_INSTANCE)
-                    .build()
-            );
+        store_add_checked!(
+            store,
+            HShader::DEBUG_EDGES_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Mesh Debug Edges Shader")
+                .code(ShaderCode::Full(DEBUG_EDGES_SHADER.to_string()))
+                .polygon_mode(PolygonMode::Line)
+                .immediate_size(WGPU_VEC4_ALIGN as u32)
+                .build()
+        );
 
-            const DEBUG_LINE_VBL: &[VertexBufferLayout] = &[VertexBufferLayout {
-                array_stride: VEC3_SIZE + VEC4_SIZE,
-                step_mode: VertexStepMode::Vertex,
-                attributes: &[
-                    VertexAttribute {
-                        format: VertexFormat::Float32x3, // position
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                    VertexAttribute {
-                        format: VertexFormat::Float32x4, // color
-                        offset: VEC3_SIZE,
-                        shader_location: 1,
-                    },
-                ],
-            }];
+        store_add_checked!(
+            store,
+            HShader::DEBUG_VERTEX_NORMALS_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Mesh Debug Vertices Shader")
+                .code(ShaderCode::Full(DEBUG_VERTEX_NORMAL_SHADER.to_string()))
+                .topology(PrimitiveTopology::LineList)
+                .polygon_mode(PolygonMode::Line)
+                .vertex_buffers(&DEFAULT_VBL_STEP_INSTANCE)
+                .build()
+        );
 
-            store_add_checked!(
-                store,
-                HShader::DEBUG_LINES_ID,
-                Shader::builder()
-                    .shader_type(ShaderType::Custom)
-                    .name("Line Debug")
-                    .code(ShaderCode::Full(DEBUG_LINES_SHADER.to_string()))
-                    .topology(PrimitiveTopology::LineList)
-                    .polygon_mode(PolygonMode::Line)
-                    .vertex_buffers(DEBUG_LINE_VBL)
-                    .build()
-            );
-
-            const DEBUG_TEXT: &[VertexBufferLayout] = &[VertexBufferLayout {
-                array_stride: VEC2_SIZE * 2,
-                step_mode: VertexStepMode::Vertex,
-                attributes: &[VertexAttribute {
-                    format: VertexFormat::Float32x2,
+        const DEBUG_LINE_VBL: &[VertexBufferLayout] = &[VertexBufferLayout {
+            array_stride: VEC3_SIZE + VEC4_SIZE,
+            step_mode: VertexStepMode::Vertex,
+            attributes: &[
+                VertexAttribute {
+                    format: VertexFormat::Float32x3, // position
                     offset: 0,
                     shader_location: 0,
-                }], // dont need atlas uv
-            }];
+                },
+                VertexAttribute {
+                    format: VertexFormat::Float32x4, // color
+                    offset: VEC3_SIZE,
+                    shader_location: 1,
+                },
+            ],
+        }];
 
-            store_add_checked!(
-                store,
-                HShader::DEBUG_TEXT2D_GEOMETRY_ID,
-                Shader::builder()
-                    .shader_type(ShaderType::Custom)
-                    .name("Debug 2D Text Geometry Shader")
-                    .code(ShaderCode::Full(DEBUG_TEXT2D_GEOMETRY.to_string()))
-                    .polygon_mode(PolygonMode::Line)
-                    .vertex_buffers(DEBUG_TEXT)
-                    .immediate_size(size_of::<TextImmediates>() as u32)
-                    .depth_enabled(false)
-                    .build()
-            );
+        store_add_checked!(
+            store,
+            HShader::DEBUG_LINES_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Line Debug")
+                .code(ShaderCode::Full(DEBUG_LINES_SHADER.to_string()))
+                .topology(PrimitiveTopology::LineList)
+                .polygon_mode(PolygonMode::Line)
+                .vertex_buffers(DEBUG_LINE_VBL)
+                .build()
+        );
 
-            store_add_checked!(
-                store,
-                HShader::DEBUG_TEXT3D_GEOMETRY_ID,
-                Shader::builder()
-                    .shader_type(ShaderType::Custom)
-                    .name("Debug 3D Text Geometry Shader")
-                    .code(ShaderCode::Full(DEBUG_TEXT3D_GEOMETRY.to_string()))
-                    .polygon_mode(PolygonMode::Line)
-                    .vertex_buffers(DEBUG_TEXT)
-                    .immediate_size(size_of::<TextImmediates>() as u32)
-                    .build()
-            );
+        const DEBUG_TEXT: &[VertexBufferLayout] = &[VertexBufferLayout {
+            array_stride: VEC2_SIZE * 2,
+            step_mode: VertexStepMode::Vertex,
+            attributes: &[VertexAttribute {
+                format: VertexFormat::Float32x2,
+                offset: 0,
+                shader_location: 0,
+            }], // dont need atlas uv
+        }];
 
-            store_add_checked!(
-                store,
-                HShader::DEBUG_LIGHT_ID,
-                Shader::builder()
-                    .shader_type(ShaderType::Custom)
-                    .name("Light Debug")
-                    .code(ShaderCode::Full(DEBUG_LIGHT_SHADER.to_string()))
-                    .topology(PrimitiveTopology::LineList)
-                    .polygon_mode(PolygonMode::Line)
-                    .vertex_buffers(&[])
-                    .immediate_size(4)
-                    .build()
-            );
-        }
+        store_add_checked!(
+            store,
+            HShader::DEBUG_TEXT2D_GEOMETRY_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Debug 2D Text Geometry Shader")
+                .code(ShaderCode::Full(DEBUG_TEXT2D_GEOMETRY.to_string()))
+                .polygon_mode(PolygonMode::Line)
+                .vertex_buffers(DEBUG_TEXT)
+                .color_target(ONLY_COLOR_TARGET)
+                .immediate_size(size_of::<TextImmediates>() as u32)
+                .depth_enabled(false)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DEBUG_TEXT3D_GEOMETRY_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Debug 3D Text Geometry Shader")
+                .code(ShaderCode::Full(DEBUG_TEXT3D_GEOMETRY.to_string()))
+                .polygon_mode(PolygonMode::Line)
+                .vertex_buffers(DEBUG_TEXT)
+                .immediate_size(size_of::<TextImmediates>() as u32)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DEBUG_LIGHT_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Light Debug")
+                .code(ShaderCode::Full(DEBUG_LIGHT_SHADER.to_string()))
+                .topology(PrimitiveTopology::LineList)
+                .polygon_mode(PolygonMode::Line)
+                .vertex_buffers(&[])
+                .immediate_size(4)
+                .build()
+        );
     }
 }
 
@@ -434,18 +457,13 @@ impl StoreType for Shader {
             HShader::TEXT_2D_ID => "2D Text Shader",
             HShader::TEXT_3D_ID => "3D Text Shader",
             HShader::POST_PROCESS_ID => "Post Process Shader",
+            HShader::POST_PROCESS_SSR_ID => "SSR Post Process Shader",
 
-            #[cfg(debug_assertions)]
             HShader::DEBUG_EDGES_ID => "Debug Edges Shader",
-            #[cfg(debug_assertions)]
             HShader::DEBUG_VERTEX_NORMALS_ID => "Debug Vertex Normals Shader",
-            #[cfg(debug_assertions)]
             HShader::DEBUG_LINES_ID => "Debug Rays Shader",
-            #[cfg(debug_assertions)]
             HShader::DEBUG_TEXT2D_GEOMETRY_ID => "Debug Text 2D Geometry Shader",
-            #[cfg(debug_assertions)]
             HShader::DEBUG_TEXT3D_GEOMETRY_ID => "Debug Text 3D Geometry Shader",
-            #[cfg(debug_assertions)]
             HShader::DEBUG_LIGHT_ID => "Debug Lights Shader",
 
             _ => return HandleName::Id(handle),
@@ -489,7 +507,7 @@ impl Shader {
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
-            color_target: DEFAULT_COLOR_TARGET,
+            color_target: DEFAULT_PP_COLOR_TARGETS,
             immediate_size: 0,
             shadow_transparency: false,
             depth_enabled: false,
@@ -508,7 +526,7 @@ impl Shader {
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
-            color_target: DEFAULT_COLOR_TARGET,
+            color_target: DEFAULT_COLOR_TARGETS,
             immediate_size: 0,
             shadow_transparency: false,
             depth_enabled: true,
@@ -527,7 +545,7 @@ impl Shader {
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
-            color_target: DEFAULT_COLOR_TARGET,
+            color_target: DEFAULT_COLOR_TARGETS,
             immediate_size: 0,
             shadow_transparency: false,
             depth_enabled: true,
@@ -575,6 +593,11 @@ impl Shader {
         self.color_target
     }
 
+    pub fn color_only(mut self) -> Self {
+        self.color_target = ONLY_COLOR_TARGET;
+        self
+    }
+
     pub fn vertex_buffers(&self) -> &'static [VertexBufferLayout<'static>] {
         self.vertex_buffers
     }
@@ -583,7 +606,6 @@ impl Shader {
         if self.stage() == ShaderType::PostProcessing {
             return self;
         }
-
         self.depth_enabled = enabled;
         self
     }

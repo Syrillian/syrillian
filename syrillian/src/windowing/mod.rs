@@ -5,10 +5,14 @@
 
 pub mod app;
 pub mod game_thread;
+pub mod presenter;
+pub mod render_thread;
 pub mod state;
 
 use crate::assets::HRenderTexture2D;
 pub use app::*;
+pub use presenter::*;
+pub use render_thread::*;
 pub use state::*;
 pub use winit::dpi::PhysicalSize;
 

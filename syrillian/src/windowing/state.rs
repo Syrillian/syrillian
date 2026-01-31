@@ -19,6 +19,10 @@ pub trait AppState: Sized + Default + 'static {
         Ok(())
     }
 
+    fn post_update(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
     fn destroy(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
