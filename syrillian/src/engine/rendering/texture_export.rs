@@ -232,3 +232,63 @@ pub fn save_texture_to_png(
     )
     .map_err(|source| TextureExportError::Image { source })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_supported() {
+        assert!(is_supported(TextureFormat::Rgba8Unorm));
+        assert!(is_supported(TextureFormat::Bgra8Unorm));
+        assert!(is_supported(TextureFormat::Bgra8UnormSrgb));
+        assert!(is_supported(TextureFormat::Rg16Float));
+        assert!(is_supported(TextureFormat::Depth32Float));
+    }
+
+    #[test]
+    fn test_oct_decode_basic() {
+        let center = Vec2::new(0.0, 0.0);
+        let decoded = oct_decode(center);
+        assert!((decoded - Vec3::new(0.0, 0.0, 1.0)).length() < 1e-6);
+
+        let edge = Vec2::new(1.0, 0.0);
+        let decoded = oct_decode(edge);
+        assert!((decoded - Vec3::new(1.0, 0.0, 0.0)).length() < 1e-6);
+
+        let edge = Vec2::new(-1.0, 0.0);
+        let decoded = oct_decode(edge);
+        assert!((decoded - Vec3::new(-1.0, 0.0, 0.0)).length() < 1e-6);
+
+        let edge = Vec2::new(0.0, 1.0);
+        let decoded = oct_decode(edge);
+        assert!((decoded - Vec3::new(0.0, 1.0, 0.0)).length() < 1e-6);
+    }
+
+    #[test]
+    fn test_rg16f_to_oct() {
+        let u = f16::from_f32(0.5);
+        let v = f16::from_f32(-0.5);
+        let bytes: [u8; 4] = [
+            u.to_le_bytes()[0],
+            u.to_le_bytes()[1],
+            v.to_le_bytes()[0],
+            v.to_le_bytes()[1],
+        ];
+        let oct = rg16f_to_oct(bytes);
+        assert!((oct.x - 0.5).abs() < 1e-6);
+        assert!((oct.y - (-0.5)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_linearize_depth() {
+        let near = 0.5;
+        let far = 128.0;
+
+        let d_near = linearize_depth_01(0.0, near, far);
+        assert!((d_near - near).abs() < 1e-6);
+
+        let d_far = linearize_depth_01(1.0, near, far);
+        assert!((d_far - far).abs() < 1e-5);
+    }
+}
