@@ -80,3 +80,73 @@ impl Frustum {
             .all(|p| p.distance_to(sphere) >= -sphere.radius)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plane_distance_to_sphere() {
+        let plane = FrustumPlane {
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            d: 0.0,
+        };
+
+        let sphere_above = BoundingSphere {
+            center: Vec3::new(0.0, 5.0, 0.0),
+            radius: 1.0,
+        };
+
+        let sphere_below = BoundingSphere {
+            center: Vec3::new(0.0, -5.0, 0.0),
+            radius: 1.0,
+        };
+
+        assert_eq!(plane.distance_to(&sphere_above), 5.0);
+        assert_eq!(plane.distance_to(&sphere_below), -5.0);
+    }
+
+    #[test]
+    fn frustum_from_identity_matrix() {
+        let m = Mat4::IDENTITY;
+        let frustum = Frustum::from_matrix(&m);
+
+        let left = frustum.side(FrustumSide::Left);
+        assert!((left.normal - Vec3::new(1.0, 0.0, 0.0)).length() < 1e-6);
+        assert!((left.d - 1.0).abs() < 1e-6);
+
+        let right = frustum.side(FrustumSide::Right);
+        assert!((right.normal - Vec3::new(-1.0, 0.0, 0.0)).length() < 1e-6);
+        assert!((right.d - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn intersection_test() {
+        let m = Mat4::IDENTITY;
+        let frustum = Frustum::from_matrix(&m);
+
+        let sphere_inside = BoundingSphere {
+            center: Vec3::ZERO,
+            radius: 0.5,
+        };
+        assert!(frustum.intersects_sphere(&sphere_inside));
+
+        let sphere_outside = BoundingSphere {
+            center: Vec3::new(5.0, 0.0, 0.0),
+            radius: 0.5,
+        };
+        assert!(!frustum.intersects_sphere(&sphere_outside));
+
+        let sphere_intersecting = BoundingSphere {
+            center: Vec3::new(1.2, 0.0, 0.0),
+            radius: 0.5,
+        };
+        assert!(frustum.intersects_sphere(&sphere_intersecting));
+
+        let sphere_far_outside = BoundingSphere {
+            center: Vec3::new(2.0, 0.0, 0.0),
+            radius: 0.5,
+        };
+        assert!(!frustum.intersects_sphere(&sphere_far_outside));
+    }
+}
