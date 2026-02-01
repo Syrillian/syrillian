@@ -1,126 +1,75 @@
 use crate::assets::{HMaterial, HShader};
 use crate::core::ObjectHash;
-use crate::math::Vec3;
+use crate::math::{Mat4, Vec3};
 use crate::rendering::proxies::MeshUniformIndex;
 use crate::rendering::{RenderPassType, hash_to_rgba};
 use crate::strobe::UiDrawContext;
-use crate::strobe::ui_element::UiElement;
-use syrillian::math::Affine3A;
+use crate::strobe::ui_element::{Rect, UiElement};
+use glamx::vec2;
+use syrillian::math::{Affine3A, Vec2};
 
 #[derive(Debug, Clone)]
-pub struct UiImageDraw {
+pub struct UiImage {
     pub draw_order: u32,
     pub material: HMaterial,
-    pub scaling: ImageScalingMode,
+    pub size: Vec2,
     pub object_hash: ObjectHash,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ImageScalingMode {
-    Absolute {
-        left: f32,
-        right: f32,
-        top: f32,
-        bottom: f32,
-    },
-    Relative {
-        width: f32,
-        height: f32,
-        left: f32,
-        right: f32,
-        top: f32,
-        bottom: f32,
-    },
-    RelativeStretch {
-        left: f32,
-        right: f32,
-        top: f32,
-        bottom: f32,
-    },
-    Ndc {
-        center: [f32; 2],
-        size: [f32; 2],
-    },
-}
-
-impl ImageScalingMode {
-    pub fn screen_matrix(&self, window_width: f32, window_height: f32) -> Vec3 {
-        match self {
-            ImageScalingMode::Absolute {
-                left,
-                right,
-                top,
-                bottom,
-            } => {
-                let left = (*left / window_width) * 2.0 - 1.0;
-                let right = (*right / window_width) * 2.0 - 1.0;
-                let bottom = (*bottom / window_height) * 2.0 - 1.0;
-                let top = (*top / window_height) * 2.0 - 1.0;
-
-                let sx = (right - left) * 0.5;
-                let sy = (top - bottom) * 0.5;
-
-                let tx = (right + left) * 0.5;
-                let ty = (top + bottom) * 0.5;
-
-                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
-            }
-            ImageScalingMode::Relative {
-                width,
-                height,
-                left,
-                right,
-                top,
-                bottom,
-            } => {
-                let width = *width;
-                let height = *height;
-
-                let left = (*left / width) * 2.0 - 1.0;
-                let right = (*right / width) * 2.0 - 1.0;
-                let bottom = (*bottom / height) * 2.0 - 1.0;
-                let top = (*top / height) * 2.0 - 1.0;
-
-                let sx = (right - left) * 0.5;
-                let sy = (top - bottom) * 0.5;
-
-                let tx = (right + left) * 0.5;
-                let ty = (top + bottom) * 0.5;
-
-                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
-            }
-            ImageScalingMode::RelativeStretch {
-                left,
-                right,
-                top,
-                bottom,
-            } => {
-                let sx = right - left;
-                let sy = top - bottom;
-
-                let tx = left + right - 1.0;
-                let ty = bottom + top - 1.0;
-
-                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
-            }
-            ImageScalingMode::Ndc { center, size } => {
-                let sx = size[0] * 0.5;
-                let sy = size[1] * 0.5;
-                let tx = center[0];
-                let ty = center[1];
-
-                Vec3::new(tx, ty, 0.0) * Vec3::new(sx, sy, 1.0)
-            }
+impl UiImage {
+    pub fn new(material: HMaterial) -> Self {
+        Self {
+            draw_order: 0,
+            material,
+            size: vec2(100.0, 100.0),
+            object_hash: ObjectHash::default(),
         }
+    }
+
+    pub fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn object(mut self, hash: ObjectHash) -> Self {
+        self.object_hash = hash;
+        self
     }
 }
 
-impl UiElement for UiImageDraw {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ImageScaleMode {
+    Absolute,
+    Relative,
+    RelativeStretch,
+}
+
+impl UiElement for UiImage {
     fn draw_order(&self) -> u32 {
         self.draw_order
     }
 
-    fn render(&self, ctx: &mut UiDrawContext) {
+    fn render(&self, ctx: &mut UiDrawContext, rect: Rect) {
+        self.render_internal(ctx, rect);
+    }
+
+    fn measure(&self, _ctx: &mut UiDrawContext) -> Vec2 {
+        self.size
+    }
+}
+
+impl UiImage {
+    fn screen_matrix(&self, width: f32, height: f32, rect: Rect) -> Mat4 {
+        let rect_ndc = rect / vec2(width, height);
+        let center = rect_ndc.position + rect_ndc.size * 0.5;
+
+        let scale = Vec3::new(rect_ndc.size.x, rect_ndc.size.y, 1.0);
+        let translation = Vec3::new(center.x * 2.0 - 1.0, 1.0 - center.y * 2.0, 0.0);
+
+        (Affine3A::from_translation(translation) * Affine3A::from_scale(scale)).into()
+    }
+
+    fn render_internal(&self, ctx: &mut UiDrawContext, rect: Rect) {
         let shader = match ctx.pass_type() {
             RenderPassType::Color2D => Some(ctx.cache().shader_2d()),
             RenderPassType::PickingUi => Some(ctx.cache().shader(HShader::DIM2_PICKING)),
@@ -133,14 +82,9 @@ impl UiElement for UiImageDraw {
         let width = ctx.viewport_size().width.max(1) as f32;
         let height = ctx.viewport_size().height.max(1) as f32;
 
-        let model_matrix = self.scaling.screen_matrix(width, height);
-        if model_matrix.length() < f32::EPSILON {
-            return;
-        }
+        let model_matrix = self.screen_matrix(width, height, rect);
 
-        let cached_image = ctx
-            .ui_image_data(&Affine3A::from_translation(model_matrix))
-            .clone();
+        let cached_image = ctx.ui_image_data(&model_matrix).clone();
 
         ctx.state().queue.write_buffer(
             cached_image.uniform.buffer(MeshUniformIndex::MeshData),

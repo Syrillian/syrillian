@@ -43,16 +43,13 @@ pub mod fp_camera;
 pub mod fp_movement;
 pub mod freecam;
 pub mod gravity;
-pub mod image;
 pub mod joints;
 pub mod light;
 pub mod mesh_renderer;
-pub mod panel;
 pub mod rigid_body;
 pub mod rotate;
 pub mod skeletal;
 pub mod text;
-pub mod ui_rect;
 
 pub mod extensions;
 pub mod prefabs;
@@ -67,16 +64,13 @@ pub use fp_camera::FirstPersonCameraController;
 pub use fp_movement::FirstPersonMovementController;
 pub use freecam::FreecamController;
 pub use gravity::GravityComponent;
-pub use image::Image;
 pub use joints::{
     FixedJoint, PrismaticJoint, RevoluteJoint, RopeJoint, SphericalJoint, SpringJoint,
 };
 pub use light::{PointLightComponent, SpotLightComponent, Sun, SunLightComponent};
 pub use mesh_renderer::MeshRenderer;
-pub use panel::Panel;
 pub use profiler::Profiler;
 pub use rigid_body::RigidBodyComponent;
 pub use rotate::RotateComponent;
 pub use skeletal::SkeletalComponent;
-pub use text::{Text2D, Text3D};
-pub use ui_rect::UiRect;
+pub use text::Text3D;

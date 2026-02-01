@@ -613,13 +613,3 @@ impl Prefab for City {
         city
     }
 }
-
-pub fn smooth_rot(
-    current: Quat,
-    target: Quat,
-    dt: f32,
-    responsiveness: f32, // e.g. 15..30
-) -> Quat {
-    let a = 1.0 - (-responsiveness * dt).exp();
-    current.slerp(target, a)
-}

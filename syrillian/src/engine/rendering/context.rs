@@ -3,8 +3,9 @@ use crate::core::ObjectHash;
 use crate::rendering::lights::LightProxy;
 use crate::rendering::message::RenderMsg;
 use crate::rendering::proxies::SceneProxy;
-use crate::strobe::{CacheId, UiDraw, UiImageDraw, UiLineDraw, UiTextDraw};
+use crate::strobe::{CacheId, StrobeNode, StrobeRoot, UiBuilder};
 use crate::{ViewportId, World};
+use glamx::vec2;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::RwLock;
 use wgpu::{BindGroup, RenderPass, TextureView};
@@ -82,24 +83,30 @@ impl UiContext {
         }
     }
 
-    pub fn text(&self, world: &mut World, target: ViewportId, text: UiTextDraw) {
-        world
-            .strobe
-            .draws
-            .push(UiDraw::text(self.current_id, target, Box::new(text)));
-    }
+    pub fn draw(
+        &self,
+        world: &mut World,
+        target: ViewportId,
+        ui: impl FnOnce(&mut UiBuilder),
+    ) -> bool {
+        let Some(size) = world.viewport_size(target) else {
+            return false;
+        };
 
-    pub fn image(&self, world: &mut World, target: ViewportId, image: UiImageDraw) {
-        world
-            .strobe
-            .draws
-            .push(UiDraw::image(self.current_id, target, Box::new(image)));
-    }
+        let mut root = StrobeNode::default();
+        let mut builder = UiBuilder::new(&mut root, vec2(size.width as f32, size.height as f32));
+        ui(&mut builder);
 
-    pub fn line(&self, world: &mut World, target: ViewportId, line: UiLineDraw) {
-        world
-            .strobe
-            .draws
-            .push(UiDraw::line(self.current_id, target, Box::new(line)))
+        if root.children.is_empty() && root.element.is_none() {
+            return true;
+        }
+
+        world.strobe.strobe_roots.push(StrobeRoot {
+            root,
+            target,
+            cache_id: self.current_id,
+        });
+
+        true
     }
 }

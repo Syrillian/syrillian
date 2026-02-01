@@ -1,14 +1,15 @@
-use super::{StrobeFrame, UiDraw};
+use super::StrobeFrame;
 use crate::core::ModelUniform;
 use crate::core::bone::BoneData;
+use crate::math::{Mat4, Vec2};
 use crate::rendering::cache::AssetCache;
 use crate::rendering::proxies::mesh_proxy::{MeshUniformIndex, RuntimeMeshData};
 use crate::rendering::proxies::text_proxy::TextRenderData;
 use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::{FrameCtx, GPUDrawCtx, RenderPassType, State};
-use crate::strobe::CacheId;
+use crate::strobe::ui_element::Rect;
+use crate::strobe::{CacheId, ContextWithId, LayoutElement, StrobeRoot};
 use delegate::delegate;
-use glamx::Affine3A;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::RwLock;
@@ -19,20 +20,27 @@ use winit::dpi::PhysicalSize;
 
 #[derive(Default)]
 pub struct StrobeRenderer {
-    draws: HashMap<ViewportId, Vec<UiDraw>>,
-    image_cache: HashMap<CacheId, RuntimeMeshData>,
-    text_cache: HashMap<CacheId, TextRenderData>,
+    strobe_roots: HashMap<ViewportId, Vec<StrobeRoot>>,
+    image_cache: HashMap<(CacheId, u64), RuntimeMeshData>,
+    text_cache: HashMap<(CacheId, u64), TextRenderData>,
 }
 
 pub struct UiDrawContext<'a, 'b, 'c, 'd, 'e> {
-    image_cache: &'a mut HashMap<CacheId, RuntimeMeshData>,
-    text_cache: &'a mut HashMap<CacheId, TextRenderData>,
+    image_cache: &'a mut HashMap<(CacheId, u64), RuntimeMeshData>,
+    text_cache: &'a mut HashMap<(CacheId, u64), TextRenderData>,
     gpu_ctx: &'b GPUDrawCtx<'e>,
     cache: &'c AssetCache,
     cache_id: CacheId,
+    pub render_id: u32,
     viewport_size: PhysicalSize<u32>,
     start_time: Instant,
     state: &'d State,
+}
+
+impl ContextWithId for UiDrawContext<'_, '_, '_, '_, '_> {
+    fn set_id(&mut self, id: u32) {
+        self.render_id = id;
+    }
 }
 
 impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
@@ -80,7 +88,8 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
     }
 
     pub(crate) fn ui_text_data(&mut self) -> &mut TextRenderData {
-        self.text_cache.entry(self.cache_id).or_insert_with(|| {
+        let key = (self.cache_id, self.render_id as u64);
+        self.text_cache.entry(key).or_insert_with(|| {
             let model_bgl = self.cache.bgl_model();
             let model = ModelUniform::empty();
             let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
@@ -99,18 +108,18 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
         })
     }
 
-    pub(crate) fn ui_image_data(&mut self, model_mat: &Affine3A) -> &mut RuntimeMeshData {
-        self.image_cache.entry(self.cache_id).or_insert_with(|| {
+    pub(crate) fn ui_image_data(&mut self, model_mat: &Mat4) -> &mut RuntimeMeshData {
+        let key = (self.cache_id, self.render_id as u64);
+        self.image_cache.entry(key).or_insert_with(|| {
             let model_bgl = self.cache.bgl_model();
-            let model = ModelUniform::empty();
+            let mesh_data = ModelUniform {
+                model_mat: *model_mat,
+            };
+
             let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
-                .with_buffer_data(&model)
+                .with_buffer_data(&mesh_data)
                 .with_buffer_data(&BoneData::DUMMY)
                 .build(&self.state.device);
-
-            let mesh_data = ModelUniform {
-                model_mat: (*model_mat).into(),
-            };
 
             RuntimeMeshData { mesh_data, uniform }
         })
@@ -119,15 +128,18 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
 
 impl StrobeRenderer {
     pub fn update_frame(&mut self, frame: StrobeFrame) {
-        self.draws.clear();
-        for draw in frame.draws {
-            let target = draw.draw_target();
-            self.draws.entry(target).or_default().push(draw);
+        self.strobe_roots.clear();
+
+        for root in frame.strobe_roots {
+            let target = root.target;
+            self.strobe_roots.entry(target).or_default().push(root);
         }
     }
 
     pub fn has_draws(&self, target: ViewportId) -> bool {
-        self.draws.get(&target).is_some_and(|d| !d.is_empty())
+        self.strobe_roots
+            .get(&target)
+            .is_some_and(|r| !r.is_empty())
     }
 
     pub fn render(
@@ -139,11 +151,14 @@ impl StrobeRenderer {
         start_time: Instant,
         viewport_size: PhysicalSize<u32>,
     ) {
-        let draw_map = mem::take(&mut self.draws);
-        let Some(draws) = draw_map.get(&target) else {
-            self.draws = draw_map;
+        let roots_map = mem::take(&mut self.strobe_roots);
+
+        let roots = roots_map.get(&target);
+
+        if roots.is_none() {
+            self.strobe_roots = roots_map;
             return;
-        };
+        }
 
         let mut current_context = UiDrawContext {
             image_cache: &mut self.image_cache,
@@ -151,16 +166,25 @@ impl StrobeRenderer {
             gpu_ctx: ctx,
             cache,
             cache_id: 0,
+            render_id: 0,
             viewport_size,
             start_time,
             state,
         };
 
-        for draw in draws.iter() {
-            current_context.cache_id = draw.cache_id();
-            draw.render(&mut current_context);
+        if let Some(roots) = roots {
+            let full_rect = Rect::new(
+                Vec2::ZERO,
+                Vec2::new(viewport_size.width as f32, viewport_size.height as f32),
+            );
+
+            for root in roots {
+                current_context.cache_id = root.cache_id;
+                current_context.render_id = root.root.id;
+                root.root.render_layout(&mut current_context, full_rect);
+            }
         }
 
-        self.draws = draw_map;
+        self.strobe_roots = roots_map;
     }
 }

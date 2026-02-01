@@ -1,4 +1,5 @@
 use crate::AppSettings;
+use crate::rendering::UiContext;
 use crate::world::World;
 use std::error::Error;
 use std::marker::PhantomData;
@@ -20,6 +21,10 @@ pub trait AppState: Sized + Default + 'static {
     }
 
     fn post_update(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    fn on_gui(&mut self, world: &mut World, ctx: &UiContext) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 

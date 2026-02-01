@@ -1,17 +1,18 @@
 //! Example that renders a textured spinning cube and some 2d images.
 
 use std::error::Error;
-use syrillian::SyrillianApp;
-use syrillian::assets::{Material, StoreType, Texture2D};
+use syrillian::assets::{HMaterial, Material, StoreType, Texture2D};
 use syrillian::core::{GameObjectExt, GameObjectId};
 use syrillian::input::MouseButton;
-use syrillian::math::Vec3;
+use syrillian::math::{Vec2, Vec3};
 use syrillian::physics::QueryFilter;
-use syrillian::strobe::ImageScalingMode;
+use syrillian::rendering::UiContext;
+use syrillian::strobe::UiImage;
 use syrillian::tracing::{info, warn};
 use syrillian::{AppState, World};
+use syrillian::{SyrillianApp, ViewportId};
 use syrillian_components::prefabs::CubePrefab;
-use syrillian_components::{Button, Collider3D, Image, RotateComponent};
+use syrillian_components::{Collider3D, RotateComponent};
 
 const NECO_IMAGE: &[u8; 1293] = include_bytes!("assets/neco.jpg");
 
@@ -20,6 +21,7 @@ struct NecoArc {
     dragging: Option<GameObjectId>,
     drag_offset: Vec3,
     drag_distance: f32,
+    necoarc: HMaterial,
 }
 
 impl Default for NecoArc {
@@ -28,6 +30,7 @@ impl Default for NecoArc {
             dragging: None,
             drag_offset: Vec3::ZERO,
             drag_distance: 0.0,
+            necoarc: HMaterial::DEFAULT,
         }
     }
 }
@@ -38,7 +41,7 @@ impl AppState for NecoArc {
 
         let texture = Texture2D::load_image_from_memory(NECO_IMAGE)?.store(world);
 
-        let material = world.assets.materials.add(
+        self.necoarc = world.assets.materials.add(
             Material::builder()
                 .name("Neco Arc")
                 .diffuse_texture(texture)
@@ -46,41 +49,10 @@ impl AppState for NecoArc {
         );
 
         world
-            .spawn(&CubePrefab::new(material))
+            .spawn(&CubePrefab::new(self.necoarc))
             .at(0.0, 0.0, -5.0)
             .build_component::<RotateComponent>()
             .build_component::<Collider3D>();
-
-        let mut image_obj = world.new_object("Image");
-        let mut image = image_obj.add_component::<Image>();
-        image.set_scaling_mode(ImageScalingMode::RelativeStretch {
-            left: 0.0,
-            right: 1.0,
-            top: 1.0,
-            bottom: 0.8,
-        });
-        image.set_material(material);
-        world.add_child(image_obj);
-
-        let mut image_obj = world.new_object("Image 2");
-        let mut image = image_obj.add_component::<Image>();
-        let mut button = image_obj.add_component::<Button>();
-        let image_2 = image.clone().downgrade();
-        button.add_click_handler(move |w| {
-            if let Some(image) = image_2.upgrade(w) {
-                image.parent().remove_component(image, w);
-            }
-            info!("Image clicked!");
-        });
-
-        image.set_scaling_mode(ImageScalingMode::RelativeStretch {
-            left: 0.0,
-            right: 1.0,
-            top: 0.2,
-            bottom: 0.0,
-        });
-        image.set_material(material);
-        world.add_child(image_obj);
 
         Ok(())
     }
@@ -88,6 +60,21 @@ impl AppState for NecoArc {
     fn update(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
         world.input.auto_quit_on_escape();
         self.handle_click(world);
+        Ok(())
+    }
+
+    fn on_gui(&mut self, world: &mut World, ctx: &UiContext) -> Result<(), Box<dyn Error>> {
+        ctx.draw(world, ViewportId::PRIMARY, |ui| {
+            ui.vertical(|ui| {
+                let total = ui.window_size();
+                let image = UiImage::new(self.necoarc).size(Vec2::new(total.x, total.y / 4.0));
+
+                ui.add(image.clone().into());
+                ui.spacing(Vec2::new(0.0, total.y / 2.0));
+                ui.add(image.clone().into());
+            });
+        });
+
         Ok(())
     }
 }

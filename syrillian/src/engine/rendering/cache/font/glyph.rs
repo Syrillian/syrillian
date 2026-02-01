@@ -8,8 +8,8 @@ use ttf_parser::Face;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GlyphVertex {
-    pos: [f32; 2],
-    uv: [f32; 2],
+    pub pos: [f32; 2],
+    pub uv: [f32; 2],
 }
 
 pub const GLYPH_TRIANGLE_COUNT: usize = 2;

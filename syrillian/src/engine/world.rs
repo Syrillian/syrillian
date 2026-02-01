@@ -26,7 +26,6 @@ use crate::rendering::{CPUDrawCtx, UiContext};
 use slotmap::{Key, SlotMap};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
-use std::mem;
 use std::mem::{swap, take};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -715,8 +714,6 @@ impl World {
         self.sync_component_proxies(world, &mut command_batch);
         self.sync_viewport_cameras(&mut command_batch);
 
-        self.strobe.sort();
-
         {
             profiling::scope!("Submit Render command batch");
             self.channels
@@ -730,7 +727,7 @@ impl World {
             let _ = self
                 .channels
                 .render_tx
-                .send(RenderMsg::UpdateStrobe(mem::take(&mut self.strobe)));
+                .send(RenderMsg::UpdateStrobe(take(&mut self.strobe)));
         }
     }
 

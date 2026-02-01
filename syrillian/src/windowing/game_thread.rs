@@ -1,5 +1,5 @@
 use crate::assets::AssetStore;
-use crate::rendering::RenderMsg;
+use crate::rendering::{RenderMsg, UiContext};
 use crate::world::{World, WorldChannels};
 use crate::{AppState, ViewportId};
 use crossbeam_channel::{Receiver, SendError, Sender, TryRecvError, bounded, unbounded};
@@ -8,6 +8,8 @@ use tracing::{debug, error, info, instrument};
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 
+use crate::components::{Component, TypedComponentId};
+use crate::core::ObjectHash;
 #[cfg(not(target_arch = "wasm32"))]
 use std::marker::PhantomData;
 #[cfg(not(target_arch = "wasm32"))]
@@ -334,6 +336,13 @@ impl<S: AppState> GameThreadInner<S> {
         world.update();
 
         if let Err(e) = self.state.late_update(world) {
+            error!("Error happened when calling late update function hook: {e}");
+        }
+
+        if let Err(e) = self.state.on_gui(
+            world,
+            &UiContext::new(ObjectHash::MAX, TypedComponentId::null::<dyn Component>()),
+        ) {
             error!("Error happened when calling late update function hook: {e}");
         }
 
