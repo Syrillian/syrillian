@@ -65,15 +65,39 @@ mod tests {
             counter.new_frame(0.01);
         }
 
-        // push values that force eviction of the oldest entries
         for _ in 0..5 {
             counter.new_frame(0.02);
         }
 
         assert_eq!(counter.frame_times.len(), DEFAULT_RUNNING_SIZE);
-        // last 5 are 0.02, preceding 55 are 0.01 -> mean should reflect both
         let expected = (55.0 * 0.01 + 5.0 * 0.02) / DEFAULT_RUNNING_SIZE as f32;
         assert!((counter.delta_mean() - expected).abs() < 1e-6);
         assert_eq!(counter.fps_mean(), (1.0 / expected) as u32);
+    }
+
+    #[test]
+    fn tracks_min_max_delta_and_fps() {
+        let mut counter = FrameCounter::default();
+        counter.new_frame(0.01);
+        counter.new_frame(0.02);
+        counter.new_frame(0.05);
+
+        assert!((counter.delta_low() - 0.01).abs() < 1e-6);
+        assert!((counter.delta_high() - 0.05).abs() < 1e-6);
+
+        assert_eq!(counter.fps_low(), 20);
+        assert_eq!(counter.fps_high(), 100);
+    }
+
+    #[test]
+    fn handles_empty_counter() {
+        let counter = FrameCounter::default();
+        assert!(counter.delta_mean().is_nan());
+        assert_eq!(counter.delta_low(), 0.0);
+        assert_eq!(counter.delta_high(), 0.0);
+
+        let _ = counter.fps_mean();
+        let _ = counter.fps_low();
+        let _ = counter.fps_high();
     }
 }
