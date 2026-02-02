@@ -1,7 +1,7 @@
 use crate::components::Component;
 use crate::math::{Vec3, Vec4};
 use crate::physics::Ray;
-use crate::rendering::CPUDrawCtx;
+use crate::rendering::{CPUDrawCtx, DebugRenderer};
 use crate::rendering::proxies::SceneProxy;
 use crate::rendering::proxies::debug_proxy::{DebugLine, DebugSceneProxy};
 use crate::{World, proxy_data_mut};
@@ -38,6 +38,10 @@ pub struct CameraDebug {
 
 impl CameraDebug {
     pub fn push_ray(&mut self, ray: Ray, max_toi: f32) {
+        if !DebugRenderer::physics_rays() {
+            return;
+        }
+        
         self.rays.push(DebugRay {
             origin: ray.origin,
             direction: ray.dir,
