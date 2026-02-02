@@ -191,7 +191,7 @@ impl CameraComponent {
         let proj_mat = self.projection;
         let fov = self.fov();
         let near = self.near();
-        let far = self.fov();
+        let far = self.far();
         let fov_target = self.fov_target();
         let zoom_speed = self.zoom_speed;
 
