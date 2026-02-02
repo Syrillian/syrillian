@@ -10,9 +10,10 @@ pub mod serializer;
 pub use serialize_primitive::Value;
 
 use dashmap::DashMap;
+use parking_lot::Once;
 use std::any::TypeId;
 use std::collections::BTreeMap;
-use std::sync::{Once, OnceLock};
+use std::sync::OnceLock;
 use tracing::warn;
 
 #[derive(Copy, Clone, Debug)]

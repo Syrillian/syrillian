@@ -4,12 +4,12 @@ use dashmap::DashMap;
 use dashmap::iter::{Iter, IterMut};
 use dashmap::mapref::one::Ref as MapRef;
 use dashmap::mapref::one::RefMut as MapRefMut;
+use parking_lot::RwLock;
 #[cfg(debug_assertions)]
 use std::backtrace::Backtrace;
 use std::fmt::{Debug, Display, Formatter};
 use std::mem;
 use std::ops::{Deref, DerefMut};
-use std::sync::RwLock;
 #[cfg(debug_assertions)]
 use std::time::Duration;
 use tracing::{trace, warn};
@@ -176,7 +176,7 @@ impl<T: StoreType> Display for HandleName<T> {
 
 impl<T: StoreType> Store<T> {
     fn next_id(&self) -> H<T> {
-        let mut id_lock = self.next_id.write().unwrap();
+        let mut id_lock = self.next_id.write();
         let id = H::new(*id_lock);
         *id_lock += 1;
         id
@@ -223,7 +223,7 @@ impl<T: StoreType> Store<T> {
     }
 
     fn set_dirty(&self, h: AssetKey) {
-        let mut dirty_store = self.dirty.write().expect("Deadlock in Asset Store");
+        let mut dirty_store = self.dirty.write();
         if !dirty_store.contains(&h) {
             trace!("Set {} {} dirty", T::name(), T::ident(h.into()));
             dirty_store.push(h);
@@ -231,7 +231,7 @@ impl<T: StoreType> Store<T> {
     }
 
     pub(crate) fn pop_dirty(&self) -> Vec<AssetKey> {
-        let mut dirty_store = self.dirty.write().expect("Deadlock in Asset Store");
+        let mut dirty_store = self.dirty.write();
         let mut swap_store = Vec::new();
         mem::swap::<Vec<AssetKey>>(dirty_store.as_mut(), swap_store.as_mut());
 

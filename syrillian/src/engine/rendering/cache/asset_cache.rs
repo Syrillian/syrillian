@@ -7,7 +7,8 @@ use crate::engine::rendering::State;
 use crate::engine::rendering::cache::generic_cache::Cache;
 use crate::rendering::cache::GpuTexture;
 use crate::rendering::{FontAtlas, RuntimeMaterial, RuntimeMesh, RuntimeShader};
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use web_time::Instant;
 use wgpu::BindGroupLayout;
 
@@ -199,13 +200,13 @@ impl AssetCache {
         refreshed_count += self.render_cubemaps.refresh_dirty();
         refreshed_count += self.bgls.refresh_dirty();
 
-        *self.last_refresh.lock().unwrap() = Instant::now();
+        *self.last_refresh.lock() = Instant::now();
 
         refreshed_count
     }
 
     pub fn last_refresh(&self) -> Instant {
-        *self.last_refresh.lock().unwrap()
+        *self.last_refresh.lock()
     }
 }
 

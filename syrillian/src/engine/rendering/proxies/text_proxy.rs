@@ -18,10 +18,10 @@ use crate::{
 use delegate::delegate;
 use etagere::euclid::approxeq::ApproxEq;
 use glamx::Affine3A;
+use parking_lot::RwLock;
 use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::sync::RwLock;
 use syrillian_utils::debug_panic;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{Buffer, BufferUsages, RenderPass};
@@ -261,7 +261,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         let material = cache.material(font.atlas());
         let groups = shader.bind_groups();
 
-        let mut pass = pass.write().unwrap();
+        let mut pass = pass.write();
         must_pipeline!(pipeline = shader, ctx.pass_type => return);
 
         pass.set_pipeline(pipeline);
@@ -469,7 +469,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
             }
         };
 
-        let mut pass = ctx.pass.write().unwrap();
+        let mut pass = ctx.pass.write();
         try_activate_shader!(shader, &mut pass, ctx => return);
 
         let font = renderer.cache.font(self.font);

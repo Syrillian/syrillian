@@ -11,7 +11,6 @@ use crate::rendering::uniform::ShaderUniform;
 use crate::try_activate_shader;
 use itertools::Itertools;
 use std::convert::TryFrom;
-use std::mem;
 use syrillian_utils::debug_panic;
 use tracing::{trace, warn};
 use wgpu::{
@@ -247,6 +246,30 @@ impl LightManager {
 
     #[profiling::function]
     pub fn update(&mut self, cache: &AssetCache, queue: &Queue, device: &Device) {
+        for (render_data, assignment) in self
+            .render_data
+            .iter_mut()
+            .zip(self.shadow_assignments.iter())
+        {
+            let Some(light) = self.proxies.get_mut(assignment.light_index) else {
+                debug_panic!("Invalid Light Index was stored");
+                continue;
+            };
+
+            let Ok(light_type) = LightType::try_from(light.type_id) else {
+                debug_panic!("Invalid Light Type Id was stored");
+                continue;
+            };
+
+            match light_type {
+                LightType::Point => {
+                    render_data.update_shadow_camera_for_point(light, assignment.face, queue)
+                }
+                LightType::Spot => render_data.update_shadow_camera_for_spot(light, queue),
+                LightType::Sun => (),
+            }
+        }
+
         let proxies = proxy_buffer_slice(&self.proxies);
         let size = proxies.len();
 
@@ -263,38 +286,13 @@ impl LightManager {
         } else {
             queue.write_buffer(data, 0, bytemuck::cast_slice(proxies));
         }
-
-        let mut render_data = mem::take(&mut self.render_data);
-
-        for (render_data, assignment) in render_data.iter_mut().zip(self.shadow_assignments.iter())
-        {
-            let Some(light) = self.light(assignment.light_index) else {
-                debug_panic!("Invalid Light Index was stored");
-                continue;
-            };
-
-            let Ok(light_type) = LightType::try_from(light.type_id) else {
-                debug_panic!("Invalid Light Type Id was stored");
-                continue;
-            };
-
-            match light_type {
-                LightType::Point => {
-                    render_data.update_shadow_camera_for_point(light, assignment.face, queue)
-                }
-                LightType::Spot => render_data.update_shadow_camera_for_spot(light, queue),
-                LightType::Sun => {}
-            }
-        }
-
-        self.render_data = render_data;
     }
 
     #[cfg(debug_assertions)]
     pub fn render_debug_lights(&self, renderer: &Renderer, ctx: &crate::rendering::GPUDrawCtx) {
         use crate::assets::HShader;
 
-        let mut pass = ctx.pass.write().unwrap();
+        let mut pass = ctx.pass.write();
 
         let shader = renderer.cache.shader(HShader::DEBUG_LIGHT);
         try_activate_shader!(shader, &mut pass, ctx => return);

@@ -92,7 +92,7 @@ impl UiImage {
             bytemuck::bytes_of(&model_matrix),
         );
 
-        let mut pass = ctx.pass().write().unwrap();
+        let mut pass = ctx.pass().write();
         crate::must_pipeline!(pipeline = shader, ctx.gpu_ctx().pass_type => return);
 
         pass.set_pipeline(pipeline);

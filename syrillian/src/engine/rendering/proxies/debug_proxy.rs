@@ -205,7 +205,7 @@ impl DebugSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write().unwrap();
+        let mut pass = ctx.pass.write();
         let shader = cache.shader(HShader::DEBUG_LINES);
         try_activate_shader!(shader, &mut pass, ctx => return);
 
@@ -234,7 +234,7 @@ impl DebugSceneProxy {
             let groups = shader.bind_groups();
             must_pipeline!(pipeline = shader, ctx.pass_type => return);
 
-            let mut pass = ctx.pass.write().unwrap();
+            let mut pass = ctx.pass.write();
 
             pass.set_pipeline(pipeline);
             pass.set_immediates(0, bytemuck::bytes_of(&self.color));

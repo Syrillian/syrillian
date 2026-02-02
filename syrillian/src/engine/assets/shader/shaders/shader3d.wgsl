@@ -426,10 +426,9 @@ fn fs_main_3d(in: FInput) -> FOutput {
     }
 
     // Lights
-    let count = light_count;
     const MAX_LIGHTS: u32 = 64u;
-    let clamped = min(count, MAX_LIGHTS);
-    for (var i: u32 = 0u; i < clamped; i = i + 1u) {
+    for (var i: u32 = 0u; i < MAX_LIGHTS; i = i + 1u) {
+        if (i >= light_count) { continue; }
         let Ld = lights[i];
         if (Ld.type_id == LIGHT_TYPE_POINT) {
             Lo += eval_point(in.position, N, V, base, metallic, roughness, Ld);

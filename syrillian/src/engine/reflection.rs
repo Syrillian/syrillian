@@ -1,5 +1,6 @@
 use dashmap::DashMap;
-use std::sync::{Once, OnceLock};
+use parking_lot::Once;
+use std::sync::OnceLock;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FunctionInfo {
     pub name: &'static str,

@@ -1,7 +1,7 @@
 use crate::rendering::viewport::RenderViewport;
 use crate::rendering::{AssetCache, RenderPassType, State};
 use crate::strobe::{StrobeRenderer, UiGPUContext};
-use std::sync::RwLock;
+use parking_lot::RwLock;
 use wgpu::{
     CommandEncoder, LoadOp, Operations, RenderPass, RenderPassColorAttachment,
     RenderPassDescriptor, StoreOp, TextureView,

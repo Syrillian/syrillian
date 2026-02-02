@@ -6,8 +6,8 @@ use crate::rendering::proxies::SceneProxy;
 use crate::strobe::{CacheId, StrobeNode, StrobeRoot, UiBuilder};
 use crate::{ViewportId, World};
 use glamx::vec2;
+use parking_lot::RwLock;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::RwLock;
 use wgpu::{BindGroup, RenderPass, TextureView};
 
 pub struct FrameCtx {

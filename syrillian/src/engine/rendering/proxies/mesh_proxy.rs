@@ -13,9 +13,9 @@ use crate::rendering::{
     AssetCache, GPUDrawCtx, RenderPassType, Renderer, RuntimeMesh, RuntimeShader,
 };
 use crate::{proxy_data, proxy_data_mut, try_activate_shader};
+use parking_lot::RwLockWriteGuard;
 use std::any::Any;
 use std::ops::Range;
-use std::sync::RwLockWriteGuard;
 use syrillian_macros::UniformIndex;
 use wgpu::RenderPass;
 
@@ -114,7 +114,7 @@ impl SceneProxy for MeshSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write().unwrap();
+        let mut pass = ctx.pass.write();
         self.draw_mesh(ctx, &renderer.cache, &mesh, data, &mut pass);
 
         #[cfg(debug_assertions)]
@@ -135,7 +135,7 @@ impl SceneProxy for MeshSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write().unwrap();
+        let mut pass = ctx.pass.write();
         self.draw_mesh(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
 
@@ -153,7 +153,7 @@ impl SceneProxy for MeshSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write().unwrap();
+        let mut pass = ctx.pass.write();
         let shader = renderer.cache.shader(HShader::DIM3_PICKING);
         try_activate_shader!(shader, &mut pass, ctx => return);
 

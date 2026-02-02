@@ -10,7 +10,8 @@ use fdsm::shape::Shape;
 use fdsm::transform::Transform;
 use fdsm_ttf_parser::load_shape_from_face;
 use image::RgbImage;
-use std::sync::{Arc, RwLock};
+use parking_lot::RwLock;
+use std::sync::Arc;
 use ttf_parser::Face;
 use wgpu::{Device, Queue};
 
@@ -89,23 +90,23 @@ impl CacheType for Font {
 
 impl FontAtlas {
     pub fn atlas(&self) -> HMaterial {
-        self.atlas.read().unwrap().material()
+        self.atlas.read().material()
     }
     pub fn texture(&self) -> HTexture2D {
-        self.atlas.read().unwrap().texture()
+        self.atlas.read().texture()
     }
     pub fn metrics(&self) -> FontLineMetrics {
-        self.atlas.read().unwrap().metrics()
+        self.atlas.read().metrics()
     }
 
     pub fn face_data(&self) -> (Arc<Vec<u8>>, f32) {
-        let atlas = self.atlas.read().unwrap();
+        let atlas = self.atlas.read();
         let (bytes, units_per_em, ..) = atlas.font_params();
         (bytes, units_per_em)
     }
 
     pub fn entry(&self, ch: char) -> Option<GlyphAtlasEntry> {
-        self.atlas.read().unwrap().entry(ch)
+        self.atlas.read().entry(ch)
     }
 
     pub fn request_glyphs(&self, chars: impl IntoIterator<Item = char>) {
@@ -157,7 +158,7 @@ impl FontAtlas {
     }
 
     fn enqueue_glyph_if_missing(&self, ch: char) {
-        if self.atlas.read().unwrap().contains(ch) {
+        if self.atlas.read().contains(ch) {
             return;
         }
 
@@ -182,8 +183,7 @@ impl FontAtlas {
         let integrated = self
             .atlas
             .write()
-            .ok()
-            .and_then(|mut atlas| atlas.integrate_ready_glyph(cache, queue, bitmap))
+            .integrate_ready_glyph(cache, queue, bitmap)
             .is_some();
 
         self.requested.remove(&ch);
@@ -195,7 +195,7 @@ impl FontAtlas {
 fn spawn_native_worker(atlas: &Arc<RwLock<MsdfAtlas>>) -> (Sender<char>, Receiver<GlyphBitmap>) {
     let (tx_req, rx_req) = unbounded();
     let (tx_ready, rx_ready) = unbounded();
-    let (face_bytes, units_per_em, shrinkage, range) = atlas.read().unwrap().font_params();
+    let (face_bytes, units_per_em, shrinkage, range) = atlas.read().font_params();
 
     std::thread::spawn(move || {
         while let Ok(ch) = rx_req.recv() {

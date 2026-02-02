@@ -87,7 +87,7 @@ impl UiElement for UiLine {
             pc.to_color = color;
         }
 
-        let mut pass = ctx.gpu_ctx().pass.write().unwrap();
+        let mut pass = ctx.gpu_ctx().pass.write();
         crate::must_pipeline!(pipeline = shader, ctx.gpu_ctx().pass_type => return);
 
         pass.set_pipeline(pipeline);

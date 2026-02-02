@@ -29,11 +29,12 @@ use crate::rendering::{
 use crate::strobe::UiGPUContext;
 use crossbeam_channel::Sender;
 use itertools::Itertools;
+use parking_lot::RwLock;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use syrillian_utils::{EngineArgs, debug_panic};
 use tracing::{instrument, trace, warn};
 use web_time::Instant;
@@ -461,8 +462,6 @@ impl Renderer {
             self.lights
                 .update_shadow_map_ids(shadow_layers, &self.state.device, &self.cache);
 
-        // Shadow map ids and assignments may change when capacity is constrained, so upload the
-        // updated proxy data again before the main pass consumes it.
         self.lights
             .update(&self.cache, &self.state.queue, &self.state.device);
 
