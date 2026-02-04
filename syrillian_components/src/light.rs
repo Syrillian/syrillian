@@ -97,7 +97,7 @@ impl LightTypeTrait for Point {
     fn reset(light: &mut LightProxy, inner_angle: &mut f32, outer_angle: &mut f32) {
         *inner_angle = 1.0;
         *outer_angle = 1.0;
-        light.intensity = 1.0;
+        light.intensity = 1000.0;
         light.inner_angle = *inner_angle;
         light.outer_angle = *outer_angle;
     }
