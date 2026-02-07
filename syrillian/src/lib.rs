@@ -15,6 +15,7 @@ pub use ::tracing;
 pub use ::winit;
 
 pub use ::syrillian_macros;
+pub use ::syrillian_shadergen as shadergen;
 
 #[cfg(feature = "derive")]
 pub use ::syrillian_macros::SyrillianApp;

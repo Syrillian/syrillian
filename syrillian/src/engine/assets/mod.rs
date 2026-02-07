@@ -6,17 +6,17 @@
 //!
 //! Example on how to interact with the store:
 //! ```rust
-//! use syrillian::assets::{HMaterial, Material};
+//! use syrillian::assets::{HMaterialInstance, MaterialInstance};
 //! use syrillian::World;
 //!
 //! fn update(world: &mut World) {
-//!     // make a Material
-//!     let material: Material = Material::builder()
-//!         .name("Test Material")
+//!     // make a Material Instance
+//!     let material: MaterialInstance = MaterialInstance::builder()
+//!         .name("Test Material Instance")
 //!         .build();
 //!
 //!     // add an asset
-//!     let material: HMaterial = world.assets.materials.add(material);
+//!     let material: HMaterialInstance = world.assets.material_instances.add(material);
 //! }
 //! ```
 //!
@@ -29,6 +29,8 @@ mod bind_group_layout;
 mod cubemap;
 mod font;
 mod material;
+mod material_inputs;
+mod material_instance;
 mod mesh;
 mod shader;
 mod texture_2d;
@@ -49,6 +51,8 @@ pub use self::bind_group_layout::*;
 pub use self::cubemap::*;
 pub use self::font::*;
 pub use self::material::*;
+pub use self::material_inputs::*;
+pub use self::material_instance::*;
 pub use self::mesh::*;
 pub use self::render_cubemap::*;
 pub use self::render_texture_2d::*;
@@ -66,6 +70,7 @@ pub(crate) use self::key::*;
 
 pub type HBGL = H<BGL>;
 pub type HMaterial = H<Material>;
+pub type HMaterialInstance = H<MaterialInstance>;
 pub type HMesh = H<Mesh>;
 pub type HShader = H<Shader>;
 pub type HTexture2D = H<Texture2D>;

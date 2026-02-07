@@ -26,7 +26,7 @@ pub struct RenderPipeline {
 
 impl RenderPipeline {
     pub fn new(device: &Device, cache: &AssetCache, config: &SurfaceConfiguration) -> Self {
-        let pp_bgl = (*cache.bgl_post_process()).clone();
+        let pp_bgl = cache.bgl_post_process();
 
         let normal_texture = Self::create_g_buffer("GBuffer (Normals)", device, config);
         let material_texture = Self::create_material_texture(device, config);

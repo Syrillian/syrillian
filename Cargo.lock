@@ -3598,6 +3598,7 @@ dependencies = [
  "snafu",
  "static_assertions",
  "syrillian_macros",
+ "syrillian_shadergen",
  "syrillian_utils",
  "tokio",
  "tracing",
@@ -3620,6 +3621,7 @@ dependencies = [
  "kira",
  "snafu",
  "syrillian",
+ "syrillian_utils",
 ]
 
 [[package]]
@@ -3657,6 +3659,18 @@ dependencies = [
  "snafu",
  "syrillian",
  "syrillian_components",
+ "syrillian_utils",
+]
+
+[[package]]
+name = "syrillian_shadergen"
+version = "0.6.1"
+dependencies = [
+ "glamx",
+ "syrillian_utils",
+ "typed-arena",
+ "uuid",
+ "wgpu",
 ]
 
 [[package]]
@@ -3665,6 +3679,7 @@ version = "0.6.1"
 dependencies = [
  "argh",
  "glamx",
+ "tracing",
  "wgpu",
 ]
 
@@ -3899,6 +3914,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "typed-arena"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
+
+[[package]]
 name = "typenum"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3936,9 +3957,9 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "uuid"
-version = "1.19.0"
+version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2e054861b4bd027cd373e18e8d8d8e6548085000e41290d95ce0c373a654b4a"
+checksum = "ee48d38b119b0cd71fe4141b30f5ba9c7c5d9f4e7a3a8b4a674e4b6ef789976f"
 dependencies = [
  "getrandom",
  "js-sys",

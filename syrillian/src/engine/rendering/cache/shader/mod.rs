@@ -1,9 +1,10 @@
 use crate::assets::ShaderType;
-use crate::engine::assets::{BindGroupMap, Shader, ShaderGen};
+use crate::engine::assets::{BindGroupMap, Shader};
 use crate::engine::rendering::cache::AssetCache;
 use crate::engine::rendering::cache::generic_cache::CacheType;
 use crate::rendering::{GPUDrawCtx, RenderPassType, RenderPipelineBuilder};
 use std::borrow::Cow;
+use std::sync::Arc;
 use wgpu::*;
 
 pub mod builder;
@@ -20,11 +21,11 @@ pub struct RuntimeShader {
 }
 
 impl CacheType for Shader {
-    type Hot = RuntimeShader;
+    type Hot = Arc<RuntimeShader>;
 
     fn upload(self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
         let bind_groups = self.bind_group_map();
-        let code = ShaderGen::new(&self, &bind_groups).generate();
+        let code = self.gen_code_with_map(&bind_groups);
 
         debug_assert!(
             code.contains("@fragment"),
@@ -51,7 +52,7 @@ impl CacheType for Shader {
             shadow_builder.build_shadow(device)
         });
 
-        RuntimeShader {
+        Arc::new(RuntimeShader {
             name,
             module,
             pipeline,
@@ -59,7 +60,7 @@ impl CacheType for Shader {
             immediate_size: self.immediate_size(),
             bind_groups,
             shader_type: self.stage(),
-        }
+        })
     }
 }
 

@@ -89,7 +89,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
         self.text_cache.entry(key).or_insert_with(|| {
             let model_bgl = self.cache.bgl_model();
             let model = ModelUniform::empty();
-            let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
+            let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
                 .with_buffer_data(&model)
                 .with_buffer_data(&BoneData::DUMMY)
                 .build(&self.state.device);
@@ -113,7 +113,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
                 model_mat: *model_mat,
             };
 
-            let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
+            let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
                 .with_buffer_data(&mesh_data)
                 .with_buffer_data(&BoneData::DUMMY)
                 .build(&self.state.device);

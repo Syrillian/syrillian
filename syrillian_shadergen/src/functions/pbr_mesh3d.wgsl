@@ -8,20 +8,6 @@ struct CubeFaceAxes {
     face: u32,
 }
 
-fn saturate3(v: vec3<f32>) -> vec3<f32> { return clamp(v, vec3<f32>(0.0), vec3<f32>(1.0)); }
-fn safe_rsqrt(x: f32) -> f32 { return inverseSqrt(max(x, 1e-8)); }
-fn safe_normalize(v: vec3<f32>) -> vec3<f32> { return v * safe_rsqrt(dot(v, v)); }
-
-fn oct_encode(n: vec3<f32>) -> vec2<f32> {
-    let denom = max(abs(n.x) + abs(n.y) + abs(n.z), 1e-6);
-    var v = n / denom;
-    var enc = v.xy;
-    if (v.z < 0.0) {
-        enc = (1.0 - abs(enc.yx)) * sign(enc);
-    }
-    return enc;
-}
-
 // orthonormalize t against n to build a stable tbn basis
 fn ortho_tangent(T: vec3<f32>, N: vec3<f32>) -> vec3<f32> {
     return safe_normalize(T - N * dot(N, T));
@@ -156,8 +142,14 @@ fn calculate_attenuation(distance: f32, radius: f32) -> f32 {
 
 // ----------- Shadows ---------------
 
-fn shadow_visibility_spot(in_pos: vec3<f32>, N: vec3<f32>, L: vec3<f32>, light: Light) -> f32 {
-    if (!mat_has_cast_shadows(material) || light.shadow_map_id == 0xffffffffu) { return 1.0; }
+fn shadow_visibility_spot(
+    in_pos: vec3<f32>,
+    N: vec3<f32>,
+    L: vec3<f32>,
+    light: Light,
+    cast_shadows: bool
+) -> f32 {
+    if (!cast_shadows || light.shadow_map_id == 0xffffffffu) { return 1.0; }
 
     let world_pos_bias = in_pos + N * 0.002;
     let uvz = spot_shadow_uvz(light, world_pos_bias);
@@ -290,8 +282,14 @@ fn axis_shadow_contrib(
     return vec2<f32>(samp.x, samp.y) * weight;
 }
 
-fn shadow_visibility_point(in_pos: vec3<f32>, N: vec3<f32>, L: vec3<f32>, light: Light) -> f32 {
-    if (!mat_has_cast_shadows(material) || light.shadow_map_id == 0xffffffffu) { return 1.0; }
+fn shadow_visibility_point(
+    in_pos: vec3<f32>,
+    N: vec3<f32>,
+    L: vec3<f32>,
+    light: Light,
+    cast_shadows: bool
+) -> f32 {
+    if (!cast_shadows || light.shadow_map_id == 0xffffffffu) { return 1.0; }
 
     let dir_unbiased = in_pos - light.position;
     let dist_sq = dot(dir_unbiased, dir_unbiased);
@@ -317,7 +315,7 @@ fn shadow_visibility_point(in_pos: vec3<f32>, N: vec3<f32>, L: vec3<f32>, light:
 
 fn eval_spot(
     in_pos: vec3<f32>, N: vec3<f32>, V: vec3<f32>,
-    base: vec3<f32>, metallic: f32, roughness: f32, light: Light
+    base: vec3<f32>, metallic: f32, roughness: f32, light: Light, cast_shadows: bool
 ) -> vec3<f32> {
     var L = light.position - in_pos;
     let dist = length(L);
@@ -336,7 +334,7 @@ fn eval_spot(
     let geom_att = attenuation_point(dist, light.range, radius);
 
     // Shadow
-    let vis = shadow_visibility_spot(in_pos, N, L, light);
+    let vis = shadow_visibility_spot(in_pos, N, L, light, cast_shadows);
 
     // BRDF
     let brdf = brdf_term(N, V, L, base, metallic, roughness);
@@ -349,7 +347,7 @@ fn eval_spot(
 
 fn eval_point(
     in_pos: vec3<f32>, N: vec3<f32>, V: vec3<f32>,
-    base: vec3<f32>, metallic: f32, roughness: f32, light: Light
+    base: vec3<f32>, metallic: f32, roughness: f32, light: Light, cast_shadows: bool
 ) -> vec3<f32> {
     var L = light.position - in_pos;
     let dist = length(L);
@@ -358,7 +356,7 @@ fn eval_point(
     let radius = light.radius;
     let geom_att = attenuation_point(dist, light.range, radius);
 
-    let vis = shadow_visibility_point(in_pos, N, L, light);
+    let vis = shadow_visibility_point(in_pos, N, L, light, cast_shadows);
     let brdf = brdf_term(N, V, L, base, metallic, roughness);
     let radiance = light.color * (light.intensity * geom_att) * vis;
 
@@ -375,55 +373,47 @@ fn eval_sun(
     return brdf * radiance;
 }
 
-@fragment
-fn fs_main_3d(in: FInput) -> FOutput {
+fn pbr_fragment(
+    in: FInput,
+    base_rgba: vec4<f32>,
+    normal_in: vec3<f32>,
+    roughness_in: f32,
+    metallic_in: f32,
+    alpha_in: f32,
+    lit: u32,
+    cast_shadows: u32,
+    grayscale_diffuse: u32
+) -> FOutput {
     var out: FOutput;
-
-    // Base color (linear)
-    var base_rgba: vec4<f32>;
-    if mat_has_texture_diffuse(material) {
-        base_rgba = textureSample(t_diffuse, s_diffuse, in.uv);
-    } else {
-        base_rgba = vec4<f32>(material.diffuse, 1.0);
-    }
 
     // Alpha test
     if (base_rgba.a < 0.01) { discard; }
 
-    let base = saturate3(base_rgba.rgb);
+    let base = saturate(base_rgba.rgb);
 
-    let metallic = clamp(material.metallic, 0.0, 1.0);
-
-    var roughness: f32;
-    if mat_has_texture_roughness(material) {
-        roughness = textureSample(t_roughness, s_roughness, in.uv).g;
-    } else {
-        roughness = clamp(material.roughness, 0.045, 1.0);
-    }
+    let metallic = clamp(metallic_in, 0.0, 1.0);
+    let roughness = clamp(roughness_in, 0.045, 1.0);
 
     var Lo = base;
 
     // World normal
-    var N: vec3<f32>;
-    if mat_has_texture_normal(material) {
-        N = normal_from_map(t_normal, s_normal, in.uv, in.normal, in.tangent, in.bitangent);
-    } else {
-        N = safe_normalize(in.normal);
-    }
+    let N = safe_normalize(normal_in);
     let V = safe_normalize(camera.position - in.position);   // to viewer
     let n_enc = oct_encode(N);
     out.out_normal = vec4(n_enc, 0.0, 1.0);
-    out.out_material = vec4(roughness, metallic, 0.0, material.alpha);
+    out.out_material = vec4(roughness, metallic, 0.0, alpha_in);
 
-    if mat_has_texture_diffuse(material) && mat_is_grayscale_diffuse(material) {
+    if grayscale_diffuse != 0 {
         out.out_color = vec4(vec3(base_rgba.r), base_rgba.g);
         return out;
     }
 
-    if mat_is_lit(material) {
-        // start with a dim ambient term (energy‑aware)
+    if lit != 0 {
+        // start with a dim ambient term (energy-aware)
         Lo *= (AMBIENT_STRENGTH * (1.0 - 0.04)); // tiny spec energy loss
     }
+
+    let can_cast_shadows = cast_shadows != 0;
 
     // Lights
     const MAX_LIGHTS: u32 = 64u;
@@ -431,11 +421,11 @@ fn fs_main_3d(in: FInput) -> FOutput {
         if (i >= light_count) { continue; }
         let Ld = lights[i];
         if (Ld.type_id == LIGHT_TYPE_POINT) {
-            Lo += eval_point(in.position, N, V, base, metallic, roughness, Ld);
+            Lo += eval_point(in.position, N, V, base, metallic, roughness, Ld, can_cast_shadows);
         } else if (Ld.type_id == LIGHT_TYPE_SUN) {
             Lo += eval_sun(in.position, N, V, base, metallic, roughness, Ld);
         } else if (Ld.type_id == LIGHT_TYPE_SPOT) {
-            Lo += eval_spot(in.position, N, V, base, metallic, roughness, Ld);
+            Lo += eval_spot(in.position, N, V, base, metallic, roughness, Ld, can_cast_shadows);
         }
     }
 
@@ -447,7 +437,7 @@ fn fs_main_3d(in: FInput) -> FOutput {
 
     // filmic tonemapping
     let color_tm = tonemap_ACES(Lo);
-    out.out_color = vec4(color_tm, base_rgba.a * material.alpha);
+    out.out_color = vec4(color_tm, base_rgba.a * alpha_in);
     return out;
 }
 
@@ -518,3 +508,4 @@ fn pcf_3x3(depthTex: texture_depth_2d_array,
     }
     return sum / 9.0;
 }
+

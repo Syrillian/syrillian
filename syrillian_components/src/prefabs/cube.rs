@@ -1,23 +1,23 @@
 use crate::MeshRenderer;
 use syrillian::World;
-use syrillian::assets::{HMaterial, HMesh};
+use syrillian::assets::{HMaterialInstance, HMesh};
 use syrillian::core::GameObjectId;
 use syrillian::prefabs::Prefab;
 
 pub struct CubePrefab {
-    pub material: HMaterial,
+    pub material: HMaterialInstance,
 }
 
 impl Default for CubePrefab {
     fn default() -> Self {
         CubePrefab {
-            material: HMaterial::DEFAULT,
+            material: HMaterialInstance::DEFAULT,
         }
     }
 }
 
 impl CubePrefab {
-    pub const fn new(material: HMaterial) -> Self {
+    pub const fn new(material: HMaterialInstance) -> Self {
         CubePrefab { material }
     }
 }

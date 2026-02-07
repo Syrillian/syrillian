@@ -1,6 +1,6 @@
 use syrillian::assets::{
-    AssetStore, Font, HMaterial, HMesh, HShader, HTexture2D, Material, Mesh, Shader, Sound,
-    Texture2D,
+    AssetStore, Font, HMaterial, HMaterialInstance, HMesh, HShader, HTexture2D, MaterialInstance,
+    Mesh, Shader, Sound, Texture2D,
 };
 use syrillian::core::Vertex3D;
 use syrillian::math::{Vec2, Vec3};
@@ -79,9 +79,9 @@ fn test_texture_store() {
 #[test]
 fn test_material_store() {
     let store = AssetStore::new();
-    let material = Material::builder().name("Test Material").build();
-    let handle = store.materials.add(material);
-    let retrieved_material = store.materials.try_get(handle);
+    let material = MaterialInstance::builder().name("Test Material").build();
+    let handle = store.material_instances.add(material);
+    let retrieved_material = store.material_instances.try_get(handle);
     assert!(retrieved_material.is_some());
     assert_eq!(retrieved_material.unwrap().name, "Test Material");
 }
@@ -121,6 +121,14 @@ fn test_predefined_materials() {
 
     store.materials.try_get(HMaterial::FALLBACK).unwrap();
     store.materials.try_get(HMaterial::DEFAULT).unwrap();
+    store
+        .material_instances
+        .try_get(HMaterialInstance::FALLBACK)
+        .unwrap();
+    store
+        .material_instances
+        .try_get(HMaterialInstance::DEFAULT)
+        .unwrap();
 }
 
 #[test]

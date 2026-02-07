@@ -9,7 +9,10 @@ use slotmap::Key;
 use std::error::Error;
 use std::fs;
 use syrillian::SyrillianApp;
-use syrillian::assets::{HMaterial, HShader, Material, Shader, StoreType};
+use syrillian::assets::{
+    CustomMaterial, HMaterial, HMaterialInstance, HShader, Material, MaterialInstance,
+    MaterialShaderSet, Shader, StoreType,
+};
 use syrillian::core::GameObjectId;
 use syrillian::tracing::{debug, error, info};
 use syrillian::utils::validate_wgsl_source;
@@ -22,15 +25,18 @@ use web_time::Instant;
 use syrillian::rendering::DebugRenderer;
 
 const SHADER_PATH: &str = "examples/dynamic_shader/shader.wgsl";
-const DEFAULT_VERT: &str =
-    include_str!("../../../syrillian/src/engine/assets/shader/shaders/default_vertex3d.wgsl");
+const DEFAULT_VERT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../syrillian_shadergen/src/functions/vertex_mesh3d_bones.wgsl"
+));
 
 #[derive(SyrillianApp)]
 struct DynamicShaderExample {
     last_successful_shader: Option<String>,
     last_refresh_time: Instant,
     shader_id: HShader,
-    material_id: HMaterial,
+    material_def: HMaterial,
+    material_instance: HMaterialInstance,
     _watcher: RecommendedWatcher,
     file_events: Receiver<notify::Result<Event>>,
     cube: GameObjectId,
@@ -54,7 +60,8 @@ impl Default for DynamicShaderExample {
             last_successful_shader: None,
             last_refresh_time: Instant::now(),
             shader_id: HShader::FALLBACK,
-            material_id: HMaterial::FALLBACK,
+            material_def: HMaterial::FALLBACK,
+            material_instance: HMaterialInstance::FALLBACK,
             _watcher: watcher,
             file_events: rx,
             cube: GameObjectId::null(),
@@ -86,14 +93,46 @@ impl DynamicShaderExample {
                 .set_code(source_2);
         }
 
-        match world.assets.materials.try_get_mut(self.material_id) {
-            None => {
-                self.material_id = Material::builder()
-                    .name("Dynamic Shader Material")
-                    .shader(self.shader_id)
-                    .store(world);
-            }
-            Some(mut mat) => mat.shader = self.shader_id,
+        let unskinned = MaterialShaderSet {
+            base: self.shader_id,
+            picking: HShader::DIM3_PICKING,
+            shadow: HShader::DIM3_SHADOW,
+        };
+        let skinned = MaterialShaderSet {
+            base: self.shader_id,
+            picking: HShader::DIM3_PICKING_SKINNED,
+            shadow: HShader::DIM3_SHADOW_SKINNED,
+        };
+
+        if self.material_def == HMaterial::FALLBACK {
+            self.material_def = Material::Custom(CustomMaterial::new(
+                "Dynamic Shader Material",
+                Material::default_layout(),
+                unskinned,
+                skinned,
+            ))
+            .store(world);
+        } else if let Some(mut mat) = world.assets.materials.try_get_mut(self.material_def) {
+            *mat = Material::Custom(CustomMaterial::new(
+                "Dynamic Shader Material",
+                Material::default_layout(),
+                unskinned,
+                skinned,
+            ));
+        }
+
+        if self.material_instance == HMaterialInstance::FALLBACK {
+            self.material_instance = MaterialInstance::builder()
+                .name("Dynamic Shader Material Instance")
+                .material(self.material_def)
+                .build()
+                .store(world);
+        } else if let Some(mut inst) = world
+            .assets
+            .material_instances
+            .try_get_mut(self.material_instance)
+        {
+            inst.material = self.material_def;
         }
     }
 
@@ -148,7 +187,7 @@ impl DynamicShaderExample {
         }
 
         self.cube = world.spawn(&CubePrefab {
-            material: self.material_id,
+            material: self.material_instance,
         });
 
         self.cube.transform.set_scale(2.0);

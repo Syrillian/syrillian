@@ -8,7 +8,7 @@ use syrillian::engine::assets::{HMesh, Mesh};
 use syrillian::math::Vec3;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::{trace, warn};
-use syrillian::utils::debug_panic;
+use syrillian_utils::debug_panic;
 
 use crate::{MeshRenderer, RigidBodyComponent};
 #[cfg(debug_assertions)]

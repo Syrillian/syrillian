@@ -7,17 +7,17 @@ use gltf::{self, Document, Node};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::collections::HashMap;
 use syrillian::World;
-use syrillian::assets::{HMaterial, Mesh};
+use syrillian::assets::{HMaterialInstance, Mesh};
 use syrillian::core::GameObjectId;
 use syrillian::math::{Quat, Vec3, quat};
 use syrillian::rendering::lights::Light;
 use syrillian::tracing::trace;
 use syrillian::utils::animation::{AnimationClip, Channel, TransformKeys};
-use syrillian::utils::debug_panic;
 use syrillian_components::{
     AnimationComponent, MeshRenderer, PointLightComponent, SkeletalComponent, SpotLightComponent,
     SunLightComponent,
 };
+use syrillian_utils::debug_panic;
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Err)))]
@@ -132,7 +132,7 @@ impl SceneLoader {
         world: &mut World,
         scene: &GltfScene,
         node: Node,
-        materials: Option<&HashMap<u32, HMaterial>>,
+        materials: Option<&HashMap<u32, HMaterialInstance>>,
     ) -> GameObjectId {
         let name = node.name().unwrap_or("Unnamed").to_string();
         trace!("Starting to build scene object {name:?}");
@@ -174,7 +174,7 @@ impl SceneLoader {
     /// Attaches a mesh renderer (and skeletal component if required) to the node.
     fn attach_mesh(
         world: &mut World,
-        scene_materials: Option<&HashMap<u32, HMaterial>>,
+        scene_materials: Option<&HashMap<u32, HMaterialInstance>>,
         node_obj: &mut GameObjectId,
         mesh: Mesh,
         materials: Vec<u32>,
@@ -189,7 +189,7 @@ impl SceneLoader {
                     scene_materials
                         .get(&id)
                         .copied()
-                        .unwrap_or(HMaterial::FALLBACK)
+                        .unwrap_or(HMaterialInstance::FALLBACK)
                 })
                 .collect();
             node_obj

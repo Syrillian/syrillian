@@ -10,6 +10,7 @@ authors.workspace = true
 [dependencies]
 syrillian.workspace = true
 syrillian_components.workspace = true
+syrillian_utils.workspace = true
 gltf = { version = "1.4", features = ["KHR_materials_unlit", "KHR_lights_punctual", "KHR_materials_pbrSpecularGlossiness", "KHR_texture_transform", "extras"] }
 itertools = "0.14"
 snafu = "0.8"

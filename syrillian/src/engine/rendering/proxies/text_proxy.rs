@@ -258,7 +258,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         let font = cache.font(self.font);
 
         let shader = cache.shader(DIM::shader());
-        let material = cache.material(font.atlas());
+        let material = cache.material_instance(font.atlas());
         let groups = shader.bind_groups();
 
         let mut pass = pass.write();
@@ -272,7 +272,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
         }
         if let Some(idx) = groups.material {
-            pass.set_bind_group(idx, material.uniform.bind_group(), &[]);
+            pass.set_bind_group(idx, &material.bind_group, &[]);
         }
 
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
@@ -405,7 +405,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         });
 
         let model_bgl = renderer.cache.bgl_model();
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
+        let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
             .with_buffer_data(&self.translation)
             .with_buffer_data(&BoneData::DUMMY)
             .build(device);
@@ -473,13 +473,13 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         try_activate_shader!(shader, &mut pass, ctx => return);
 
         let font = renderer.cache.font(self.font);
-        let material = renderer.cache.material(font.atlas());
+        let material = renderer.cache.material_instance(font.atlas());
 
         if let Some(model) = shader.bind_groups().model {
             pass.set_bind_group(model, data.uniform.bind_group(), &[]);
         }
         if let Some(material_id) = shader.bind_groups().material {
-            pass.set_bind_group(material_id, material.uniform.bind_group(), &[]);
+            pass.set_bind_group(material_id, &material.bind_group, &[]);
         }
 
         let color = hash_to_rgba(binding.object_hash);
