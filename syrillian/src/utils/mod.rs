@@ -16,4 +16,6 @@ pub use color::*;
 pub use frame_counter::*;
 pub use math::*;
 
-pub use syrillian_utils::*;
+pub use syrillian_utils::{
+    EngineArgs, ShaderUniformIndex, ShaderUniformMultiIndex, ShaderUniformSingleIndex,
+};

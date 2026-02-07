@@ -1,4 +1,4 @@
-use crate::assets::{HMaterial, HShader};
+use crate::assets::{HMaterialInstance, HShader};
 use crate::core::ObjectHash;
 use crate::math::{Mat4, Vec3};
 use crate::rendering::proxies::MeshUniformIndex;
@@ -11,13 +11,13 @@ use syrillian::math::{Affine3A, Vec2};
 #[derive(Debug, Clone)]
 pub struct UiImage {
     pub draw_order: u32,
-    pub material: HMaterial,
+    pub material: HMaterialInstance,
     pub size: Vec2,
     pub object_hash: ObjectHash,
 }
 
 impl UiImage {
-    pub fn new(material: HMaterial) -> Self {
+    pub fn new(material: HMaterialInstance) -> Self {
         Self {
             draw_order: 0,
             material,
@@ -107,9 +107,12 @@ impl UiImage {
 
         match ctx.pass_type() {
             RenderPassType::Color2D => {
-                let material = ctx.cache().material(self.material);
+                let material = ctx.cache().material_instance(self.material);
                 if let Some(idx) = shader.bind_groups().material {
-                    pass.set_bind_group(idx, material.uniform.bind_group(), &[]);
+                    pass.set_bind_group(idx, &material.bind_group, &[]);
+                }
+                if shader.immediate_size > 0 {
+                    pass.set_immediates(0, &material.immediates);
                 }
             }
             RenderPassType::PickingUi => {

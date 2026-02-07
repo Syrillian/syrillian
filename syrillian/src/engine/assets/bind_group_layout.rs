@@ -77,52 +77,42 @@ const RENDER_ENTRIES: [BindGroupLayoutEntry; 2] = [
     },
 ];
 
-const MATERIAL_ENTRIES: [BindGroupLayoutEntry; 7] = [
+const MATERIAL_ENTRIES: [BindGroupLayoutEntry; 6] = [
     BindGroupLayoutEntry {
         binding: 0,
         visibility: ShaderStages::FRAGMENT,
-        ty: BindingType::Buffer {
-            ty: BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
+        ty: BindingType::Texture {
+            sample_type: TextureSampleType::Float { filterable: true },
+            view_dimension: TextureViewDimension::D2,
+            multisampled: false,
         },
         count: None,
     },
     BindGroupLayoutEntry {
         binding: 1,
         visibility: ShaderStages::FRAGMENT,
-        ty: BindingType::Texture {
-            sample_type: TextureSampleType::Float { filterable: true },
-            view_dimension: TextureViewDimension::D2,
-            multisampled: false,
-        },
+        ty: BindingType::Sampler(SamplerBindingType::Filtering),
         count: None,
     },
     BindGroupLayoutEntry {
         binding: 2,
         visibility: ShaderStages::FRAGMENT,
-        ty: BindingType::Sampler(SamplerBindingType::Filtering),
+        ty: BindingType::Texture {
+            sample_type: TextureSampleType::Float { filterable: true },
+            view_dimension: TextureViewDimension::D2,
+            multisampled: false,
+        },
         count: None,
     },
     BindGroupLayoutEntry {
         binding: 3,
         visibility: ShaderStages::FRAGMENT,
-        ty: BindingType::Texture {
-            sample_type: TextureSampleType::Float { filterable: true },
-            view_dimension: TextureViewDimension::D2,
-            multisampled: false,
-        },
+        ty: BindingType::Sampler(SamplerBindingType::Filtering),
         count: None,
     },
     BindGroupLayoutEntry {
         binding: 4,
         visibility: ShaderStages::FRAGMENT,
-        ty: BindingType::Sampler(SamplerBindingType::Filtering),
-        count: None,
-    },
-    BindGroupLayoutEntry {
-        binding: 5,
-        visibility: ShaderStages::FRAGMENT,
         ty: BindingType::Texture {
             sample_type: TextureSampleType::Float { filterable: true },
             view_dimension: TextureViewDimension::D2,
@@ -131,7 +121,7 @@ const MATERIAL_ENTRIES: [BindGroupLayoutEntry; 7] = [
         count: None,
     },
     BindGroupLayoutEntry {
-        binding: 6,
+        binding: 5,
         visibility: ShaderStages::FRAGMENT,
         ty: BindingType::Sampler(SamplerBindingType::Filtering),
         count: None,

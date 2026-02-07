@@ -1,58 +1,21 @@
-use crate::assets::HShader;
-use crate::engine::assets::{HTexture2D, Material};
+use crate::assets::{HMaterial, MaterialShaderSet, MeshSkinning};
+use crate::engine::assets::{MaterialInputLayout, MaterialInstance};
 use crate::engine::rendering::cache::{AssetCache, CacheType};
-use crate::engine::rendering::uniform::ShaderUniform;
-use crate::ensure_aligned;
-use crate::math::Vec3;
-use bitflags::bitflags;
-use syrillian_macros::UniformIndex;
-use wgpu::{Device, Queue, TextureFormat};
+use crate::rendering::cache::GpuTexture;
+use std::collections::HashMap;
+use std::sync::Arc;
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, Device, Queue, TextureFormat,
+};
 
-#[repr(u8)]
-#[derive(Debug, Copy, Clone, UniformIndex)]
-pub(crate) enum MaterialUniformIndex {
-    Material = 0,
-    DiffuseView = 1,
-    DiffuseSampler = 2,
-    NormalView = 3,
-    NormalSampler = 4,
-    RoughnessView = 5,
-    RoughnessSampler = 6,
-}
-
-bitflags! {
-    #[repr(C)]
-    #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-    pub struct MaterialParams: u32 {
-        const use_diffuse_texture   = 1;
-        const use_normal_texture    = 1 << 1;
-        const use_roughness_texture = 1 << 2;
-        const lit                   = 1 << 3;
-        const cast_shadows          = 1 << 4;
-        const grayscale_diffuse     = 1 << 5;
-        const has_transparency      = 1 << 6;
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct MaterialUniform {
-    pub diffuse: Vec3,
-    pub roughness: f32,
-    pub metallic: f32,
-    pub alpha: f32,
-    pub params: MaterialParams,
-    pub _padding: u32,
-}
-
-ensure_aligned!(MaterialUniform { diffuse }, align <= 16 * 2 => size);
-
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct RuntimeMaterial {
-    pub(crate) data: MaterialUniform,
-    pub(crate) uniform: ShaderUniform<MaterialUniformIndex>,
-    pub(crate) shader: HShader,
+    pub(crate) immediates: Vec<u8>,
+    pub(crate) bind_group: BindGroup,
+    pub(crate) shader_unskinned: MaterialShaderSet,
+    pub(crate) shader_skinned: MaterialShaderSet,
+    pub(crate) transparent: bool,
+    pub(crate) cast_shadows: bool,
 }
 
 #[derive(Debug)]
@@ -62,91 +25,96 @@ pub enum MaterialError {
     QueueNotInitialized,
 }
 
-impl CacheType for Material {
-    type Hot = RuntimeMaterial;
+fn material_textures(
+    instance: &MaterialInstance,
+    layout: &MaterialInputLayout,
+    cache: &AssetCache,
+) -> (Vec<Arc<GpuTexture>>, HashMap<String, Arc<GpuTexture>>) {
+    let mut ordered = Vec::new();
+    let mut by_name = HashMap::new();
 
-    fn upload(self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
-        let mut params = MaterialParams::empty();
-        if self.diffuse_texture.is_some() {
-            params |= MaterialParams::use_diffuse_texture;
-        }
-        if self.normal_texture.is_some() {
-            params |= MaterialParams::use_normal_texture;
-        }
-        if self.roughness_texture.is_some() {
-            params |= MaterialParams::use_roughness_texture;
-        }
-
-        let diffuse = cache.texture_opt(self.diffuse_texture, HTexture2D::FALLBACK_DIFFUSE);
-
-        let is_grayscale = diffuse.format == TextureFormat::Rg8Unorm;
-        if is_grayscale {
-            params |= MaterialParams::grayscale_diffuse;
-        }
-        if !is_grayscale && self.lit {
-            params |= MaterialParams::lit;
-        }
-        if !is_grayscale && self.cast_shadows {
-            params |= MaterialParams::cast_shadows;
-        }
-        if is_grayscale || self.has_transparency || diffuse.has_transparency {
-            params |= MaterialParams::has_transparency;
-        }
-
-        let data = MaterialUniform {
-            diffuse: self.color,
-            roughness: self.roughness,
-            metallic: self.metallic,
-            alpha: self.alpha,
-            params,
-            _padding: 0x0,
-        };
-
-        let mat_bgl = cache.bgl_material();
-        let normal = cache.texture_opt(self.normal_texture, HTexture2D::FALLBACK_NORMAL);
-        let roughness = cache.texture_opt(self.roughness_texture, HTexture2D::FALLBACK_ROUGHNESS);
-
-        // TODO: Add additional material mapping properties and such
-        let uniform = ShaderUniform::<MaterialUniformIndex>::builder((*mat_bgl).clone())
-            .with_buffer_data(&data)
-            .with_texture(diffuse.view.clone())
-            .with_sampler(diffuse.sampler.clone())
-            .with_texture(normal.view.clone())
-            .with_sampler(normal.sampler.clone())
-            .with_texture(roughness.view.clone())
-            .with_sampler(roughness.sampler.clone())
-            .build(device);
-
-        RuntimeMaterial {
-            data,
-            uniform,
-            shader: self.shader,
-        }
+    for tex in &layout.textures {
+        let handle = instance
+            .textures
+            .get(&tex.name)
+            .and_then(|v| *v)
+            .unwrap_or(tex.default);
+        let gpu = cache.texture(handle);
+        ordered.push(gpu.clone());
+        by_name.insert(tex.name.clone(), gpu);
     }
+
+    (ordered, by_name)
 }
 
-impl MaterialUniform {
-    pub fn has_diffuse_texture(&self) -> bool {
-        self.params.contains(MaterialParams::use_diffuse_texture)
-    }
+impl CacheType for MaterialInstance {
+    type Hot = Arc<RuntimeMaterial>;
 
-    pub fn has_normal_texture(&self) -> bool {
-        self.params.contains(MaterialParams::use_normal_texture)
-    }
+    fn upload(mut self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
+        let material_def = cache
+            .store()
+            .materials
+            .try_get(self.material)
+            .map(|m| m.clone())
+            .unwrap_or_else(|| cache.store().materials.get(HMaterial::FALLBACK).clone());
 
-    pub fn has_roughness_texture(&self) -> bool {
-        self.params.contains(MaterialParams::use_roughness_texture)
-    }
+        let layout = material_def.layout().clone();
+        let shader_unskinned = material_def.shader_set(MeshSkinning::Unskinned);
+        let shader_skinned = material_def.shader_set(MeshSkinning::Skinned);
 
-    pub fn is_lit(&self) -> bool {
-        self.params.contains(MaterialParams::lit)
-    }
+        let (textures, texture_map) = material_textures(&self, &layout, cache);
 
-    pub fn has_cast_shadows(&self) -> bool {
-        self.params.contains(MaterialParams::cast_shadows)
-    }
+        for tex in &layout.textures {
+            let flag = format!("use_{}_texture", tex.name);
+            let use_tex = self.textures.get(&tex.name).and_then(|v| *v).is_some();
+            self.set_bool(&flag, use_tex, &layout);
+        }
 
-    pub fn has_transparency(&self) -> bool {
-        self.params.contains(MaterialParams::has_transparency) || self.alpha < 1.0
+        if let Some(tex) = texture_map.get("diffuse") {
+            let grayscale = tex.format == TextureFormat::Rg8Unorm;
+            self.set_bool("grayscale_diffuse", grayscale, &layout);
+        }
+
+        let cast_shadows = self.value_bool("cast_shadows").unwrap_or(true);
+
+        let alpha = self.value_f32("alpha").unwrap_or(1.0);
+        let has_transparency_flag = self.value_bool("has_transparency").unwrap_or(true);
+        let diffuse_has_transparency = texture_map
+            .get("diffuse")
+            .is_some_and(|t| t.has_transparency);
+        let transparent = alpha < 1.0 || has_transparency_flag || diffuse_has_transparency;
+
+        let immediates = layout.pack_immediates(&self.values);
+
+        let bgl = cache.material_layout(&layout);
+        let mut entries: Vec<BindGroupEntry> = Vec::new();
+        let mut binding = 0u32;
+        for tex in &textures {
+            entries.push(BindGroupEntry {
+                binding,
+                resource: BindingResource::TextureView(&tex.view),
+            });
+            binding += 1;
+            entries.push(BindGroupEntry {
+                binding,
+                resource: BindingResource::Sampler(&tex.sampler),
+            });
+            binding += 1;
+        }
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Material Bind Group"),
+            layout: &bgl,
+            entries: &entries,
+        });
+
+        Arc::new(RuntimeMaterial {
+            immediates,
+            bind_group,
+            shader_unskinned,
+            shader_skinned,
+            transparent,
+            cast_shadows,
+        })
     }
 }

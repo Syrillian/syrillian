@@ -1,7 +1,7 @@
 //! Example that renders a textured spinning cube and some 2d images.
 
 use std::error::Error;
-use syrillian::assets::{HMaterial, Material, StoreType, Texture2D};
+use syrillian::assets::{HMaterialInstance, MaterialInstance, StoreType, Texture2D};
 use syrillian::core::{GameObjectExt, GameObjectId};
 use syrillian::input::MouseButton;
 use syrillian::math::{Vec2, Vec3};
@@ -21,7 +21,7 @@ struct NecoArc {
     dragging: Option<GameObjectId>,
     drag_offset: Vec3,
     drag_distance: f32,
-    necoarc: HMaterial,
+    necoarc: HMaterialInstance,
 }
 
 impl Default for NecoArc {
@@ -30,7 +30,7 @@ impl Default for NecoArc {
             dragging: None,
             drag_offset: Vec3::ZERO,
             drag_distance: 0.0,
-            necoarc: HMaterial::DEFAULT,
+            necoarc: HMaterialInstance::DEFAULT,
         }
     }
 }
@@ -41,12 +41,11 @@ impl AppState for NecoArc {
 
         let texture = Texture2D::load_image_from_memory(NECO_IMAGE)?.store(world);
 
-        self.necoarc = world.assets.materials.add(
-            Material::builder()
-                .name("Neco Arc")
-                .diffuse_texture(texture)
-                .build(),
-        );
+        self.necoarc = MaterialInstance::builder()
+            .name("Neco Arc")
+            .diffuse_texture(texture)
+            .build()
+            .store(world);
 
         world
             .spawn(&CubePrefab::new(self.necoarc))

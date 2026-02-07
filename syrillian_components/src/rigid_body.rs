@@ -5,7 +5,8 @@ use syrillian::math::Pose;
 use syrillian::physics::rapier3d::dynamics::{
     RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodyType,
 };
-use syrillian::utils::{QuaternionEuler, debug_panic};
+use syrillian::utils::QuaternionEuler;
+use syrillian_utils::debug_panic;
 
 #[derive(Debug, Default, Reflect)]
 pub struct RigidBodyComponent {

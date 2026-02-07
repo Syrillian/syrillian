@@ -20,6 +20,7 @@ pub struct AssetStore {
     pub render_texture_arrays: Arc<Store<RenderTexture2DArray>>,
     pub render_cubemaps: Arc<Store<RenderCubemap>>,
     pub materials: Arc<Store<Material>>,
+    pub material_instances: Arc<Store<MaterialInstance>>,
     pub bgls: Arc<Store<BGL>>,
     pub fonts: Arc<Store<Font>>,
     pub sounds: Arc<Store<Sound>>,
@@ -37,9 +38,28 @@ impl AssetStore {
             render_texture_arrays: Arc::new(Store::empty()),
             render_cubemaps: Arc::new(Store::empty()),
             materials: Arc::new(Store::populated()),
+            material_instances: Arc::new(Store::populated()),
             bgls: Arc::new(Store::populated()),
             fonts: Arc::new(Store::populated()),
             sounds: Arc::new(Store::empty()),
         })
+    }
+}
+
+impl AsRef<Store<Mesh>> for AssetStore {
+    fn as_ref(&self) -> &Store<Mesh> {
+        &self.meshes
+    }
+}
+
+impl AsRef<Store<Shader>> for AssetStore {
+    fn as_ref(&self) -> &Store<Shader> {
+        &self.shaders
+    }
+}
+
+impl AsRef<Store<Texture2D>> for AssetStore {
+    fn as_ref(&self) -> &Store<Texture2D> {
+        &self.textures
     }
 }

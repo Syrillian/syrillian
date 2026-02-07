@@ -1,4 +1,6 @@
-use crate::assets::{AssetStore, HMaterial, HTexture2D, Material, Texture2D};
+use crate::assets::{
+    AssetStore, HMaterial, HMaterialInstance, HTexture2D, MaterialInstance, Texture2D,
+};
 use crate::rendering::AssetCache;
 use crate::rendering::glyph::GlyphBitmap;
 use etagere::{AtlasAllocator, size2};
@@ -46,7 +48,7 @@ pub struct MsdfAtlas {
     face_bytes: Arc<Vec<u8>>,
 
     pub texture: HTexture2D,
-    pub material: HMaterial,
+    pub material: HMaterialInstance,
 }
 
 impl MsdfAtlas {
@@ -78,11 +80,12 @@ impl MsdfAtlas {
         );
         let texture = store.textures.add(texture);
 
-        let material = Material::builder()
+        let material = MaterialInstance::builder()
             .name("MSDF Font Atlas")
+            .material(HMaterial::DEFAULT)
             .diffuse_texture(texture)
             .build();
-        let material = store.materials.add(material);
+        let material = store.material_instances.add(material);
 
         Self {
             width,
@@ -146,7 +149,7 @@ impl MsdfAtlas {
         self.texture
     }
 
-    pub fn material(&self) -> HMaterial {
+    pub fn material(&self) -> HMaterialInstance {
         self.material
     }
 }

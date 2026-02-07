@@ -79,12 +79,7 @@ impl Renderer {
         let mut viewports = HashMap::new();
         viewports.insert(
             ViewportId::PRIMARY,
-            RenderViewport::new(
-                ViewportId::PRIMARY,
-                primary_config,
-                state.device.as_ref(),
-                &cache,
-            ),
+            RenderViewport::new(ViewportId::PRIMARY, primary_config, &state.device, &cache),
         );
 
         Ok(Renderer {
@@ -212,7 +207,7 @@ impl Renderer {
             return false;
         };
 
-        viewport.resize(config, self.state.device.as_ref(), &self.cache);
+        viewport.resize(config, &self.state.device, &self.cache);
 
         true
     }

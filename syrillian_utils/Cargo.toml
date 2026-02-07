@@ -8,6 +8,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-wgpu = { version = "28.0", default-features = false }
-glamx = "0.1.3"
+wgpu.workspace = true
+glamx.workspace = true
+tracing = "0.1"
 argh = "0.1"

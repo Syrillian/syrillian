@@ -5,8 +5,10 @@
 //!    using this for reference.
 
 use std::error::Error;
-use syrillian::assets::{HMaterial, HSound, Sound, StoreType};
-use syrillian::assets::{Material, Shader};
+use syrillian::assets::{
+    CustomMaterial, HMaterialInstance, HShader, HSound, Material, MaterialInstance,
+    MaterialShaderSet, Shader, Sound, StoreType,
+};
 use syrillian::audio::effect::reverb::ReverbBuilder;
 use syrillian::audio::track::SpatialTrackBuilder;
 use syrillian::components::{CRef, CameraComponent};
@@ -43,9 +45,9 @@ const SHADER2: &str = include_str!("dynamic_shader/shader2.wgsl");
 const SHADER3: &str = include_str!("dynamic_shader/shader3.wgsl");
 
 struct DynamicMaterials {
-    primary: HMaterial,
-    accent: HMaterial,
-    glass: HMaterial,
+    primary: HMaterialInstance,
+    accent: HMaterialInstance,
+    glass: HMaterialInstance,
 }
 
 #[derive(Debug)]
@@ -203,19 +205,37 @@ impl MyMain {
         let funky_alt = Shader::new_fragment("Funky Shader 2", SHADER2).store(world);
         let funky_glass = Shader::new_fragment("Funky Shader 3", SHADER3).store(world);
 
+        let make_instance = |name: &str, shader: HShader| {
+            let unskinned = MaterialShaderSet {
+                base: shader,
+                picking: HShader::DIM3_PICKING,
+                shadow: HShader::DIM3_SHADOW,
+            };
+            let skinned = MaterialShaderSet {
+                base: shader,
+                picking: HShader::DIM3_PICKING_SKINNED,
+                shadow: HShader::DIM3_SHADOW_SKINNED,
+            };
+
+            let material_def = Material::Custom(CustomMaterial::new(
+                format!("{name} Material"),
+                Material::default_layout(),
+                unskinned,
+                skinned,
+            ));
+            let material_def = world.assets.materials.add(material_def);
+
+            MaterialInstance::builder()
+                .name(format!("{name} Instance"))
+                .material(material_def)
+                .build()
+                .store(world)
+        };
+
         DynamicMaterials {
-            primary: Material::builder()
-                .name("Cube Material 1")
-                .shader(funky)
-                .store(world),
-            accent: Material::builder()
-                .name("Cube Material 2")
-                .shader(funky_alt)
-                .store(world),
-            glass: Material::builder()
-                .name("Cube Material 3")
-                .shader(funky_glass)
-                .store(world),
+            primary: make_instance("Cube Material 1", funky),
+            accent: make_instance("Cube Material 2", funky_alt),
+            glass: make_instance("Cube Material 3", funky_glass),
         }
     }
 
@@ -267,7 +287,7 @@ impl MyMain {
     fn setup_audio_demo(
         &mut self,
         world: &mut World,
-        material: HMaterial,
+        material: HMaterialInstance,
     ) -> Result<(), Box<dyn Error>> {
         let pop_sound_data = include_bytes!("../examples/assets/pop.wav");
         let mut pop_sound = Sound::load_sound_data(pop_sound_data.to_vec())?;
@@ -322,7 +342,7 @@ impl MyMain {
 
     fn spawn_spring_demo(world: &mut World) {
         let mut spring_bottom = world
-            .spawn(&CubePrefab::new(HMaterial::DEFAULT))
+            .spawn(&CubePrefab::new(HMaterialInstance::DEFAULT))
             .at(-5., 10., -20.)
             .build_component::<Collider3D>()
             .mass(1.0)
@@ -330,7 +350,7 @@ impl MyMain {
             .enable_ccd()
             .id;
         let spring_top = world
-            .spawn(&CubePrefab::new(HMaterial::DEFAULT))
+            .spawn(&CubePrefab::new(HMaterialInstance::DEFAULT))
             .at(-5., 20., -20.)
             .build_component::<Collider3D>()
             .mass(1.0)
@@ -546,7 +566,7 @@ impl MyMain {
         let pos = camera_obj.transform.position() + camera_obj.transform.forward() * 3.;
         world
             .spawn(&CubePrefab {
-                material: HMaterial::DEFAULT,
+                material: HMaterialInstance::DEFAULT,
             })
             .at_vec(pos)
             .build_component::<Collider3D>()

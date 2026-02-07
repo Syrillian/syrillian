@@ -1,5 +1,5 @@
 use crate::SkeletalComponent;
-use syrillian::assets::HMaterial;
+use syrillian::assets::HMaterialInstance;
 use syrillian::components::Component;
 use syrillian::core::{BoneData, Vertex3D};
 use syrillian::engine::assets::HMesh;
@@ -20,7 +20,7 @@ pub struct DebugVertexNormal {
 #[derive(Debug, Reflect)]
 pub struct MeshRenderer {
     mesh: HMesh,
-    materials: Vec<HMaterial>,
+    materials: Vec<HMaterialInstance>,
     dirty_mesh: bool,
     dirty_materials: bool,
 }
@@ -52,6 +52,7 @@ impl Component for MeshRenderer {
             material_ranges: mesh.material_ranges.clone(),
             bone_data: BoneData::new_full_identity(),
             bones_dirty: false,
+            skinned: !mesh.bones.is_empty(),
             bounding: mesh.bounding_sphere,
         }))
     }
@@ -84,10 +85,12 @@ impl Component for MeshRenderer {
         if self.dirty_mesh {
             let h_mesh = self.mesh;
             let bounds = mesh.bounding_sphere;
+            let skinned = !mesh.bones.is_empty();
             ctx.send_proxy_update(move |sc| {
                 let data: &mut MeshSceneProxy = proxy_data_mut!(sc);
                 data.mesh = h_mesh;
                 data.bounding = bounds;
+                data.skinned = skinned;
             })
         }
 
@@ -104,7 +107,7 @@ impl Component for MeshRenderer {
 }
 
 impl MeshRenderer {
-    pub fn change_mesh(&mut self, mesh: HMesh, materials: Option<Vec<HMaterial>>) {
+    pub fn change_mesh(&mut self, mesh: HMesh, materials: Option<Vec<HMaterialInstance>>) {
         let materials = materials.unwrap_or_default();
         self.set_mesh(mesh);
         self.set_materials(materials);
@@ -115,15 +118,15 @@ impl MeshRenderer {
         self.dirty_mesh = true;
     }
 
-    pub fn set_materials(&mut self, materials: Vec<HMaterial>) {
+    pub fn set_materials(&mut self, materials: Vec<HMaterialInstance>) {
         self.materials = materials;
         self.dirty_materials = true;
     }
 
-    pub fn set_material_slot(&mut self, idx: usize, material: HMaterial) {
+    pub fn set_material_slot(&mut self, idx: usize, material: HMaterialInstance) {
         let size = idx + 1;
         if self.materials.len() < size {
-            self.materials.resize(size, HMaterial::FALLBACK);
+            self.materials.resize(size, HMaterialInstance::FALLBACK);
         }
         self.materials[idx] = material;
         self.dirty_materials = true;

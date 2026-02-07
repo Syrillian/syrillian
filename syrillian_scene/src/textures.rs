@@ -2,13 +2,18 @@ use super::gltf_loader::GltfScene;
 use gltf::image::Format;
 use std::collections::HashMap;
 use syrillian::World;
-use syrillian::assets::{HMaterial, HShader, HTexture2D, Material, StoreType, Texture2D};
+use syrillian::assets::{
+    HMaterial, HMaterialInstance, HTexture2D, MaterialInstance, StoreType, Texture2D,
+};
 use syrillian::math::Vec3;
 use syrillian::rendering::TextureFormat;
-use syrillian::utils::debug_panic;
+use syrillian_utils::debug_panic;
 
 /// Loads all materials defined in the glTF scene and stores them in the asset store.
-pub(super) fn load_materials(scene: &GltfScene, world: &mut World) -> HashMap<u32, HMaterial> {
+pub(super) fn load_materials(
+    scene: &GltfScene,
+    world: &mut World,
+) -> HashMap<u32, HMaterialInstance> {
     let mut map = HashMap::new();
 
     for (i, mat) in scene.doc.materials().enumerate() {
@@ -27,21 +32,20 @@ pub(super) fn load_materials(scene: &GltfScene, world: &mut World) -> HashMap<u3
 
         let lit = !mat.unlit();
 
-        let material = Material {
-            name,
-            color,
-            roughness,
-            metallic,
-            diffuse_texture,
-            normal_texture,
-            roughness_texture,
-            alpha,
-            lit,
-            cast_shadows: true,
-            shader: HShader::DIM3,
-            has_transparency: false,
-        };
-        map.insert(i as u32, world.assets.materials.add(material));
+        let material = MaterialInstance::builder()
+            .name(name)
+            .material(HMaterial::DEFAULT)
+            .diffuse(color)
+            .roughness(roughness)
+            .metallic(metallic)
+            .alpha(alpha)
+            .diffuse_texture(diffuse_texture)
+            .normal_texture(normal_texture)
+            .roughness_texture(roughness_texture)
+            .lit(lit)
+            .build();
+
+        map.insert(i as u32, world.assets.material_instances.add(material));
     }
 
     map

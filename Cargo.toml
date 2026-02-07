@@ -10,7 +10,8 @@ members = [
     "syrillian",
     "syrillian_components", "syrillian_examples",
     "syrillian_macros", "syrillian_scene",
-    "syrillian_utils", "syrillian_examples"
+    "syrillian_utils", "syrillian_examples",
+    "syrillian_shadergen"
 ]
 
 [workspace.package]
@@ -43,3 +44,6 @@ syrillian_macros = { version = "0.6.1", path = "syrillian_macros", default-featu
 syrillian_components = { version = "0.1.0", path = "syrillian_components", default-features = false }
 syrillian_scene = { version = "0.1.0", path = "syrillian_scene", default-features = false }
 syrillian_examples = { version = "0.1.0", path = "syrillian_examples", default-features = false }
+syrillian_shadergen = { version = "0.6.1", path = "syrillian_shadergen", default-features = false }
+wgpu = { version = "28.0", default-features = false, features = ["wgsl"] }
+glamx = "0.1.3"

@@ -1,11 +1,8 @@
-mod shader_gen;
-pub(crate) use shader_gen::ShaderGen;
-
 // this module only has tests for the built-in shaders and can be safely ignored
 #[cfg(test)]
 mod shaders;
 
-use crate::assets::HBGL;
+use crate::assets::{HBGL, Material, MaterialInputLayout};
 use crate::engine::assets::generic_store::{HandleName, Store, StoreDefaults, StoreType};
 use crate::engine::assets::{H, HShader, StoreTypeFallback, StoreTypeName};
 use crate::rendering::proxies::text_proxy::TextImmediates;
@@ -13,14 +10,20 @@ use crate::rendering::{
     AssetCache, DEFAULT_COLOR_TARGETS, DEFAULT_PP_COLOR_TARGETS, DEFAULT_VBL,
     DEFAULT_VBL_STEP_INSTANCE, ONLY_COLOR_TARGET, PICKING_TEXTURE_FORMAT,
 };
+use crate::store_add_checked;
 use crate::strobe::UiLineData;
 use crate::utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE, WGPU_VEC4_ALIGN};
-use crate::{store_add_checked, store_add_checked_many};
 use bon::Builder;
 use std::error::Error;
 use std::fs;
+use std::mem::size_of;
 use std::path::Path;
-use std::sync::Arc;
+use syrillian_shadergen::function::{PbrShader, PostProcessPassthroughMaterial};
+use syrillian_shadergen::generator::{
+    MaterialCompiler, MaterialGroupOverrides, MeshPass, MeshSkinning as GenMeshSkinning,
+    PostProcessCompiler, ShaderKind, assemble_shader,
+};
+use tracing::debug;
 use wgpu::{
     BindGroupLayout, ColorTargetState, ColorWrites, Device, PipelineLayout,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveTopology, VertexAttribute, VertexBufferLayout,
@@ -53,6 +56,12 @@ pub enum ShaderType {
     PostProcessing,
 }
 
+#[derive(Debug, Clone)]
+pub struct MaterialShaderGroups {
+    pub material: String,
+    pub material_textures: String,
+}
+
 #[derive(Debug, Clone, Builder)]
 pub struct Shader {
     #[builder(into)]
@@ -73,6 +82,8 @@ pub struct Shader {
     #[builder(default = true)]
     depth_enabled: bool,
     shader_type: ShaderType,
+    material_layout: Option<MaterialInputLayout>,
+    material_groups: Option<MaterialShaderGroups>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -114,7 +125,12 @@ impl H<Shader> {
     pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 15;
     pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 16;
     pub const DEBUG_LIGHT_ID: u32 = 17;
-    pub const MAX_BUILTIN_ID: u32 = 17;
+
+    pub const DIM3_SKINNED_ID: u32 = 18;
+    pub const DIM3_PICKER_SKINNED_ID: u32 = 19;
+    pub const DIM3_SHADOW_ID: u32 = 20;
+    pub const DIM3_SHADOW_SKINNED_ID: u32 = 21;
+    pub const MAX_BUILTIN_ID: u32 = 21;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -122,14 +138,26 @@ impl H<Shader> {
     // The default 2D shader.
     pub const DIM2: H<Shader> = H::new(Self::DIM2_ID);
 
-    // The default 3D shader.
-    pub const DIM3: H<Shader> = H::new(Self::DIM3_ID);
-
     // The default 2D picking shader.
     pub const DIM2_PICKING: H<Shader> = H::new(Self::DIM2_PICKER_ID);
 
+    // The default 3D shader.
+    pub const DIM3: H<Shader> = H::new(Self::DIM3_ID);
+
     // The default 3D picking shader.
     pub const DIM3_PICKING: H<Shader> = H::new(Self::DIM3_PICKER_ID);
+
+    // Default 3D skinned shader.
+    pub const DIM3_SKINNED: H<Shader> = H::new(Self::DIM3_SKINNED_ID);
+
+    // Default 3D skinned picking shader.
+    pub const DIM3_PICKING_SKINNED: H<Shader> = H::new(Self::DIM3_PICKER_SKINNED_ID);
+
+    // Default 3D shadow shader.
+    pub const DIM3_SHADOW: H<Shader> = H::new(Self::DIM3_SHADOW_ID);
+
+    // Default 3D skinned shadow shader.
+    pub const DIM3_SHADOW_SKINNED: H<Shader> = H::new(Self::DIM3_SHADOW_SKINNED_ID);
 
     // Default post-processing shader
     pub const POST_PROCESS: H<Shader> = H::new(Self::POST_PROCESS_ID);
@@ -167,15 +195,12 @@ impl H<Shader> {
 
 const SHADER_FALLBACK3D: &str = include_str!("shaders/fallback_shader3d.wgsl");
 const SHADER_DIM2: &str = include_str!("shaders/shader2d.wgsl");
-const SHADER_DIM3: &str = include_str!("shaders/shader3d.wgsl");
 const SHADER_DIM2_PICKER: &str = include_str!("shaders/picking_ui.wgsl");
-const SHADER_DIM3_PICKER: &str = include_str!("shaders/picking_mesh.wgsl");
 const SHADER_TEXT2D: &str = include_str!("shaders/text2d.wgsl");
 const SHADER_TEXT2D_PICKER: &str = include_str!("shaders/picking_text2d.wgsl");
 const SHADER_TEXT3D: &str = include_str!("shaders/text3d.wgsl");
 const SHADER_TEXT3D_PICKER: &str = include_str!("shaders/picking_text3d.wgsl");
 const SHADER_LINE2D: &str = include_str!("shaders/line.wgsl");
-const SHADER_FS_COPY: &str = include_str!("shaders/fullscreen_passthrough.wgsl");
 const SHADER_POST_PROCESS_SSR: &str = include_str!("shaders/ssr_post_process.wgsl");
 
 const DEBUG_EDGES_SHADER: &str = include_str!("shaders/debug/edges.wgsl");
@@ -187,13 +212,68 @@ const DEBUG_LIGHT_SHADER: &str = include_str!("shaders/debug/light.wgsl");
 
 impl StoreDefaults for Shader {
     fn populate(store: &mut Store<Self>) {
-        store_add_checked_many!(store,
-            HShader::FALLBACK_ID => Shader::new_default("Fallback", SHADER_FALLBACK3D),
-            HShader::DIM2_ID => Shader::new_default("2D Default", SHADER_DIM2)
-                .color_only()
-                .with_depth_enabled(false),
-            HShader::DIM3_ID => Shader::new_fragment("3D Default", SHADER_DIM3),
-            HShader::POST_PROCESS_ID => Shader::new_post_process("Post Process", SHADER_FS_COPY),
+        let post_process_fs =
+            PostProcessCompiler::compile_post_process_fragment(&PostProcessPassthroughMaterial, 0);
+        let pbr = PbrShader;
+        let mesh3d =
+            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Unskinned, MeshPass::Base);
+
+        debug!("{mesh3d}");
+        let mesh3d_skinned =
+            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Skinned, MeshPass::Base);
+        let mesh3d_picking = MaterialCompiler::compile_mesh_picking(GenMeshSkinning::Unskinned);
+        let mesh3d_picking_skinned =
+            MaterialCompiler::compile_mesh_picking(GenMeshSkinning::Skinned);
+        let mesh3d_shadow =
+            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Unskinned, MeshPass::Shadow);
+        let mesh3d_shadow_skinned =
+            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Skinned, MeshPass::Shadow);
+
+        let default_layout = Material::default_layout();
+        let material_groups = MaterialShaderGroups {
+            material: default_layout.wgsl_material_group(),
+            material_textures: default_layout.wgsl_material_textures_group(),
+        };
+        let material_immediates = default_layout.immediate_size();
+
+        store_add_checked!(
+            store,
+            HShader::FALLBACK_ID,
+            Shader::new_default("Fallback", SHADER_FALLBACK3D)
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DIM2_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Default)
+                .name("2D Default")
+                .code(ShaderCode::Full(SHADER_DIM2.to_string()))
+                .color_target(ONLY_COLOR_TARGET)
+                .immediate_size(material_immediates)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
+                .depth_enabled(false)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DIM3_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("3D Default")
+                .code(ShaderCode::Full(mesh3d))
+                .immediate_size(material_immediates)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::POST_PROCESS_ID,
+            Shader::new_post_process_fragment("Post Process", post_process_fs)
         );
 
         const TEXT_VBL: &[VertexBufferLayout] = &[VertexBufferLayout {
@@ -238,7 +318,7 @@ impl StoreDefaults for Shader {
             Shader::builder()
                 .shader_type(ShaderType::Custom)
                 .name("Default 3D Picking Shader")
-                .code(ShaderCode::Fragment(SHADER_DIM3_PICKER.to_string()))
+                .code(ShaderCode::Full(mesh3d_picking))
                 .immediate_size(VEC4_SIZE as u32)
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
@@ -254,6 +334,8 @@ impl StoreDefaults for Shader {
                 .color_target(ONLY_COLOR_TARGET)
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediates>() as u32)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
                 .depth_enabled(false)
                 .build()
         );
@@ -267,6 +349,8 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(SHADER_TEXT2D_PICKER.to_string()))
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediates>() as u32)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
                 .depth_enabled(false)
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
@@ -282,6 +366,8 @@ impl StoreDefaults for Shader {
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediates>() as u32)
                 .shadow_transparency(true)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
                 .build()
         );
 
@@ -295,6 +381,8 @@ impl StoreDefaults for Shader {
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediates>() as u32)
                 .shadow_transparency(true)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
         );
@@ -426,6 +514,57 @@ impl StoreDefaults for Shader {
                 .immediate_size(4)
                 .build()
         );
+
+        store_add_checked!(
+            store,
+            HShader::DIM3_SKINNED_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("3D Skinned")
+                .code(ShaderCode::Full(mesh3d_skinned))
+                .immediate_size(material_immediates)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DIM3_PICKER_SKINNED_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Default 3D Skinned Picking Shader")
+                .code(ShaderCode::Full(mesh3d_picking_skinned))
+                .immediate_size(VEC4_SIZE as u32)
+                .color_target(PICKING_COLOR_TARGET)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DIM3_SHADOW_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Default 3D Shadow Shader")
+                .code(ShaderCode::Full(mesh3d_shadow))
+                .immediate_size(material_immediates)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DIM3_SHADOW_SKINNED_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Default 3D Skinned Shadow Shader")
+                .code(ShaderCode::Full(mesh3d_shadow_skinned))
+                .immediate_size(material_immediates)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
+                .build()
+        );
     }
 }
 
@@ -454,6 +593,11 @@ impl StoreType for Shader {
             HShader::FALLBACK_ID => "Diffuse Fallback",
             HShader::DIM2_ID => "2 Dimensional Shader",
             HShader::DIM3_ID => "3 Dimensional Shader",
+            HShader::DIM3_SKINNED_ID => "3 Dimensional Skinned Shader",
+            HShader::DIM3_PICKER_ID => "3 Dimensional Picking Shader",
+            HShader::DIM3_PICKER_SKINNED_ID => "3 Dimensional Skinned Picking Shader",
+            HShader::DIM3_SHADOW_ID => "3 Dimensional Shadow Shader",
+            HShader::DIM3_SHADOW_SKINNED_ID => "3 Dimensional Skinned Shadow Shader",
             HShader::TEXT_2D_ID => "2D Text Shader",
             HShader::TEXT_3D_ID => "3D Text Shader",
             HShader::POST_PROCESS_ID => "Post Process Shader",
@@ -473,7 +617,7 @@ impl StoreType for Shader {
     }
 
     fn is_builtin(handle: H<Self>) -> bool {
-        handle.id() <= H::MAX_BUILTIN_ID
+        handle.id() <= HShader::MAX_BUILTIN_ID
     }
 }
 
@@ -512,6 +656,29 @@ impl Shader {
             shadow_transparency: false,
             depth_enabled: false,
             shader_type: ShaderType::PostProcessing,
+            material_layout: None,
+            material_groups: None,
+        }
+    }
+
+    pub fn new_post_process_fragment<S, S2>(name: S, code: S2) -> Shader
+    where
+        S: Into<String>,
+        S2: Into<String>,
+    {
+        Shader {
+            name: name.into(),
+            code: ShaderCode::Fragment(code.into()),
+            polygon_mode: PolygonMode::Fill,
+            topology: PrimitiveTopology::TriangleList,
+            vertex_buffers: &DEFAULT_VBL,
+            color_target: DEFAULT_PP_COLOR_TARGETS,
+            immediate_size: 0,
+            shadow_transparency: false,
+            depth_enabled: false,
+            shader_type: ShaderType::PostProcessing,
+            material_layout: None,
+            material_groups: None,
         }
     }
 
@@ -531,6 +698,8 @@ impl Shader {
             shadow_transparency: false,
             depth_enabled: true,
             shader_type: ShaderType::Default,
+            material_layout: None,
+            material_groups: None,
         }
     }
 
@@ -550,6 +719,8 @@ impl Shader {
             shadow_transparency: false,
             depth_enabled: true,
             shader_type: ShaderType::Default,
+            material_layout: None,
+            material_groups: None,
         }
     }
 
@@ -624,7 +795,33 @@ impl Shader {
 
     pub fn gen_code(&self) -> String {
         let map = self.bind_group_map();
-        ShaderGen::new(self, &map).generate()
+        self.gen_code_with_map(&map)
+    }
+
+    pub(crate) fn gen_code_with_map(&self, map: &BindGroupMap) -> String {
+        let fragment_only = self.code().is_only_fragment_shader();
+        let kind = match self.stage() {
+            ShaderType::PostProcessing => ShaderKind::PostProcess,
+            ShaderType::Custom => ShaderKind::Custom,
+            ShaderType::Default => ShaderKind::Default,
+        };
+        let material_groups = self
+            .material_groups
+            .as_ref()
+            .map(|groups| MaterialGroupOverrides {
+                material: groups.material.as_str(),
+                material_textures: groups.material_textures.as_str(),
+            });
+
+        let generated = assemble_shader(
+            self.code().code(),
+            fragment_only,
+            kind,
+            self.depth_enabled,
+            material_groups,
+        );
+
+        rewrite_bind_groups(generated, map)
     }
 
     pub fn needs_bgl(&self, bgl: HBGL) -> bool {
@@ -652,12 +849,33 @@ impl Shader {
                 continue;
             };
 
-            if line[i + 5..].trim() == use_name {
+            let target = line[i + 5..].trim();
+
+            if bgl == HBGL::MATERIAL && (target == "material" || target == "material_textures") {
+                return true;
+            }
+
+            if bgl == HBGL::SHADOW && (target == "shadow" || target == "light") {
+                return true;
+            }
+
+            if target == use_name {
                 return true;
             }
         }
 
-        false
+        fn has_group(source: &str, group: u32) -> bool {
+            let needle = format!("@group({group})");
+            source.contains(&needle)
+        }
+
+        match bgl.id() {
+            HBGL::MODEL_ID => has_group(source, 1),
+            HBGL::MATERIAL_ID => has_group(source, 2),
+            HBGL::LIGHT_ID => has_group(source, 3),
+            HBGL::SHADOW_ID => has_group(source, 4),
+            _ => false,
+        }
     }
 
     pub fn bind_group_map(&self) -> BindGroupMap {
@@ -688,26 +906,30 @@ impl Shader {
         map
     }
 
-    fn required_bgls(&self) -> Vec<HBGL> {
+    fn collect_bgls(&self, cache: &AssetCache) -> Vec<BindGroupLayout> {
         let mut out = Vec::new();
-        out.push(HBGL::RENDER);
+        out.push(cache.bgl_render().clone());
 
         if self.is_post_process() {
-            out.push(HBGL::POST_PROCESS);
+            out.push(cache.bgl_post_process().clone());
             return out;
         }
 
         if self.needs_bgl(HBGL::MODEL) {
-            out.push(HBGL::MODEL);
+            out.push(cache.bgl_model().clone());
         }
         if self.needs_bgl(HBGL::MATERIAL) {
-            out.push(HBGL::MATERIAL);
+            if let Some(layout) = &self.material_layout {
+                out.push(cache.material_layout(layout));
+            } else {
+                out.push(cache.bgl_material().clone());
+            }
         }
         if self.needs_bgl(HBGL::LIGHT) {
-            out.push(HBGL::LIGHT);
+            out.push(cache.bgl_light());
         }
         if self.needs_bgl(HBGL::SHADOW) {
-            out.push(HBGL::SHADOW);
+            out.push(cache.bgl_shadow());
         }
 
         out
@@ -715,16 +937,8 @@ impl Shader {
 
     pub(crate) fn solid_layout(&self, device: &Device, cache: &AssetCache) -> PipelineLayout {
         let layout_name = format!("{} Pipeline Layout", self.name());
-        let bgls = self.required_bgls();
-        let layouts: Vec<Arc<BindGroupLayout>> = bgls
-            .iter()
-            .map(|handle| {
-                cache
-                    .bgl(*handle)
-                    .expect("required bind group layout should exist")
-            })
-            .collect();
-        let refs: Vec<&BindGroupLayout> = layouts.iter().map(|l| l.as_ref()).collect();
+        let layouts = self.collect_bgls(cache);
+        let refs: Vec<&BindGroupLayout> = layouts.iter().collect();
 
         self.layout_with(device, &layout_name, &refs)
     }
@@ -739,16 +953,8 @@ impl Shader {
         }
 
         let layout_name = format!("{} Shadow Pipeline Layout", self.name());
-        let bgls = self.required_bgls();
-        let layouts: Vec<Arc<BindGroupLayout>> = bgls
-            .iter()
-            .map(|handle| {
-                cache
-                    .bgl(*handle)
-                    .expect("required bind group layout should exist")
-            })
-            .collect();
-        let refs: Vec<&BindGroupLayout> = layouts.iter().map(|l| l.as_ref()).collect();
+        let layouts = self.collect_bgls(cache);
+        let refs: Vec<&BindGroupLayout> = layouts.iter().collect();
 
         Some(self.layout_with(device, &layout_name, &refs))
     }
@@ -766,4 +972,33 @@ impl Shader {
         };
         device.create_pipeline_layout(&desc)
     }
+}
+
+fn rewrite_bind_groups(source: String, map: &BindGroupMap) -> String {
+    let mut out = source;
+
+    let mut replace = |orig: u32, new_idx: u32| {
+        let needle = format!("@group({orig})");
+        let repl = format!("@group({new_idx})");
+        out = out.replace(&needle, &repl);
+    };
+
+    replace(0, map.render);
+    if let Some(idx) = map.model {
+        replace(1, idx);
+    }
+    if let Some(idx) = map.material {
+        replace(2, idx);
+    }
+    if let Some(idx) = map.light {
+        replace(3, idx);
+    }
+    if let Some(idx) = map.shadow {
+        replace(4, idx);
+    }
+    if let Some(idx) = map.post_process {
+        replace(1, idx);
+    }
+
+    out
 }

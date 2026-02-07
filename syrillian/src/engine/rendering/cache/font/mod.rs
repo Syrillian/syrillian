@@ -1,4 +1,4 @@
-use crate::assets::{Font, HMaterial, HTexture2D};
+use crate::assets::{Font, HMaterialInstance, HTexture2D};
 use crate::rendering::glyph::GlyphBitmap;
 use crate::rendering::msdf_atlas::{FontLineMetrics, GlyphAtlasEntry, MsdfAtlas};
 use crate::rendering::{AssetCache, CacheType};
@@ -46,7 +46,7 @@ pub struct FontAtlas {
 }
 
 impl CacheType for Font {
-    type Hot = FontAtlas;
+    type Hot = Arc<FontAtlas>;
 
     fn upload(self, _device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
         let msdf = MsdfAtlas::new(
@@ -65,7 +65,7 @@ impl CacheType for Font {
         let (pending, wasm_face_bytes, wasm_units_per_em, wasm_shrinkage, wasm_range) =
             prepare_wasm_state(&atlas);
 
-        FontAtlas {
+        Arc::new(FontAtlas {
             atlas,
             requested: DashSet::new(),
 
@@ -84,12 +84,12 @@ impl CacheType for Font {
             wasm_shrinkage,
             #[cfg(target_arch = "wasm32")]
             wasm_range,
-        }
+        })
     }
 }
 
 impl FontAtlas {
-    pub fn atlas(&self) -> HMaterial {
+    pub fn atlas(&self) -> HMaterialInstance {
         self.atlas.read().material()
     }
     pub fn texture(&self) -> HTexture2D {

@@ -1,6 +1,10 @@
-use crate::assets::{AssetStore, H, HMaterial, HMesh, HShader, Shader};
+use crate::assets::{
+    AssetStore, H, HMaterialInstance, HMesh, HShader, HTexture2D, Material, MaterialInstance,
+    MaterialValue, MeshSkinning, Shader, Texture2D,
+};
 use crate::core::bone::BoneData;
 use crate::core::{BoundingSphere, ModelUniform};
+use crate::engine::assets::generic_store::Store;
 use crate::math::Affine3A;
 #[cfg(debug_assertions)]
 use crate::rendering::DebugRenderer;
@@ -37,10 +41,11 @@ pub struct RuntimeMeshData {
 #[derive(Debug, Clone)]
 pub struct MeshSceneProxy {
     pub mesh: HMesh,
-    pub materials: Vec<HMaterial>,
+    pub materials: Vec<HMaterialInstance>,
     pub material_ranges: Vec<Range<u32>>,
     pub bone_data: BoneData,
     pub bones_dirty: bool,
+    pub skinned: bool,
     pub bounding: BoundingSphere,
 }
 
@@ -115,7 +120,7 @@ impl SceneProxy for MeshSceneProxy {
         };
 
         let mut pass = ctx.pass.write();
-        self.draw_mesh(ctx, &renderer.cache, &mesh, data, &mut pass);
+        self.draw_mesh_base(ctx, &renderer.cache, &mesh, data, &mut pass);
 
         #[cfg(debug_assertions)]
         if !ctx.transparency_pass && DebugRenderer::mesh_edges() {
@@ -136,7 +141,7 @@ impl SceneProxy for MeshSceneProxy {
         };
 
         let mut pass = ctx.pass.write();
-        self.draw_mesh(ctx, &renderer.cache, &mesh, data, &mut pass);
+        self.draw_mesh_shadow(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
 
     // TODO: Make shaders more modular so picking and (shadow) shaders can be generated from just a vertex shader
@@ -149,35 +154,19 @@ impl SceneProxy for MeshSceneProxy {
             return;
         };
 
-        let Some(mesh_data) = renderer.cache.meshes.store().try_get(self.mesh) else {
-            return;
-        };
-
         let mut pass = ctx.pass.write();
-        let shader = renderer.cache.shader(HShader::DIM3_PICKING);
-        try_activate_shader!(shader, &mut pass, ctx => return);
-
-        if let Some(model) = shader.bind_groups().model {
-            pass.set_bind_group(model, data.uniform.bind_group(), &[]);
-        }
 
         let color = hash_to_rgba(binding.object_hash);
         pass.set_immediates(0, bytemuck::bytes_of(&color));
 
-        if mesh_data.material_ranges.is_empty() {
-            mesh.draw_all(&mut pass);
-            return;
-        }
-
-        for range in mesh_data.material_ranges.iter() {
-            mesh.draw(range.clone(), &mut pass);
-        }
+        self.draw_mesh_picking(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
 
     fn priority(&self, store: &AssetStore) -> u32 {
         if self.materials.iter().any(|m| {
-            let material = store.materials.get(*m);
-            material.is_transparent()
+            let instance = store.material_instances.get(*m);
+            let material = store.materials.get(instance.material).clone();
+            instance_is_transparent(&instance, &material, &store.textures)
         }) {
             PROXY_PRIORITY_TRANSPARENT
         } else {
@@ -191,7 +180,7 @@ impl SceneProxy for MeshSceneProxy {
 }
 
 impl MeshSceneProxy {
-    fn draw_mesh(
+    fn draw_mesh_base(
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
@@ -199,14 +188,29 @@ impl MeshSceneProxy {
         runtime: &RuntimeMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
-        let current_shader = HShader::DIM3;
-        let shader = cache.shader_3d();
+        self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Color);
+    }
 
-        if !runtime.activate_shader(&shader, ctx, pass) {
-            return;
-        }
+    fn draw_mesh_shadow(
+        &self,
+        ctx: &GPUDrawCtx,
+        cache: &AssetCache,
+        mesh: &RuntimeMesh,
+        runtime: &RuntimeMeshData,
+        pass: &mut RwLockWriteGuard<RenderPass>,
+    ) {
+        self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Shadow);
+    }
 
-        self.draw_materials(ctx, cache, mesh, runtime, pass, current_shader);
+    fn draw_mesh_picking(
+        &self,
+        ctx: &GPUDrawCtx,
+        cache: &AssetCache,
+        mesh: &RuntimeMesh,
+        runtime: &RuntimeMeshData,
+        pass: &mut RwLockWriteGuard<RenderPass>,
+    ) {
+        self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Picking);
     }
 
     fn draw_materials(
@@ -216,37 +220,75 @@ impl MeshSceneProxy {
         mesh: &RuntimeMesh,
         runtime: &RuntimeMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
-        current_shader: H<Shader>,
+        pass_type: RenderPassType,
     ) {
-        for (i, range) in self.material_ranges.iter().enumerate() {
+        let skinning = if self.skinned {
+            MeshSkinning::Skinned
+        } else {
+            MeshSkinning::Unskinned
+        };
+        let mut current_shader: Option<H<Shader>> = None;
+
+        let ranges: Vec<Range<u32>> = if self.material_ranges.is_empty() {
+            vec![Range {
+                start: 0,
+                end: mesh.total_point_count(),
+            }]
+        } else {
+            self.material_ranges.clone()
+        };
+
+        for (i, range) in ranges.iter().enumerate() {
             let h_mat = self
                 .materials
                 .get(i)
                 .cloned()
-                .unwrap_or(HMaterial::FALLBACK);
-            let material = cache.material(h_mat);
+                .unwrap_or(HMaterialInstance::FALLBACK);
+            let material = cache.material_instance(h_mat);
+            let shader_set = match skinning {
+                MeshSkinning::Skinned => material.shader_skinned,
+                MeshSkinning::Unskinned => material.shader_unskinned,
+            };
 
-            if ctx.pass_type == RenderPassType::Color
-                && material.data.has_transparency() ^ ctx.transparency_pass
-            {
-                continue; // either transparent in a non-transparency pass, or transparent in a non-transparency pass
+            let target_shader = match pass_type {
+                RenderPassType::Picking | RenderPassType::PickingUi => shader_set.picking,
+                RenderPassType::Shadow => shader_set.shadow,
+                _ => shader_set.base,
+            };
+
+            if pass_type == RenderPassType::Color && material.transparent ^ ctx.transparency_pass {
+                continue; // either transparent in a non-transparency pass, or non-transparent in a transparency pass
             }
 
-            if ctx.pass_type == RenderPassType::Shadow
-                && (!material.data.has_cast_shadows() || material.data.has_transparency())
+            if pass_type == RenderPassType::Shadow
+                && (!material.cast_shadows || material.transparent)
             {
                 continue;
             }
 
-            if material.shader != current_shader {
-                let shader = cache.shader(material.shader);
+            let shader = cache.shader(target_shader);
+
+            if current_shader != Some(target_shader) {
                 if !runtime.activate_shader(&shader, ctx, pass) {
                     return;
                 }
+                current_shader = Some(target_shader);
             }
 
-            if let Some(idx) = cache.shader(material.shader).bind_groups().material {
-                pass.set_bind_group(idx, material.uniform.bind_group(), &[]);
+            if let Some(idx) = shader.bind_groups().material {
+                pass.set_bind_group(idx, &material.bind_group, &[]);
+            }
+
+            if pass_type == RenderPassType::Color && shader.immediate_size > 0 {
+                debug_assert_eq!(
+                    shader.immediate_size as usize,
+                    material.immediates.len(),
+                    "Immediate size of shader and material did not match. Shader requested {}, but material only supplied {}",
+                    shader.immediate_size,
+                    material.immediates.len()
+                );
+
+                pass.set_immediates(0, &material.immediates);
             }
 
             mesh.draw(range.clone(), pass);
@@ -262,7 +304,7 @@ impl MeshSceneProxy {
         let model_bgl = renderer.cache.bgl_model();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder((*model_bgl).clone())
+        let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
             .with_buffer_data(&mesh_data)
             .with_buffer_data_slice(self.bone_data.bones.as_slice())
             .build(device);
@@ -307,4 +349,53 @@ fn draw_vertex_normals(
     }
 
     mesh.draw_all_as_instances(0..2, pass);
+}
+
+fn instance_value_f32(
+    instance: &MaterialInstance,
+    material: &Material,
+    name: &str,
+    fallback: f32,
+) -> f32 {
+    if let Some(v) = instance.value_f32(name) {
+        v
+    } else if let Some(MaterialValue::F32(v)) = material.layout().default_value(name) {
+        *v
+    } else {
+        fallback
+    }
+}
+
+fn instance_value_bool(
+    instance: &MaterialInstance,
+    material: &Material,
+    name: &str,
+    fallback: bool,
+) -> bool {
+    if let Some(v) = instance.value_bool(name) {
+        v
+    } else if let Some(MaterialValue::Bool(v)) = material.layout().default_value(name) {
+        *v
+    } else {
+        fallback
+    }
+}
+
+fn instance_is_transparent(
+    instance: &MaterialInstance,
+    material: &Material,
+    textures: &Store<Texture2D>,
+) -> bool {
+    let alpha = instance_value_f32(instance, material, "alpha", 1.0);
+    let has_transparency = instance_value_bool(instance, material, "has_transparency", false);
+
+    let diffuse_handle = instance
+        .textures
+        .get("diffuse")
+        .and_then(|v| *v)
+        .or_else(|| material.layout().texture_fallback("diffuse"))
+        .unwrap_or(HTexture2D::FALLBACK_DIFFUSE);
+    let diffuse = textures.get(diffuse_handle);
+
+    alpha < 1.0 || has_transparency || diffuse.has_transparency
 }

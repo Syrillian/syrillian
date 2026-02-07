@@ -4,6 +4,7 @@ use crate::engine::rendering::cache::AssetCache;
 use crate::engine::rendering::cache::generic_cache::CacheType;
 use more_asserts::debug_assert_le;
 use std::ops::Range;
+use std::sync::Arc;
 use syrillian_utils::debug_panic;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{BufferUsages, Device, IndexFormat, Queue};
@@ -201,7 +202,7 @@ const MAX_BUFFER_VERTS: usize = 128_000_000 / size_of::<Vertex3D>(); // 128MiB l
 const MAX_BUFFER_INDICES: usize = 128_000_000 / size_of::<u32>(); // 128MiB limit
 
 impl CacheType for Mesh {
-    type Hot = RuntimeMesh;
+    type Hot = Arc<RuntimeMesh>;
 
     fn upload(self, device: &Device, _queue: &Queue, _cache: &AssetCache) -> Self::Hot {
         let vertices_num = self.vertex_count();
@@ -259,6 +260,6 @@ impl CacheType for Mesh {
             }
         }
 
-        RuntimeMesh::new(meshlets)
+        Arc::new(RuntimeMesh::new(meshlets))
     }
 }

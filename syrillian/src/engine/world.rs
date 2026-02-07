@@ -5,8 +5,8 @@
 //! offers utilities such as methods to create, find and remove game objects.
 
 use crate::assets::{
-    BGL, Cubemap, Material, Mesh, RenderCubemap, RenderTexture2D, RenderTexture2DArray, Shader,
-    Sound, Store, Texture2D, Texture2DArray,
+    BGL, Cubemap, Material, MaterialInstance, Mesh, RenderCubemap, RenderTexture2D,
+    RenderTexture2DArray, Shader, Sound, Store, Texture2D, Texture2DArray,
 };
 use crate::audio::AudioScene;
 use crate::components::{CRef, CWeak, CameraComponent, Component};
@@ -1109,6 +1109,12 @@ impl AsRef<Store<RenderCubemap>> for World {
 impl AsRef<Store<Material>> for World {
     fn as_ref(&self) -> &Store<Material> {
         &self.assets.materials
+    }
+}
+
+impl AsRef<Store<MaterialInstance>> for World {
+    fn as_ref(&self) -> &Store<MaterialInstance> {
+        &self.assets.material_instances
     }
 }
 

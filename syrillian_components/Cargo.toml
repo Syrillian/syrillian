@@ -9,6 +9,7 @@ authors.workspace = true
 
 [dependencies]
 syrillian.workspace = true
+syrillian_utils.workspace = true
 delegate = "0.13"
 kira = { version = "0.11", default-features = false, features = ["flac", "mp3", "ogg", "wav"] }
 itertools = "0.14"

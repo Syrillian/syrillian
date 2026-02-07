@@ -8,7 +8,6 @@ use crate::utils::str::first_backend_to_str;
 use futures::executor::block_on;
 use snafu::{ResultExt, Snafu, ensure};
 use std::mem;
-use std::sync::Arc;
 use syrillian_utils::EngineArgs;
 use tracing::{debug, info, trace, warn};
 use wgpu::{
@@ -47,8 +46,8 @@ pub enum StateError {
 pub struct State {
     pub(crate) instance: Instance,
     pub(crate) adapter: Adapter,
-    pub(crate) device: Arc<Device>,
-    pub(crate) queue: Arc<Queue>,
+    pub(crate) device: Device,
+    pub(crate) queue: Queue,
 }
 
 impl State {
@@ -114,7 +113,7 @@ impl State {
         wgpu::Trace::Off
     }
 
-    async fn get_device_and_queue(adapter: &Adapter) -> Result<(Arc<Device>, Arc<Queue>)> {
+    async fn get_device_and_queue(adapter: &Adapter) -> Result<(Device, Queue)> {
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: Some("Renderer Hardware"),
@@ -135,7 +134,7 @@ impl State {
             .await
             .context(RequestDeviceErr)?;
 
-        Ok((Arc::new(device), Arc::new(queue)))
+        Ok((device, queue))
     }
 
     fn preferred_surface_format(formats: &[TextureFormat]) -> Result<TextureFormat> {

@@ -1,5 +1,6 @@
 use crate::assets::TextureAsset;
 use crate::engine::rendering::cache::{AssetCache, CacheType};
+use std::sync::Arc;
 use wgpu::util::{DeviceExt, TextureDataOrder};
 use wgpu::{Device, Extent3d, Queue, Sampler, TextureFormat, TextureView};
 
@@ -14,7 +15,7 @@ pub struct GpuTexture {
 }
 
 impl<T: TextureAsset> CacheType for T {
-    type Hot = GpuTexture;
+    type Hot = Arc<GpuTexture>;
 
     fn upload(self, device: &Device, queue: &Queue, _cache: &AssetCache) -> Self::Hot {
         let desc = self.desc();
@@ -29,13 +30,13 @@ impl<T: TextureAsset> CacheType for T {
         let view = texture.create_view(&self.view_desc());
         let sampler = device.create_sampler(&self.sampler_desc());
 
-        GpuTexture {
+        Arc::new(GpuTexture {
             texture,
             view,
             sampler,
             size: desc.size,
             format: desc.format,
             has_transparency: self.has_transparency(),
-        }
+        })
     }
 }

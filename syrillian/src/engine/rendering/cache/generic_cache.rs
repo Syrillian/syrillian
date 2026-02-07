@@ -7,27 +7,27 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{trace, warn};
 use wgpu::{Device, Queue};
 
-type Slot<T> = Arc<<T as CacheType>::Hot>;
+type Slot<T> = <T as CacheType>::Hot;
 
 pub struct Cache<T: CacheType> {
     data: DashMap<AssetKey, Slot<T>>,
     cache_misses: AtomicUsize,
 
     store: Arc<Store<T>>,
-    device: Arc<Device>,
-    queue: Arc<Queue>,
+    device: Device,
+    queue: Queue,
 }
 
 pub trait CacheType: Sized + StoreType {
-    type Hot;
+    type Hot: Clone;
     fn upload(self, device: &Device, queue: &Queue, cache: &AssetCache) -> Self::Hot;
 }
 
 impl<T: CacheType + StoreTypeFallback> Cache<T> {
-    pub fn get(&self, h: H<T>, cache: &AssetCache) -> Arc<T::Hot> {
+    pub fn get(&self, h: H<T>, cache: &AssetCache) -> T::Hot {
         self.data
             .entry(h.into())
-            .or_insert_with(|| Arc::new(self.refresh_item(h, &self.device, &self.queue, cache)))
+            .or_insert_with(|| self.refresh_item(h, &self.device, &self.queue, cache))
             .clone()
     }
 
@@ -53,7 +53,7 @@ impl<T: CacheType + StoreTypeFallback> Cache<T> {
 }
 
 impl<T: CacheType> Cache<T> {
-    pub fn new(store: Arc<Store<T>>, device: Arc<Device>, queue: Arc<Queue>) -> Self {
+    pub fn new(store: Arc<Store<T>>, device: Device, queue: Queue) -> Self {
         Cache {
             data: DashMap::new(),
             cache_misses: AtomicUsize::new(0),
@@ -67,13 +67,10 @@ impl<T: CacheType> Cache<T> {
         &self.store
     }
 
-    pub fn try_get(&self, h: H<T>, cache: &AssetCache) -> Option<Arc<T::Hot>> {
+    pub fn try_get(&self, h: H<T>, cache: &AssetCache) -> Option<T::Hot> {
         self.data
             .entry(h.into())
-            .or_try_insert_with(|| {
-                self.try_refresh_item(h, &self.device, &self.queue, cache)
-                    .map(Arc::new)
-            })
+            .or_try_insert_with(|| self.try_refresh_item(h, &self.device, &self.queue, cache))
             .ok()
             .map(|h| h.clone())
     }

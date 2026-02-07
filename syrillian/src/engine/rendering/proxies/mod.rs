@@ -22,7 +22,7 @@ macro_rules! proxy_data_mut {
         if let Some(data) = data_any.downcast_mut() {
             data
         } else {
-            ::syrillian::utils::debug_panic!(
+            ::syrillian_utils::debug_panic!(
                 "Could not downcast proxy data. The GPU data type did not match up."
             );
             return;

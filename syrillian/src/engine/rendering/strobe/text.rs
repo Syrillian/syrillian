@@ -215,8 +215,8 @@ impl UiText {
             pass.set_bind_group(idx, cached_text.uniform.bind_group(), &[]);
         }
         if let Some(idx) = groups.material {
-            let material = ctx.cache().material(font.atlas());
-            pass.set_bind_group(idx, material.uniform.bind_group(), &[]);
+            let material = ctx.cache().material_instance(font.atlas());
+            pass.set_bind_group(idx, &material.bind_group, &[]);
         }
 
         pass.set_immediates(0, bytemuck::bytes_of(&pc));

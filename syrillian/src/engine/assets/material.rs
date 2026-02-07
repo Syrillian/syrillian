@@ -1,94 +1,235 @@
 use crate::engine::assets::generic_store::{HandleName, Store, StoreDefaults, StoreType};
-use crate::engine::assets::*;
-use crate::math::Vec3;
+use crate::engine::assets::{
+    H, HMaterial, HShader, HTexture2D, MaterialInputLayout, StoreTypeFallback,
+};
 use crate::store_add_checked;
-use bon::Builder;
 
-#[derive(Debug, Clone, Builder)]
-pub struct Material {
-    #[builder(into)]
-    pub name: String,
-    #[builder(default = Vec3::splat(0.7))]
-    pub color: Vec3,
-    pub diffuse_texture: Option<HTexture2D>,
-    pub normal_texture: Option<HTexture2D>,
-    pub roughness_texture: Option<HTexture2D>,
-    #[builder(default = 0.5)]
-    pub roughness: f32,
-    #[builder(default = 0.0)]
-    pub metallic: f32,
-    #[builder(default = 1.0)]
-    pub alpha: f32,
-    #[builder(default = true)]
-    pub lit: bool,
-    #[builder(default = true)]
-    pub cast_shadows: bool,
-    #[builder(default = false)]
-    pub has_transparency: bool,
-    #[builder(default = HShader::DIM3)]
-    pub shader: HShader,
+#[derive(Debug, Copy, Clone)]
+pub enum MeshSkinning {
+    Skinned,
+    Unskinned,
 }
 
-impl Material {
-    pub fn is_transparent(&self) -> bool {
-        self.alpha < 1.0
+#[derive(Debug, Copy, Clone)]
+pub struct MaterialShaderSet {
+    pub base: HShader,
+    pub picking: HShader,
+    pub shadow: HShader,
+}
+
+#[derive(Debug, Clone)]
+pub struct DefaultMaterial {
+    name: String,
+    layout: MaterialInputLayout,
+}
+
+#[derive(Debug, Clone)]
+pub struct FallbackMaterial {
+    name: String,
+    layout: MaterialInputLayout,
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomMaterial {
+    name: String,
+    layout: MaterialInputLayout,
+    shader_unskinned: MaterialShaderSet,
+    shader_skinned: MaterialShaderSet,
+}
+
+#[derive(Debug, Clone)]
+pub enum Material {
+    Default(DefaultMaterial),
+    Fallback(FallbackMaterial),
+    Custom(CustomMaterial),
+}
+
+impl DefaultMaterial {
+    pub fn new(name: impl Into<String>, layout: MaterialInputLayout) -> Self {
+        Self {
+            name: name.into(),
+            layout,
+        }
     }
 }
 
-impl<S: material_builder::State> MaterialBuilder<S>
-where
-    S: material_builder::IsComplete,
-{
-    pub fn store<A: AsRef<Store<Material>>>(self, store: &A) -> HMaterial {
-        store.as_ref().add(self.build())
+impl FallbackMaterial {
+    pub fn new(name: impl Into<String>, layout: MaterialInputLayout) -> Self {
+        Self {
+            name: name.into(),
+            layout,
+        }
+    }
+}
+
+impl CustomMaterial {
+    pub fn new(
+        name: impl Into<String>,
+        layout: MaterialInputLayout,
+        shader_unskinned: MaterialShaderSet,
+        shader_skinned: MaterialShaderSet,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            layout,
+            shader_unskinned,
+            shader_skinned,
+        }
+    }
+
+    pub fn single(
+        name: impl Into<String>,
+        layout: MaterialInputLayout,
+        shader_set: MaterialShaderSet,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            layout,
+            shader_unskinned: shader_set,
+            shader_skinned: shader_set,
+        }
+    }
+}
+
+impl Material {
+    pub fn name(&self) -> &str {
+        match self {
+            Material::Default(m) => &m.name,
+            Material::Fallback(m) => &m.name,
+            Material::Custom(m) => &m.name,
+        }
+    }
+
+    pub fn layout(&self) -> &MaterialInputLayout {
+        match self {
+            Material::Default(m) => &m.layout,
+            Material::Fallback(m) => &m.layout,
+            Material::Custom(m) => &m.layout,
+        }
+    }
+
+    pub fn shader_set(&self, skinning: MeshSkinning) -> MaterialShaderSet {
+        match self {
+            Material::Default(_) => match skinning {
+                MeshSkinning::Skinned => MaterialShaderSet {
+                    base: HShader::DIM3_SKINNED,
+                    picking: HShader::DIM3_PICKING_SKINNED,
+                    shadow: HShader::DIM3_SHADOW_SKINNED,
+                },
+                MeshSkinning::Unskinned => MaterialShaderSet {
+                    base: HShader::DIM3,
+                    picking: HShader::DIM3_PICKING,
+                    shadow: HShader::DIM3_SHADOW,
+                },
+            },
+            Material::Fallback(_) => MaterialShaderSet {
+                base: HShader::FALLBACK,
+                picking: HShader::DIM3_PICKING,
+                shadow: HShader::DIM3_SHADOW,
+            },
+            Material::Custom(m) => match skinning {
+                MeshSkinning::Skinned => m.shader_skinned,
+                MeshSkinning::Unskinned => m.shader_unskinned,
+            },
+        }
+    }
+
+    pub fn default_layout() -> MaterialInputLayout {
+        use crate::assets::{
+            MaterialImmediateDef, MaterialInputType, MaterialTextureDef, MaterialValue,
+        };
+        use crate::math::Vec3;
+
+        MaterialInputLayout {
+            immediates: vec![
+                MaterialImmediateDef {
+                    name: "diffuse".to_string(),
+                    ty: MaterialInputType::Vec3,
+                    default: MaterialValue::Vec3(Vec3::splat(0.7)),
+                },
+                MaterialImmediateDef {
+                    name: "roughness".to_string(),
+                    ty: MaterialInputType::F32,
+                    default: MaterialValue::F32(0.5),
+                },
+                MaterialImmediateDef {
+                    name: "metallic".to_string(),
+                    ty: MaterialInputType::F32,
+                    default: MaterialValue::F32(0.4),
+                },
+                MaterialImmediateDef {
+                    name: "alpha".to_string(),
+                    ty: MaterialInputType::F32,
+                    default: MaterialValue::F32(1.0),
+                },
+                MaterialImmediateDef {
+                    name: "use_diffuse_texture".to_string(),
+                    ty: MaterialInputType::Bool,
+                    default: MaterialValue::Bool(false),
+                },
+                MaterialImmediateDef {
+                    name: "use_normal_texture".to_string(),
+                    ty: MaterialInputType::Bool,
+                    default: MaterialValue::Bool(false),
+                },
+                MaterialImmediateDef {
+                    name: "use_roughness_texture".to_string(),
+                    ty: MaterialInputType::Bool,
+                    default: MaterialValue::Bool(false),
+                },
+                MaterialImmediateDef {
+                    name: "lit".to_string(),
+                    ty: MaterialInputType::Bool,
+                    default: MaterialValue::Bool(true),
+                },
+                MaterialImmediateDef {
+                    name: "cast_shadows".to_string(),
+                    ty: MaterialInputType::Bool,
+                    default: MaterialValue::Bool(true),
+                },
+                MaterialImmediateDef {
+                    name: "grayscale_diffuse".to_string(),
+                    ty: MaterialInputType::Bool,
+                    default: MaterialValue::Bool(false),
+                },
+            ],
+            textures: vec![
+                MaterialTextureDef {
+                    name: "diffuse".to_string(),
+                    default: HTexture2D::FALLBACK_DIFFUSE,
+                },
+                MaterialTextureDef {
+                    name: "normal".to_string(),
+                    default: HTexture2D::FALLBACK_NORMAL,
+                },
+                MaterialTextureDef {
+                    name: "roughness".to_string(),
+                    default: HTexture2D::FALLBACK_ROUGHNESS,
+                },
+            ],
+        }
     }
 }
 
 impl StoreDefaults for Material {
     fn populate(store: &mut Store<Self>) {
-        let fallback = Material {
-            name: "Fallback Material".to_string(),
-            color: Vec3::splat(1.0),
-            diffuse_texture: None,
-            normal_texture: None,
-            roughness_texture: None,
-            roughness: 0.5,
-            metallic: 0.0,
-            shader: HShader::FALLBACK,
-            alpha: 1.0,
-            lit: true,
-            cast_shadows: true,
-            has_transparency: false,
-        };
-
+        let layout = Material::default_layout();
+        let fallback =
+            Material::Fallback(FallbackMaterial::new("Fallback Material", layout.clone()));
         store_add_checked!(store, HMaterial::FALLBACK_ID, fallback);
 
-        let default = Material {
-            name: "Default Material".to_string(),
-            color: Vec3::splat(0.7),
-            diffuse_texture: None,
-            normal_texture: None,
-            roughness_texture: None,
-            roughness: 0.5,
-            metallic: 0.4,
-            shader: HShader::DIM3,
-            alpha: 1.0,
-            lit: true,
-            cast_shadows: true,
-            has_transparency: false,
-        };
-
+        let default = Material::Default(DefaultMaterial::new("Default Material", layout));
         store_add_checked!(store, HMaterial::DEFAULT_ID, default);
     }
 }
 
-impl HMaterial {
-    const FALLBACK_ID: u32 = 0;
-    const DEFAULT_ID: u32 = 1;
-    const MAX_BUILTIN_ID: u32 = 1;
+impl H<Material> {
+    pub const FALLBACK_ID: u32 = 0;
+    pub const DEFAULT_ID: u32 = 1;
+    pub const MAX_BUILTIN_ID: u32 = 1;
 
-    pub const FALLBACK: HMaterial = HMaterial::new(Self::FALLBACK_ID);
-    pub const DEFAULT: HMaterial = HMaterial::new(Self::DEFAULT_ID);
+    pub const FALLBACK: H<Material> = H::new(Self::FALLBACK_ID);
+    pub const DEFAULT: H<Material> = H::new(Self::DEFAULT_ID);
 }
 
 impl StoreType for Material {

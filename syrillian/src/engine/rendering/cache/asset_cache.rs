@@ -2,15 +2,17 @@
 //!
 //! For more information please see module level documentation.
 
+use crate::engine::assets::MaterialInputLayout;
 use crate::engine::assets::*;
 use crate::engine::rendering::State;
 use crate::engine::rendering::cache::generic_cache::Cache;
 use crate::rendering::cache::GpuTexture;
 use crate::rendering::{FontAtlas, RuntimeMaterial, RuntimeMesh, RuntimeShader};
+use dashmap::DashMap;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use web_time::Instant;
-use wgpu::BindGroupLayout;
+use wgpu::{BindGroupLayout, BindGroupLayoutDescriptor, Device};
 
 pub struct AssetCache {
     pub meshes: Cache<Mesh>,
@@ -21,13 +23,15 @@ pub struct AssetCache {
     pub render_textures: Cache<RenderTexture2D>,
     pub render_texture_arrays: Cache<RenderTexture2DArray>,
     pub render_cubemaps: Cache<RenderCubemap>,
-    pub materials: Cache<Material>,
+    pub material_instances: Cache<MaterialInstance>,
     pub bgls: Cache<BGL>,
     pub fonts: Cache<Font>,
 
     store: Arc<AssetStore>,
+    device: Device,
 
     last_refresh: Mutex<Instant>,
+    material_layouts: DashMap<u64, BindGroupLayout>,
 }
 
 impl AssetCache {
@@ -55,11 +59,17 @@ impl AssetCache {
                 device.clone(),
                 queue.clone(),
             ),
-            materials: Cache::new(store.materials.clone(), device.clone(), queue.clone()),
+            material_instances: Cache::new(
+                store.material_instances.clone(),
+                device.clone(),
+                queue.clone(),
+            ),
             bgls: Cache::new(store.bgls.clone(), device.clone(), queue.clone()),
             fonts: Cache::new(store.fonts.clone(), device.clone(), queue.clone()),
             store,
+            device: device.clone(),
             last_refresh: Mutex::new(Instant::now()),
+            material_layouts: DashMap::new(),
         }
     }
 
@@ -132,54 +142,71 @@ impl AssetCache {
         }
     }
 
-    pub fn material(&self, handle: HMaterial) -> Arc<RuntimeMaterial> {
-        self.materials.get(handle, self)
+    pub fn material_instance(&self, handle: HMaterialInstance) -> Arc<RuntimeMaterial> {
+        self.material_instances.get(handle, self)
     }
 
-    pub fn bgl(&self, handle: HBGL) -> Option<Arc<BindGroupLayout>> {
+    pub fn bgl(&self, handle: HBGL) -> Option<BindGroupLayout> {
         self.bgls.try_get(handle, self)
     }
 
-    pub fn bgl_empty(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_empty(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::EMPTY, self)
             .expect("Light is a default layout")
     }
 
-    pub fn bgl_model(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_model(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::MODEL, self)
             .expect("Model is a default layout")
     }
 
-    pub fn bgl_render(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_render(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::RENDER, self)
             .expect("Render is a default layout")
     }
 
-    pub fn bgl_light(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_light(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::LIGHT, self)
             .expect("Light is a default layout")
     }
 
-    pub fn bgl_shadow(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_shadow(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::SHADOW, self)
             .expect("Shadow is a default layout")
     }
 
-    pub fn bgl_material(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_material(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::MATERIAL, self)
             .expect("Material is a default layout")
     }
 
-    pub fn bgl_post_process(&self) -> Arc<BindGroupLayout> {
+    pub fn bgl_post_process(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::POST_PROCESS, self)
             .expect("Post Process is a default layout")
+    }
+
+    pub fn material_layout(&self, layout: &MaterialInputLayout) -> BindGroupLayout {
+        let key = layout.layout_key();
+        if let Some(existing) = self.material_layouts.get(&key) {
+            return existing.clone();
+        }
+
+        let entries = layout.bgl_entries();
+        let bgl = self
+            .device
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Material Dynamic Bind Group Layout"),
+                entries: &entries,
+            });
+        self.material_layouts.insert(key, bgl.clone());
+        bgl
     }
 
     pub fn font(&self, handle: HFont) -> Arc<FontAtlas> {
@@ -191,7 +218,7 @@ impl AssetCache {
 
         refreshed_count += self.meshes.refresh_dirty();
         refreshed_count += self.shaders.refresh_dirty();
-        refreshed_count += self.materials.refresh_dirty();
+        refreshed_count += self.material_instances.refresh_dirty();
         refreshed_count += self.textures.refresh_dirty();
         refreshed_count += self.texture_arrays.refresh_dirty();
         refreshed_count += self.cubemaps.refresh_dirty();
@@ -222,9 +249,9 @@ impl AsRef<Store<Shader>> for AssetCache {
     }
 }
 
-impl AsRef<Store<Material>> for AssetCache {
-    fn as_ref(&self) -> &Store<Material> {
-        self.materials.store()
+impl AsRef<Store<MaterialInstance>> for AssetCache {
+    fn as_ref(&self) -> &Store<MaterialInstance> {
+        self.material_instances.store()
     }
 }
 

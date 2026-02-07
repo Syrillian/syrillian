@@ -1,7 +1,7 @@
 use itertools::iproduct;
 use std::error::Error;
 use syrillian::SyrillianApp;
-use syrillian::assets::{Material, StoreType};
+use syrillian::assets::{MaterialInstance, StoreType};
 use syrillian::math::Vec3;
 use syrillian::{AppState, World};
 use syrillian_components::prefabs::SunPrefab;
@@ -22,11 +22,11 @@ impl AppState for PBR {
             let zs = (z + 5) as f32 / 10.0;
 
             let color = Vec3::new(xs, ys, zs);
-            let material = Material::builder()
+            let material = MaterialInstance::builder()
                 .roughness(xs)
                 .metallic(ys)
                 .name("Material")
-                .color(color)
+                .diffuse(color)
                 .build()
                 .store(world);
 
