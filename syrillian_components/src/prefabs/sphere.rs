@@ -4,23 +4,7 @@ use syrillian::assets::{HMaterial, HMesh};
 use syrillian::core::GameObjectId;
 use syrillian::prefabs::Prefab;
 
-pub struct SpherePrefab {
-    pub material: HMaterial,
-}
-
-impl Default for SpherePrefab {
-    fn default() -> Self {
-        Self {
-            material: HMaterial::DEFAULT,
-        }
-    }
-}
-
-impl SpherePrefab {
-    pub const fn new(material: HMaterial) -> Self {
-        Self { material }
-    }
-}
+pub struct SpherePrefab;
 
 impl Prefab for SpherePrefab {
     #[inline]
@@ -32,7 +16,7 @@ impl Prefab for SpherePrefab {
         let mut sphere = world.new_object(self.prefab_name());
         sphere
             .add_component::<MeshRenderer>()
-            .change_mesh(HMesh::SPHERE, Some(vec![self.material]));
+            .change_mesh(HMesh::SPHERE, Some(vec![HMaterial::DEFAULT]));
 
         sphere
     }
