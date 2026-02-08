@@ -23,11 +23,10 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 use syrillian_shadergen::function::{PbrShader, PostProcessPassthroughMaterial};
-use syrillian_shadergen::generator::PICKING_TEXTURE_FORMAT;
 use syrillian_shadergen::generator::{
-    MaterialCompiler, MaterialGroupOverrides, MeshPass, MeshSkinning as GenMeshSkinning,
-    PostProcessCompiler, ShaderKind, assemble_shader,
+    MaterialCompiler, MaterialGroupOverrides, PostProcessCompiler, ShaderKind, assemble_shader,
 };
+use syrillian_shadergen::generator::{MeshPass, MeshSkinning, PICKING_TEXTURE_FORMAT};
 use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE, WGPU_VEC4_ALIGN};
 use tracing::debug;
 use wgpu::{
@@ -52,6 +51,13 @@ impl ShaderCode {
             ShaderCode::Fragment(code) => code,
         }
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct MaterialShaderSet {
+    pub base: HShader,
+    pub picking: HShader,
+    pub shadow: HShader,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -221,18 +227,17 @@ impl StoreDefaults for Shader {
             PostProcessCompiler::compile_post_process_fragment(&PostProcessPassthroughMaterial, 0);
         let pbr = PbrShader;
         let mesh3d =
-            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Unskinned, MeshPass::Base);
+            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Unskinned, MeshPass::Base);
 
         debug!("{mesh3d}");
         let mesh3d_skinned =
-            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Skinned, MeshPass::Base);
-        let mesh3d_picking = MaterialCompiler::compile_mesh_picking(GenMeshSkinning::Unskinned);
-        let mesh3d_picking_skinned =
-            MaterialCompiler::compile_mesh_picking(GenMeshSkinning::Skinned);
+            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Skinned, MeshPass::Base);
+        let mesh3d_picking = MaterialCompiler::compile_mesh_picking(MeshSkinning::Unskinned);
+        let mesh3d_picking_skinned = MaterialCompiler::compile_mesh_picking(MeshSkinning::Skinned);
         let mesh3d_shadow =
-            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Unskinned, MeshPass::Shadow);
+            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Unskinned, MeshPass::Shadow);
         let mesh3d_shadow_skinned =
-            MaterialCompiler::compile_mesh(&pbr, 0, GenMeshSkinning::Skinned, MeshPass::Shadow);
+            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Skinned, MeshPass::Shadow);
 
         let default_layout = Material::default_layout();
         let material_groups = MaterialShaderGroups {
@@ -825,6 +830,8 @@ impl Shader {
             self.depth_enabled,
             material_groups,
         );
+
+        debug!("Generated shader {:?}: {generated}", self.name());
 
         rewrite_bind_groups(generated, map)
     }

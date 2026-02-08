@@ -10,6 +10,9 @@ use syrillian::input::MouseButton;
 use syrillian::math::{Vec2, Vec3};
 use syrillian::physics::QueryFilter;
 use syrillian::rendering::rendering::viewport::ViewportId;
+use syrillian::shadergen::function::{MaterialExpression, MaterialExpressionValue};
+use syrillian::shadergen::value::MaterialValueType;
+use syrillian::shadergen::{MaterialCompiler, NodeId};
 use syrillian::strobe::UiImage;
 use syrillian::tracing::{info, warn};
 use syrillian::{AppState, World};
@@ -17,6 +20,57 @@ use syrillian_components::prefabs::CubePrefab;
 use syrillian_components::{Collider3D, RotateComponent};
 
 const NECO_IMAGE: &[u8; 1293] = include_bytes!("assets/neco.jpg");
+
+struct TextureDownsizeMaterial;
+
+impl MaterialExpression for TextureDownsizeMaterial {
+    fn inputs(&self) -> Vec<MaterialExpressionValue> {
+        vec![MaterialExpressionValue {
+            name: "diffuse",
+            value_type: MaterialValueType::Vec4,
+        }]
+    }
+
+    fn outputs(&self) -> Vec<MaterialExpressionValue> {
+        vec![MaterialExpressionValue {
+            name: "out",
+            value_type: MaterialValueType::Vec4,
+        }]
+    }
+
+    fn compile(&self, compiler: &mut MaterialCompiler, _output_index: u32) -> NodeId {
+        let scale = compiler.constant_f32(10.0);
+        let uv = compiler.vertex_uv();
+        let uv_scaled = compiler.mul(uv, scale);
+
+        let diffuse =
+            compiler.material_base_color(uv_scaled, "diffuse", "use_diffuse_texture", "diffuse");
+
+        let normal = compiler.material_normal(uv_scaled, "use_normal_texture", "normal");
+        let roughness = compiler.material_roughness(
+            uv_scaled,
+            "roughness",
+            "use_roughness_texture",
+            "roughness",
+        );
+        let metallic = compiler.material_input("metallic");
+        let alpha = compiler.material_input("alpha");
+        let lit = compiler.material_input("lit");
+        let cast_shadows = compiler.material_input("cast_shadows");
+        let grayscale = compiler.material_input("grayscale_diffuse");
+
+        compiler.pbr_shader(
+            diffuse,
+            normal,
+            roughness,
+            metallic,
+            alpha,
+            lit,
+            cast_shadows,
+            grayscale,
+        )
+    }
+}
 
 #[derive(Debug, SyrillianApp)]
 struct NecoArc {
@@ -43,8 +97,13 @@ impl AppState for NecoArc {
 
         let texture = Texture2D::load_image_from_memory(NECO_IMAGE)?.store(world);
 
+        let custom_material = world
+            .assets
+            .register_custom_material("Checkered Material", TextureDownsizeMaterial);
+
         self.necoarc = MaterialInstance::builder()
             .name("Neco Arc")
+            .material(custom_material)
             .diffuse_texture(texture)
             .build()
             .store(world);

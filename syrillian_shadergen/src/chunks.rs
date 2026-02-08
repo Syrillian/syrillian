@@ -414,3 +414,101 @@ impl NodeChunk for PickColorNode {
         "pick.color".to_string()
     }
 }
+
+pub(crate) enum MathOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+pub(crate) struct MathNode {
+    deps: [NodeId; 2],
+    op: MathOp,
+}
+
+impl MathNode {
+    pub fn new(a: NodeId, b: NodeId, op: MathOp) -> Self {
+        Self { deps: [a, b], op }
+    }
+}
+
+impl NodeChunk for MathNode {
+    fn deps(&self) -> &[NodeId] {
+        &self.deps
+    }
+
+    fn emit(&self, _id: NodeId, _ctx: &EmitCtx) -> Option<String> {
+        None
+    }
+
+    fn expr(&self, _id: NodeId, ctx: &EmitCtx) -> String {
+        let a = ctx.expr(self.deps[0]);
+        let b = ctx.expr(self.deps[1]);
+        let op = match self.op {
+            MathOp::Add => "+",
+            MathOp::Sub => "-",
+            MathOp::Mul => "*",
+            MathOp::Div => "/",
+        };
+        format!("({a} {op} {b})")
+    }
+}
+
+pub(crate) struct FunctionCallNode {
+    deps: Vec<NodeId>,
+    name: String,
+}
+
+impl FunctionCallNode {
+    pub fn new(name: impl Into<String>, deps: Vec<NodeId>) -> Self {
+        Self {
+            deps,
+            name: name.into(),
+        }
+    }
+}
+
+impl NodeChunk for FunctionCallNode {
+    fn deps(&self) -> &[NodeId] {
+        &self.deps
+    }
+
+    fn emit(&self, _id: NodeId, _ctx: &EmitCtx) -> Option<String> {
+        None
+    }
+
+    fn expr(&self, _id: NodeId, ctx: &EmitCtx) -> String {
+        let args: Vec<String> = self.deps.iter().map(|&d| ctx.expr(d)).collect();
+        format!("{}({})", self.name, args.join(", "))
+    }
+}
+
+pub(crate) struct SwizzleNode {
+    deps: [NodeId; 1],
+    component: String,
+}
+
+impl SwizzleNode {
+    pub fn new(id: NodeId, component: impl Into<String>) -> Self {
+        Self {
+            deps: [id],
+            component: component.into(),
+        }
+    }
+}
+
+impl NodeChunk for SwizzleNode {
+    fn deps(&self) -> &[NodeId] {
+        &self.deps
+    }
+
+    fn emit(&self, _id: NodeId, _ctx: &EmitCtx) -> Option<String> {
+        None
+    }
+
+    fn expr(&self, _id: NodeId, ctx: &EmitCtx) -> String {
+        let expr = ctx.expr(self.deps[0]);
+        format!("{}.{}", expr, self.component)
+    }
+}

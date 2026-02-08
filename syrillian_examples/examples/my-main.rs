@@ -5,10 +5,11 @@
 //!    using this for reference.
 
 use std::error::Error;
-use syrillian::assets::material::{CustomMaterial, MaterialShaderSet};
+use syrillian::assets::material::CustomMaterial;
 use syrillian::assets::store::StoreType;
 use syrillian::assets::{
-    HMaterialInstance, HShader, HSound, Material, MaterialInstance, Shader, Sound,
+    HMaterialInstance, HShader, HSound, Material, MaterialInstance, MaterialShaderSet, Shader,
+    Sound,
 };
 use syrillian::audio::effect::reverb::ReverbBuilder;
 use syrillian::audio::track::SpatialTrackBuilder;

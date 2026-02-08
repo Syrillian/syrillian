@@ -14,13 +14,13 @@ use glamx::Affine3A;
 use parking_lot::RwLockWriteGuard;
 use std::any::Any;
 use std::ops::Range;
-use syrillian_asset::material::MeshSkinning;
 use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::store::{AssetStore, H, Store};
 use syrillian_asset::{
     HMaterialInstance, HMesh, HTexture2D, Material, MaterialInstance, Shader, Texture2D,
 };
 use syrillian_macros::UniformIndex;
+use syrillian_shadergen::generator::MeshSkinning;
 use syrillian_shadergen::value::MaterialValue;
 use syrillian_utils::BoundingSphere;
 use wgpu::RenderPass;

@@ -1,8 +1,8 @@
 use crate::chunks::{
-    ConstantF32Node, EmitCtx, MaterialBaseColorNode, MaterialInputNode, MaterialNormalNode,
-    MaterialRoughnessNode, MaterialSamplerNode, MaterialTextureNode, NodeChunk, NodeId,
-    PbrShaderNode, PickColorNode, PostSurfaceSamplerNode, PostSurfaceTextureNode, RawChunk,
-    TextureSampleNode, VertexUvNode,
+    ConstantF32Node, EmitCtx, FunctionCallNode, MaterialBaseColorNode, MaterialInputNode,
+    MaterialNormalNode, MaterialRoughnessNode, MaterialSamplerNode, MaterialTextureNode, MathNode,
+    MathOp, NodeChunk, NodeId, PbrShaderNode, PickColorNode, PostSurfaceSamplerNode,
+    PostSurfaceTextureNode, RawChunk, SwizzleNode, TextureSampleNode, VertexUvNode,
 };
 use crate::function::{MaterialExpression, PostProcessMaterialExpression};
 use wgpu::TextureFormat;
@@ -24,6 +24,25 @@ const MODEL_GROUP: &str = include_str!("groups/model.wgsl");
 const MATERIAL_GROUP: &str = include_str!("groups/material.wgsl");
 const MATERIAL_TEXTURES_GROUP: &str = include_str!("groups/material_textures.wgsl");
 const LIGHT_GROUP: &str = include_str!("groups/light.wgsl");
+
+#[derive(Debug, Copy, Clone)]
+pub enum MeshSkinning {
+    Skinned,
+    Unskinned,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum MeshPass {
+    Base,
+    Picking,
+    Shadow,
+}
+
+pub struct MaterialShaderSetCode {
+    pub base: String,
+    pub picking: String,
+    pub shadow: String,
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ShaderKind {
@@ -152,19 +171,6 @@ fn push_default_mesh_groups(out: &mut String) {
     out.push('\n');
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum MeshSkinning {
-    Skinned,
-    Unskinned,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum MeshPass {
-    Base,
-    Picking,
-    Shadow,
-}
-
 #[derive(Default)]
 pub struct MaterialCompiler {
     nodes: Vec<RawChunk>,
@@ -265,6 +271,48 @@ impl MaterialCompiler {
 
     pub fn pick_color(&mut self) -> NodeId {
         self.allocate(PickColorNode)
+    }
+
+    pub fn constant_f32(&mut self, value: f32) -> NodeId {
+        self.allocate(ConstantF32Node::new(value))
+    }
+
+    pub fn add(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Add))
+    }
+
+    pub fn sub(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Sub))
+    }
+
+    pub fn mul(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Mul))
+    }
+
+    pub fn div(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Div))
+    }
+
+    pub fn call(&mut self, name: impl Into<String>, args: Vec<NodeId>) -> NodeId {
+        self.allocate(FunctionCallNode::new(name, args))
+    }
+
+    pub fn swizzle(&mut self, id: NodeId, component: impl Into<String>) -> NodeId {
+        self.allocate(SwizzleNode::new(id, component))
+    }
+
+    pub fn compile_shader_set<M: MaterialExpression>(
+        material: &M,
+        skinning: MeshSkinning,
+    ) -> MaterialShaderSetCode {
+        let base = Self::compile_mesh(material, 0, skinning, MeshPass::Base);
+        let picking = Self::compile_mesh_picking(skinning);
+        let shadow = Self::compile_mesh(material, 0, skinning, MeshPass::Shadow);
+        MaterialShaderSetCode {
+            base,
+            picking,
+            shadow,
+        }
     }
 
     pub fn compile_mesh<M: MaterialExpression>(
@@ -427,6 +475,30 @@ impl PostProcessCompiler {
     #[allow(dead_code)]
     pub fn constant_f32(&mut self, value: f32) -> NodeId {
         self.allocate(ConstantF32Node::new(value))
+    }
+
+    pub fn add(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Add))
+    }
+
+    pub fn sub(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Sub))
+    }
+
+    pub fn mul(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Mul))
+    }
+
+    pub fn div(&mut self, a: NodeId, b: NodeId) -> NodeId {
+        self.allocate(MathNode::new(a, b, MathOp::Div))
+    }
+
+    pub fn call(&mut self, name: impl Into<String>, args: Vec<NodeId>) -> NodeId {
+        self.allocate(FunctionCallNode::new(name, args))
+    }
+
+    pub fn swizzle(&mut self, id: NodeId, component: impl Into<String>) -> NodeId {
+        self.allocate(SwizzleNode::new(id, component))
     }
 
     pub fn compile_post_process<M: PostProcessMaterialExpression>(

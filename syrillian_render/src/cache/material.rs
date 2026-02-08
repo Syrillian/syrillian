@@ -1,10 +1,10 @@
 use crate::cache::{AssetCache, CacheType, GpuTexture};
 use std::collections::HashMap;
 use std::sync::Arc;
-use syrillian_asset::HMaterial;
 use syrillian_asset::MaterialInstance;
-use syrillian_asset::material::{MaterialShaderSet, MeshSkinning};
 use syrillian_asset::material_inputs::MaterialInputLayout;
+use syrillian_asset::{HMaterial, MaterialShaderSet};
+use syrillian_shadergen::generator::MeshSkinning;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, Device, Queue, TextureFormat,
 };

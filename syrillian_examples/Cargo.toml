@@ -8,7 +8,7 @@ authors.workspace = true
 publish = false
 
 [dev-dependencies]
-syrillian.workspace = true
+syrillian = { workspace = true, features = ["derive"] }
 syrillian_components.workspace = true
 syrillian_scene.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

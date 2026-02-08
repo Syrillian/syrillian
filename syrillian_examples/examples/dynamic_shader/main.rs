@@ -9,10 +9,10 @@ use slotmap::Key;
 use std::error::Error;
 use std::fs;
 use syrillian::SyrillianApp;
-use syrillian::assets::material::{CustomMaterial, MaterialShaderSet};
+use syrillian::assets::material::CustomMaterial;
 use syrillian::assets::store::StoreType;
 use syrillian::assets::{
-    HMaterial, HMaterialInstance, HShader, Material, MaterialInstance, Shader,
+    HMaterial, HMaterialInstance, HShader, Material, MaterialInstance, MaterialShaderSet, Shader,
 };
 use syrillian::core::GameObjectId;
 #[cfg(debug_assertions)]

@@ -1,22 +1,10 @@
 use crate::assets::{HMaterial, HShader, HTexture2D};
 use crate::material_inputs::{MaterialImmediateDef, MaterialInputLayout, MaterialTextureDef};
 use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
-use crate::store_add_checked;
+use crate::{MaterialShaderSet, store_add_checked};
 use glamx::Vec3;
+use syrillian_shadergen::generator::MeshSkinning;
 use syrillian_shadergen::value::{MaterialValue, MaterialValueType};
-
-#[derive(Debug, Copy, Clone)]
-pub enum MeshSkinning {
-    Skinned,
-    Unskinned,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct MaterialShaderSet {
-    pub base: HShader,
-    pub picking: HShader,
-    pub shadow: HShader,
-}
 
 #[derive(Debug, Clone)]
 pub struct DefaultMaterial {
