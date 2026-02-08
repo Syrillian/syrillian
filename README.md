@@ -129,7 +129,7 @@ Syrillian tries hard to ship useful tools so you can focus on game code:
 ![](https://i.ibb.co/F9gywNk/Screenshot-2025-08-04-at-12-37-22.png)
 
 *Picking up a physics-enabled cube with an animated shader that emits a light source.*
-From this example: [./examples/my-main.rs](./examples/my-main.rs)
+From this example: [syrillian_examples/examples/my-main.rs](./syrillian_examples/examples/my-main.rs)
 
 *You can request your own visuals too*
 
