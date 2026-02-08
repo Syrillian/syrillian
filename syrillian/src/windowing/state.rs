@@ -1,5 +1,5 @@
 use crate::AppSettings;
-use crate::rendering::UiContext;
+use crate::components::UiContext;
 use crate::world::World;
 use std::error::Error;
 use std::marker::PhantomData;

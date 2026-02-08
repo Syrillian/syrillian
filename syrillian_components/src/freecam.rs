@@ -1,9 +1,10 @@
+use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::{CameraComponent, Component};
 use syrillian::input::InputManager;
 use syrillian::input::{Axis, Button, KeyCode, MouseButton};
 use syrillian::math::{Quat, Vec2, Vec3};
-use syrillian::{Reflect, ViewportId};
+use syrillian_render::rendering::viewport::ViewportId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]

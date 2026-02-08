@@ -1,12 +1,14 @@
-use crate::components::{CRef, Component, ComponentId, TypedComponentId};
+use crate::components::{CRef, Component};
 use crate::core::GameObjectId;
 use crate::core::component_context_inference::ComponentContextInference;
+use crate::utils::TypedComponentHelper;
 use slotmap::SlotMap;
 use slotmap::basic::Values;
 use std::any::{Any, TypeId};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
+use syrillian_utils::{ComponentId, TypedComponentId};
 use tracing::trace;
 
 #[allow(unused)]
@@ -136,11 +138,11 @@ impl ComponentStorage {
     }
 
     pub fn get_mut<C: Component>(&mut self, id: TypedComponentId) -> Option<&mut CRef<C>> {
-        self._get_mut()?.get_mut(id.1)
+        self._get_mut()?.get_mut(id.component_id())
     }
 
     pub fn get_dyn(&self, id: TypedComponentId) -> Option<CRef<dyn Component>> {
-        self._get_from_id(id.0)?.get(id.1)
+        self._get_from_id(id.type_id())?.get(id.component_id())
     }
 
     pub fn values_of_type<C: Component>(&self) -> Option<Values<'_, ComponentId, CRef<C>>> {
@@ -148,16 +150,18 @@ impl ComponentStorage {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (TypedComponentId, &dyn Component)> {
-        self.inner
-            .iter()
-            .flat_map(|(tid, store)| store.iter().map(|(k, v)| (TypedComponentId(*tid, k), v)))
+        self.inner.iter().flat_map(|(tid, store)| {
+            store
+                .iter()
+                .map(|(k, v)| (TypedComponentId::new_raw(*tid, k), v))
+        })
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (TypedComponentId, &mut dyn Component)> {
         self.inner.iter_mut().flat_map(|(tid, store)| {
             store
                 .iter_mut()
-                .map(|(k, v)| (TypedComponentId(*tid, k), v))
+                .map(|(k, v)| (TypedComponentId::new_raw(*tid, k), v))
         })
     }
 
@@ -201,12 +205,12 @@ impl ComponentStorage {
 
         let ctid = *ctid.borrow();
 
-        let Some(map) = self._get_mut_from_id(ctid.0) else {
+        let Some(map) = self._get_mut_from_id(ctid.type_id()) else {
             // already empty
             return;
         };
 
-        let comp = map.remove(ctid.1);
+        let comp = map.remove(ctid.component_id());
         debug_assert!(
             comp.is_some(),
             "Component wasn't found despite still being owned by a game object."

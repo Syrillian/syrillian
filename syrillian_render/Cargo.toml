@@ -1,0 +1,38 @@
+[package]
+name = "syrillian_render"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+syrillian_utils.workspace = true
+syrillian_asset.workspace = true
+syrillian_macros.workspace = true
+syrillian_shadergen.workspace = true
+static_assertions.workspace = true
+winit.workspace = true
+snafu.workspace = true
+wgpu.workspace = true
+glamx.workspace = true
+bytemuck.workspace = true
+itertools.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+web-time.workspace = true
+delegate.workspace = true
+dashmap.workspace = true
+nalgebra.workspace = true
+image.workspace = true
+profiling.workspace = true
+crossbeam-channel.workspace = true
+futures = "0.3"
+smallvec = "1.15"
+fdsm = "0.8"
+fdsm-ttf-parser = "0.2"
+etagere = "0.2"
+ttf-parser = "0.25"
+num_enum = "0.7"
+more-asserts = "0.3"
+half = "2.7"

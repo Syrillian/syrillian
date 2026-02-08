@@ -11,8 +11,7 @@ members = [
     "syrillian_components", "syrillian_examples",
     "syrillian_macros", "syrillian_scene",
     "syrillian_utils", "syrillian_examples",
-    "syrillian_shadergen"
-]
+    "syrillian_shadergen", "syrillian_asset", "syrillian_render"]
 
 [workspace.package]
 version = "0.6.1"
@@ -39,11 +38,32 @@ panic = "abort"
 
 [workspace.dependencies]
 syrillian = { version = "0.6.1", path = "syrillian", default-features = false }
+syrillian_asset = { version = "0.6.1", path = "syrillian_asset", default-features = false }
 syrillian_utils = { version = "0.6.1", path = "syrillian_utils", default-features = false }
 syrillian_macros = { version = "0.6.1", path = "syrillian_macros", default-features = false }
 syrillian_components = { version = "0.1.0", path = "syrillian_components", default-features = false }
 syrillian_scene = { version = "0.1.0", path = "syrillian_scene", default-features = false }
 syrillian_examples = { version = "0.1.0", path = "syrillian_examples", default-features = false }
 syrillian_shadergen = { version = "0.6.1", path = "syrillian_shadergen", default-features = false }
+syrillian_render = { version = "0.6.1", path = "syrillian_render", default-features = false }
+
 wgpu = { version = "28.0", default-features = false, features = ["wgsl"] }
-glamx = "0.1.3"
+naga = { version = "28.0", features = ["stderr"] }
+nalgebra = "0.34"
+winit = "0.30"
+glamx = "0.1"
+tracing = "0.1"
+bon = "3.8"
+slotmap = "1.1"
+dashmap = "6.1"
+crossbeam-channel = "0.5"
+image = "0.25"
+parking_lot = "0.12"
+web-time = "1.1"
+delegate = "0.13"
+bytemuck = "1.25"
+snafu = "0.8"
+itertools = "0.14"
+uuid = { version = "1.20", features = ["v4"] }
+static_assertions = "1.1"
+profiling = "1.0"

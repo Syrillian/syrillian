@@ -1,9 +1,9 @@
-use crate::ViewportId;
 use crate::game_thread::GameAppEvent;
 use crate::input::gamepad_manager::GamePadManager;
 use crate::math::Vec2;
 use crossbeam_channel::Sender;
 use std::collections::HashMap;
+use syrillian_render::rendering::viewport::ViewportId;
 use tracing::{info, trace};
 use winit::dpi::PhysicalPosition;
 use winit::event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, WindowEvent};

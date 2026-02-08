@@ -10,5 +10,7 @@ authors.workspace = true
 [dependencies]
 wgpu.workspace = true
 glamx.workspace = true
-tracing = "0.1"
+tracing.workspace = true
+static_assertions.workspace = true
 argh = "0.1"
+slotmap.workspace = true

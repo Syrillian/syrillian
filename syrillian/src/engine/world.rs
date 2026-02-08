@@ -4,40 +4,40 @@
 //! It maintains the scene graph, input state and physics simulation and
 //! offers utilities such as methods to create, find and remove game objects.
 
-use crate::assets::{
-    BGL, Cubemap, Material, MaterialInstance, Mesh, RenderCubemap, RenderTexture2D,
-    RenderTexture2DArray, Shader, Sound, Store, Texture2D, Texture2DArray,
-};
 use crate::audio::AudioScene;
-use crate::components::{CRef, CWeak, CameraComponent, Component};
+use crate::components::{CRef, CWeak, CameraComponent, Component, UiContext};
 use crate::core::component_storage::ComponentStorage;
 use crate::core::{EventType, GameObject, GameObjectId, GameObjectRef, ObjectHash, Transform};
-use crate::engine::assets::AssetStore;
 use crate::engine::prefabs::Prefab;
 use crate::game_thread::GameAppEvent;
 use crate::input::InputManager;
 use crate::physics::PhysicsSimulation;
 use crate::prefabs::CameraPrefab;
-use crate::rendering::message::RenderMsg;
-use crate::rendering::picking::PickRequest;
-use crate::rendering::picking::PickResult;
-use crate::rendering::strobe::StrobeFrame;
-use crate::rendering::{CPUDrawCtx, UiContext};
 use slotmap::{Key, SlotMap};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::mem::{swap, take};
 use std::path::PathBuf;
 use std::sync::Arc;
+use syrillian_asset::AssetStore;
+use syrillian_asset::store::Store;
+use syrillian_asset::{
+    BGL, Cubemap, Material, MaterialInstance, Mesh, RenderCubemap, RenderTexture2D,
+    RenderTexture2DArray, Shader, Sound, Texture2D, Texture2DArray,
+};
+use syrillian_render::strobe::StrobeFrame;
 use tracing::info;
 use web_time::{Duration, Instant};
 
-use crate::ViewportId;
 use crate::core::reflection::Value;
 use crate::math::UVec2;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use syrillian_macros::Reflect;
+use syrillian_render::rendering::CPUDrawCtx;
+use syrillian_render::rendering::message::RenderMsg;
+use syrillian_render::rendering::picking::{PickRequest, PickResult};
+use syrillian_render::rendering::viewport::ViewportId;
 use syrillian_utils::EngineArgs;
 use winit::dpi::PhysicalSize;
 use winit::event::MouseButton;

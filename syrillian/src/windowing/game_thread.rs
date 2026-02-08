@@ -1,19 +1,22 @@
-use crate::assets::AssetStore;
-use crate::rendering::{RenderMsg, UiContext};
 use crate::world::{World, WorldChannels};
-use crate::{AppState, ViewportId};
 use crossbeam_channel::{Receiver, SendError, Sender, TryRecvError, bounded, unbounded};
 use std::sync::Arc;
+use syrillian_asset::AssetStore;
 use tracing::{debug, error, info, instrument};
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 
-use crate::components::{Component, TypedComponentId};
+use crate::AppState;
+use crate::components::{Component, UiContext};
 use crate::core::ObjectHash;
+use crate::utils::TypedComponentHelper;
 #[cfg(not(target_arch = "wasm32"))]
 use std::marker::PhantomData;
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread::JoinHandle;
+use syrillian_render::rendering::message::RenderMsg;
+use syrillian_render::rendering::viewport::ViewportId;
+use syrillian_utils::TypedComponentId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RenderEventTarget {

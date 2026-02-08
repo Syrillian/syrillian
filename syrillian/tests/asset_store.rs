@@ -1,9 +1,9 @@
-use syrillian::assets::{
+use syrillian::core::Vertex3D;
+use syrillian::math::{Vec2, Vec3};
+use syrillian_asset::{
     AssetStore, Font, HMaterial, HMaterialInstance, HMesh, HShader, HTexture2D, MaterialInstance,
     Mesh, Shader, Sound, Texture2D,
 };
-use syrillian::core::Vertex3D;
-use syrillian::math::{Vec2, Vec3};
 
 #[test]
 fn test_predefined_meshes() {

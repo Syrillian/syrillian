@@ -14,7 +14,9 @@ pub use ::inventory;
 pub use ::tracing;
 pub use ::winit;
 
+pub use ::syrillian_asset as assets;
 pub use ::syrillian_macros;
+pub use ::syrillian_render as rendering;
 pub use ::syrillian_shadergen as shadergen;
 
 #[cfg(feature = "derive")]

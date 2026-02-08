@@ -10,9 +10,9 @@ use syrillian::World;
 use syrillian::assets::{HMaterialInstance, Mesh};
 use syrillian::core::GameObjectId;
 use syrillian::math::{Quat, Vec3, quat};
-use syrillian::rendering::lights::Light;
 use syrillian::tracing::trace;
 use syrillian::utils::animation::{AnimationClip, Channel, TransformKeys};
+use syrillian_components::light::Light;
 use syrillian_components::{
     AnimationComponent, MeshRenderer, PointLightComponent, SkeletalComponent, SpotLightComponent,
     SunLightComponent,

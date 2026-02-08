@@ -9,6 +9,6 @@ authors.workspace = true
 [dependencies]
 wgpu.workspace = true
 syrillian_utils.workspace = true
-glamx.workspace = true
-uuid = { version = "1.20", features = ["v4"] }
-typed-arena = "2.0"
+glamx = { workspace = true, features = ["bytemuck"] }
+uuid = { workspace = true, features = ["v4"] }
+bytemuck.workspace = true

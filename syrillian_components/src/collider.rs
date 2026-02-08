@@ -2,25 +2,26 @@ use self::ColliderError::{DesyncedCollider, InvalidMesh, InvalidMeshRef, NoMeshR
 use snafu::Snafu;
 use syrillian::Reflect;
 use syrillian::World;
+use syrillian::assets::{HMesh, Mesh};
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
-use syrillian::engine::assets::{HMesh, Mesh};
 use syrillian::math::Vec3;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::{trace, warn};
-use syrillian_utils::debug_panic;
 
 use crate::{MeshRenderer, RigidBodyComponent};
 #[cfg(debug_assertions)]
-use syrillian::assets::StoreType;
+use syrillian::assets::store::StoreType;
 #[cfg(debug_assertions)]
 use syrillian::core::Vertex3D;
 #[cfg(debug_assertions)]
-use syrillian::math::{Affine3A, Vec4};
-#[cfg(debug_assertions)]
-use syrillian::proxy_data_mut;
+use syrillian::math::Affine3A;
 #[cfg(debug_assertions)]
 use syrillian::rendering::proxies::SceneProxy;
+#[cfg(debug_assertions)]
+use syrillian::rendering::proxy_data_mut;
+use syrillian::rendering::rendering::CPUDrawCtx;
+use syrillian_utils::debug_panic;
 
 #[derive(Debug, Reflect)]
 pub struct Collider3D {
@@ -134,7 +135,7 @@ impl Component for Collider3D {
     }
 
     #[cfg(debug_assertions)]
-    fn update_proxy(&mut self, _world: &World, mut ctx: syrillian::rendering::CPUDrawCtx) {
+    fn update_proxy(&mut self, _world: &World, mut ctx: CPUDrawCtx) {
         use syrillian::rendering::{DebugRenderer, proxies::DebugSceneProxy};
 
         if !DebugRenderer::collider_mesh() && self.was_debug_enabled {

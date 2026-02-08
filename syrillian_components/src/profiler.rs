@@ -1,12 +1,12 @@
-use std::time::Instant;
-use syrillian::components::Component;
+use syrillian::World;
+use syrillian::components::{Component, UiContext};
 use syrillian::core::ObjectHash;
 use syrillian::math::{Vec2, Vec3, vec2, vec4};
-use syrillian::rendering::UiContext;
-use syrillian::strobe::ui_element::Padding;
-use syrillian::strobe::{UiBuilder, UiLine, UiText};
 use syrillian::utils::FrameCounter;
-use syrillian::{ViewportId, World};
+use syrillian_render::rendering::viewport::ViewportId;
+use syrillian_render::strobe::ui_element::Padding;
+use syrillian_render::strobe::{UiBuilder, UiLine, UiText};
+use web_time::Instant;
 
 pub struct Profiler {
     frames: FrameCounter,

@@ -1,3 +1,4 @@
+use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::{CameraComponent, Component};
 use syrillian::core::Transform;
@@ -6,7 +7,7 @@ use syrillian::input::InputManager;
 use syrillian::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use syrillian::tracing::warn;
 use syrillian::utils::FloatMathExt;
-use syrillian::{Reflect, ViewportId};
+use syrillian_render::rendering::viewport::ViewportId;
 
 /// All tweakable parameters for the FPS Camera
 #[derive(Debug, Clone, Reflect)]

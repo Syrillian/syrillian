@@ -5,6 +5,9 @@ use crate::chunks::{
     TextureSampleNode, VertexUvNode,
 };
 use crate::function::{MaterialExpression, PostProcessMaterialExpression};
+use wgpu::TextureFormat;
+
+pub const PICKING_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 
 const POST_PROCESS_VERTEX: &str = include_str!("functions/vertex_postprocess_quad.wgsl");
 const MESH3D_NO_BONES_GROUP: &str = include_str!("groups/mesh3d_no_bones.wgsl");

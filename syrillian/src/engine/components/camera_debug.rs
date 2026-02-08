@@ -1,12 +1,14 @@
+use crate::World;
 use crate::components::Component;
 use crate::math::{Vec3, Vec4};
 use crate::physics::Ray;
-use crate::rendering::proxies::SceneProxy;
-use crate::rendering::proxies::debug_proxy::{DebugLine, DebugSceneProxy};
-use crate::rendering::{CPUDrawCtx, DebugRenderer};
-use crate::{World, proxy_data_mut};
 use itertools::Itertools;
 use syrillian_macros::Reflect;
+use syrillian_render::proxies::SceneProxy;
+use syrillian_render::proxies::debug_proxy::{DebugLine, DebugSceneProxy};
+use syrillian_render::proxy_data_mut;
+use syrillian_render::rendering::CPUDrawCtx;
+use syrillian_render::rendering::debug_renderer::DebugRenderer;
 use web_time::{Duration, Instant};
 
 #[derive(Debug, Clone)]

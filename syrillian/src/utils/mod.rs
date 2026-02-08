@@ -1,20 +1,17 @@
 pub mod animation;
-pub mod buffer;
-pub mod checks;
-pub mod color;
 pub mod fat_ptr;
 pub mod frame_counter;
 pub(crate) mod hacks;
 pub mod iter;
-pub mod math;
-pub mod sizes;
-pub mod str;
+mod typed_component_helpers;
+pub mod uniform_traits;
 
-pub use buffer::*;
-pub use checks::*;
-pub use color::*;
 pub use frame_counter::*;
-pub use math::*;
+pub use syrillian_asset::assets::shader::checks::*;
+pub use syrillian_asset::mesh::buffer;
+pub use syrillian_utils::color::*;
+pub use syrillian_utils::math::*;
+pub use typed_component_helpers::TypedComponentHelper;
 
 pub use syrillian_utils::{
     EngineArgs, ShaderUniformIndex, ShaderUniformMultiIndex, ShaderUniformSingleIndex,

@@ -1,4 +1,5 @@
 use crate::{FirstPersonCameraController, RigidBodyComponent};
+use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::{CRef, CWeak, CameraComponent, Component};
 use syrillian::gilrs::Axis;
@@ -7,7 +8,7 @@ use syrillian::math::Vec3;
 use syrillian::physics::rapier3d::glamx::Vec3Swizzles;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::warn;
-use syrillian::{Reflect, ViewportId};
+use syrillian_render::rendering::viewport::ViewportId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
