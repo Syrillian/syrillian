@@ -20,6 +20,7 @@ use syrillian::math::Affine3A;
 use syrillian::rendering::proxies::SceneProxy;
 #[cfg(debug_assertions)]
 use syrillian::rendering::proxy_data_mut;
+#[cfg(debug_assertions)]
 use syrillian::rendering::rendering::CPUDrawCtx;
 use syrillian_utils::debug_panic;
 

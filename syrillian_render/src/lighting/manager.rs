@@ -2,6 +2,7 @@ use crate::cache::AssetCache;
 use crate::lighting::proxy::{LightProxy, LightType, LightUniformIndex, ShadowUniformIndex};
 use crate::rendering::message::LightProxyCommand;
 use crate::rendering::render_data::RenderUniformData;
+#[cfg(debug_assertions)]
 use crate::rendering::renderer::Renderer;
 use crate::rendering::uniform::ShaderUniform;
 #[cfg(debug_assertions)]

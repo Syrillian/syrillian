@@ -3,6 +3,7 @@ use crate::model_uniform::ModelUniform;
 use crate::proxies::{
     PROXY_PRIORITY_SOLID, PROXY_PRIORITY_TRANSPARENT, SceneProxy, SceneProxyBinding,
 };
+#[cfg(debug_assertions)]
 use crate::rendering::debug_renderer::DebugRenderer;
 use crate::rendering::picking::hash_to_rgba;
 use crate::rendering::renderer::Renderer;
@@ -17,7 +18,7 @@ use syrillian_asset::material::MeshSkinning;
 use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::store::{AssetStore, H, Store};
 use syrillian_asset::{
-    HMaterialInstance, HMesh, HShader, HTexture2D, Material, MaterialInstance, Shader, Texture2D,
+    HMaterialInstance, HMesh, HTexture2D, Material, MaterialInstance, Shader, Texture2D,
 };
 use syrillian_macros::UniformIndex;
 use syrillian_shadergen::value::MaterialValue;
@@ -323,6 +324,7 @@ fn draw_edges(
     pass: &mut RenderPass,
 ) {
     use glamx::Vec4;
+    use syrillian_asset::HShader;
 
     const COLOR: Vec4 = Vec4::new(1.0, 0.0, 1.0, 1.0);
 
@@ -344,6 +346,8 @@ fn draw_vertex_normals(
     runtime: &RuntimeMeshData,
     pass: &mut RenderPass,
 ) {
+    use syrillian_asset::HShader;
+
     let shader = cache.shader(HShader::DEBUG_VERTEX_NORMALS);
     if !runtime.activate_shader(&shader, ctx, pass) {
         return;

@@ -9,8 +9,8 @@ use crate::cache::{AssetCache, GpuTexture};
 use crate::error::*;
 use crate::lighting::manager::LightManager;
 use crate::lighting::proxy::LightType;
-#[cfg(debug_assertions)]
 use crate::proxies::{SceneProxy, SceneProxyBinding};
+#[cfg(debug_assertions)]
 use crate::rendering::debug_renderer::DebugRenderer;
 use crate::rendering::message::{ProxyUpdateCommand, RenderMsg};
 use crate::rendering::picking::{PickRequest, PickResult, color_bytes_to_hash};
