@@ -9,20 +9,20 @@ use slotmap::Key;
 use std::error::Error;
 use std::fs;
 use syrillian::SyrillianApp;
+use syrillian::assets::material::{CustomMaterial, MaterialShaderSet};
+use syrillian::assets::store::StoreType;
 use syrillian::assets::{
-    CustomMaterial, HMaterial, HMaterialInstance, HShader, Material, MaterialInstance,
-    MaterialShaderSet, Shader, StoreType,
+    HMaterial, HMaterialInstance, HShader, Material, MaterialInstance, Shader,
 };
 use syrillian::core::GameObjectId;
+#[cfg(debug_assertions)]
+use syrillian::rendering::DebugRenderer;
 use syrillian::tracing::{debug, error, info};
 use syrillian::utils::validate_wgsl_source;
 use syrillian::{AppState, World};
 use syrillian_components::RotateComponent;
 use syrillian_components::prefabs::CubePrefab;
 use web_time::Instant;
-
-#[cfg(debug_assertions)]
-use syrillian::rendering::DebugRenderer;
 
 const SHADER_PATH: &str = "examples/dynamic_shader/shader.wgsl";
 const DEFAULT_VERT: &str = include_str!(concat!(

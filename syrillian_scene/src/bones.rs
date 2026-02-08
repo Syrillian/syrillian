@@ -1,7 +1,7 @@
 use super::gltf_loader::GltfScene;
 use gltf::{self, Node};
 use std::collections::HashMap;
-use syrillian::core::bone::Bones;
+use syrillian::core::Bones;
 use syrillian::math::Mat4;
 
 /// Populates the engine bone structure from a glTF skin.

@@ -1,4 +1,4 @@
-use syrillian::windowing::{RenderTarget, ViewportId};
+use syrillian_render::rendering::viewport::{RenderTarget, ViewportId};
 
 #[test]
 fn test_viewport_id() {

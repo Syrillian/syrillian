@@ -1,8 +1,8 @@
-use crate::ViewportId;
-use crate::rendering::RenderedFrame;
-use crate::rendering::State;
 use std::collections::HashMap;
 use std::sync::Arc;
+use syrillian_render::rendering::renderer::RenderedFrame;
+use syrillian_render::rendering::state::State;
+use syrillian_render::rendering::viewport::ViewportId;
 use tracing::{error, warn};
 use wgpu::{
     CommandEncoderDescriptor, Extent3d, Origin3d, Surface, SurfaceConfiguration, SurfaceError,

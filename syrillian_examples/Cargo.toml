@@ -12,8 +12,8 @@ syrillian.workspace = true
 syrillian_components.workspace = true
 syrillian_scene.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-crossbeam-channel = "0.5"
-itertools = "0.14"
+crossbeam-channel.workspace = true
+itertools.workspace = true
+web-time.workspace = true
+slotmap.workspace = true
 notify = "8.2"
-slotmap = "1.1"
-web-time = "1.1"

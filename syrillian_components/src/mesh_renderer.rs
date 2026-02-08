@@ -1,14 +1,13 @@
 use crate::SkeletalComponent;
-use syrillian::assets::HMaterialInstance;
+use syrillian::assets::{HMaterialInstance, HMesh};
 use syrillian::components::Component;
 use syrillian::core::{BoneData, Vertex3D};
-use syrillian::engine::assets::HMesh;
-use syrillian::engine::rendering::CPUDrawCtx;
 use syrillian::math::Vec3;
-use syrillian::rendering::proxies::SceneProxy;
-use syrillian::rendering::proxies::mesh_proxy::MeshSceneProxy;
 use syrillian::tracing::warn;
-use syrillian::{Reflect, World, proxy_data_mut};
+use syrillian::{Reflect, World};
+use syrillian_render::proxies::{MeshSceneProxy, SceneProxy};
+use syrillian_render::proxy_data_mut;
+use syrillian_render::rendering::CPUDrawCtx;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]

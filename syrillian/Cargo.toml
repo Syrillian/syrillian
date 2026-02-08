@@ -17,46 +17,32 @@ readme = "../README.md"
 
 
 [dependencies]
-wgpu.workspace = true
-naga = { version = "28.0", features = ["stderr"] }
-winit = { version = "0.30" }
-bytemuck = "1.24"
-tracing = { version = "0.1" }
-glamx = { workspace = true, features = ["bytemuck", "mint", "nalgebra"] }
-num-traits = "0.2"
-itertools = "0.14"
-image = "0.25"
-rapier3d = { version = "0.32", features = ["parallel"] }
-futures = "0.3"
-static_assertions = "1.1"
-snafu = "0.8"
-smallvec = "1.15"
-obj = "0.10"
+syrillian_asset.workspace = true
 syrillian_macros.workspace = true
-syrillian_utils.workspace = true
+syrillian_render.workspace = true
 syrillian_shadergen.workspace = true
-dashmap = "6.1"
-bon = "3.8"
+syrillian_utils.workspace = true
+
+wgpu.workspace = true
+winit.workspace = true
+glamx = { workspace = true, features = ["bytemuck", "mint", "nalgebra"] }
+bytemuck.workspace = true
+itertools.workspace = true
+snafu.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+slotmap.workspace = true
+dashmap.workspace = true
+rapier3d = { version = "0.32", features = ["parallel"] }
+num-traits = "0.2"
 const_format = "0.2"
 gilrs = "0.11"
-uuid = { version = "1.19", features = ["v4"] }
-fontdb = "0.23"
-fdsm = "0.8"
-fdsm-ttf-parser = "0.2"
-etagere = "0.2"
-ttf-parser = "0.25"
 delegate = "0.13"
-slotmap = "1.0"
-num_enum = "0.7"
 kira = { version = "0.11", default-features = false, features = ["flac", "mp3", "ogg", "wav"] }
-once_cell = "1.21"
 web-time = "1.0"
-crossbeam-channel = "0.5"
-more-asserts = "0.3"
-bitflags = { version = "2.10", features = ["bytemuck"] }
+crossbeam-channel.workspace = true
 inventory = "0.3"
 parking_lot = "0.12"
-half = "2.7"
 profiling = "1.0"
 #profiling = { version = "1.0", features = ["profile-with-puffin"] }
 #puffin_http = "0.16"
@@ -79,7 +65,7 @@ chrono = "0.4"
 wgpu = { workspace = true, default-features = false, features = ["metal"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-winit = { version = "0.30", features = ["wayland", "x11"] }
+winit = { workspace = true, features = ["wayland", "x11"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wgpu = { workspace = true, default-features = false, features = ["dx12"] }
@@ -91,7 +77,7 @@ wgpu = { workspace = true, default-features = false, features = ["vulkan-portabi
 tokio = { version = "1.47", features = ["rt"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-uuid = { version = "1.19", features = ["js"] }
+uuid = { workspace = true, features = ["js"] }
 wgpu = { workspace = true, default-features = false, features = ["webgpu", "naga-ir", "webgl", "metal"] }
 web-sys = { version = "0.3", features = ["Document", "HtmlCollection"] }
 

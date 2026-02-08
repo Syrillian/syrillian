@@ -3,19 +3,17 @@
 //! This includes game objects, their transforms and vertex types used for
 //! rendering.
 
-pub mod bone;
-pub mod bounds;
 pub(super) mod component_context_inference;
 pub mod component_storage;
 pub mod object;
 pub mod object_extensions;
 pub mod reflection;
 pub mod transform;
-pub mod vertex;
 
-pub use bone::*;
-pub use bounds::*;
 pub use object::*;
 pub use object_extensions::*;
+pub use syrillian_asset::mesh::bone::*;
+pub use syrillian_asset::mesh::vertex::*;
+pub use syrillian_utils::BoundingSphere;
+pub use syrillian_utils::Frustum;
 pub use transform::*;
-pub use vertex::*;

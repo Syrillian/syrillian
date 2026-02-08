@@ -2,11 +2,10 @@ use super::gltf_loader::GltfScene;
 use gltf::image::Format;
 use std::collections::HashMap;
 use syrillian::World;
-use syrillian::assets::{
-    HMaterial, HMaterialInstance, HTexture2D, MaterialInstance, StoreType, Texture2D,
-};
+use syrillian::assets::store::StoreType;
+use syrillian::assets::{HMaterial, HMaterialInstance, HTexture2D, MaterialInstance, Texture2D};
 use syrillian::math::Vec3;
-use syrillian::rendering::TextureFormat;
+use syrillian::rendering::rendering::TextureFormat;
 use syrillian_utils::debug_panic;
 
 /// Loads all materials defined in the glTF scene and stores them in the asset store.

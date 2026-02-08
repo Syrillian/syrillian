@@ -10,11 +10,13 @@ authors.workspace = true
 [dependencies]
 syrillian.workspace = true
 syrillian_utils.workspace = true
-delegate = "0.13"
+syrillian_render.workspace = true
+delegate.workspace = true
+itertools.workspace = true
+snafu.workspace = true
+bytemuck.workspace = true
+web-time.workspace = true
 kira = { version = "0.11", default-features = false, features = ["flac", "mp3", "ogg", "wav"] }
-itertools = "0.14"
-snafu = "0.8"
-bytemuck = "1.24"
 
 [features]
 default = ["audio"]

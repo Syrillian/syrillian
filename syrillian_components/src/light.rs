@@ -7,10 +7,70 @@ use syrillian::core::reflection::ReflectedField;
 use syrillian::core::reflection::{
     PartialReflect, ReflectedTypeActions, ReflectedTypeInfo, serialize_as,
 };
-use syrillian::math::vec3;
-use syrillian::rendering::CPUDrawCtx;
-use syrillian::rendering::lights::{Light, LightProxy, LightType};
+use syrillian::math::{Vec3, vec3};
 use syrillian::utils::FloatMathExt;
+use syrillian_render::lighting::proxy::{LightProxy, LightType};
+use syrillian_render::rendering::CPUDrawCtx;
+
+pub trait Light: Component {
+    fn light_type(&self) -> LightType;
+
+    fn data(&self) -> &LightProxy;
+    fn data_mut(&mut self, mark_dirty: bool) -> &mut LightProxy;
+
+    fn mark_dirty(&mut self);
+    fn is_dirty(&self) -> bool;
+
+    fn set_range(&mut self, range: f32) {
+        self.data_mut(true).range = range.max(0.);
+    }
+
+    fn set_intensity(&mut self, intensity: f32) {
+        self.data_mut(true).intensity = intensity.max(0.);
+    }
+
+    fn set_color(&mut self, r: f32, g: f32, b: f32) {
+        let light = self.data_mut(true);
+
+        light.color.x = r.clamp(0., 1.);
+        light.color.y = g.clamp(0., 1.);
+        light.color.z = b.clamp(0., 1.);
+    }
+
+    fn set_color_vec(&mut self, color: &Vec3) {
+        self.data_mut(true).color = color.clamp(Vec3::ZERO, Vec3::ONE);
+    }
+
+    fn set_inner_angle(&mut self, angle: f32) {
+        let rad = angle.clamp(f32::EPSILON, 45. - f32::EPSILON).to_radians();
+        self.data_mut(true).inner_angle = rad;
+    }
+
+    fn set_outer_angle(&mut self, angle: f32) {
+        let rad = angle.clamp(f32::EPSILON, 45. - f32::EPSILON).to_radians();
+        self.data_mut(true).outer_angle = rad;
+    }
+
+    fn radius(&self) -> f32 {
+        self.data().radius
+    }
+
+    fn intensity(&self) -> f32 {
+        self.data().intensity
+    }
+
+    fn color(&self) -> Vec3 {
+        self.data().color
+    }
+
+    fn direction(&self) -> Vec3 {
+        self.data().direction
+    }
+
+    fn up(&self) -> Vec3 {
+        self.data().up
+    }
+}
 
 pub trait LightTypeTrait: Send + Sync {
     const NAME: &str;

@@ -1,5 +1,5 @@
 use syrillian::math::Quat;
-use syrillian::utils::math::{FloatMathExt, QuaternionEuler, light_range};
+use syrillian_utils::math::{FloatMathExt, QuaternionEuler, light_range};
 
 #[test]
 fn quaternion_euler_round_trip_degrees() {

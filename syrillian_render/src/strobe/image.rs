@@ -1,0 +1,126 @@
+use crate::ObjectHash;
+use crate::proxies::MeshUniformIndex;
+use crate::rendering::RenderPassType;
+use crate::rendering::picking::hash_to_rgba;
+use crate::strobe::UiDrawContext;
+use crate::strobe::ui_element::{Rect, UiElement};
+use glamx::{Affine3A, Mat4, Vec2, Vec3, vec2};
+use syrillian_asset::{HMaterialInstance, HShader};
+
+#[derive(Debug, Clone)]
+pub struct UiImage {
+    pub draw_order: u32,
+    pub material: HMaterialInstance,
+    pub size: Vec2,
+    pub object_hash: ObjectHash,
+}
+
+impl UiImage {
+    pub fn new(material: HMaterialInstance) -> Self {
+        Self {
+            draw_order: 0,
+            material,
+            size: vec2(100.0, 100.0),
+            object_hash: ObjectHash::default(),
+        }
+    }
+
+    pub fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn object(mut self, hash: ObjectHash) -> Self {
+        self.object_hash = hash;
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ImageScaleMode {
+    Absolute,
+    Relative,
+    RelativeStretch,
+}
+
+impl UiElement for UiImage {
+    fn draw_order(&self) -> u32 {
+        self.draw_order
+    }
+
+    fn render(&self, ctx: &mut UiDrawContext, rect: Rect) {
+        self.render_internal(ctx, rect);
+    }
+
+    fn measure(&self, _ctx: &mut UiDrawContext) -> Vec2 {
+        self.size
+    }
+}
+
+impl UiImage {
+    fn screen_matrix(&self, width: f32, height: f32, rect: Rect) -> Mat4 {
+        let rect_ndc = rect / vec2(width, height);
+        let center = rect_ndc.position + rect_ndc.size * 0.5;
+
+        let scale = Vec3::new(rect_ndc.size.x, rect_ndc.size.y, 1.0);
+        let translation = Vec3::new(center.x * 2.0 - 1.0, 1.0 - center.y * 2.0, 0.0);
+
+        (Affine3A::from_translation(translation) * Affine3A::from_scale(scale)).into()
+    }
+
+    fn render_internal(&self, ctx: &mut UiDrawContext, rect: Rect) {
+        let shader = match ctx.pass_type() {
+            RenderPassType::Color2D => Some(ctx.cache().shader_2d()),
+            RenderPassType::PickingUi => Some(ctx.cache().shader(HShader::DIM2_PICKING)),
+            _ => None,
+        };
+        let Some(shader) = shader else {
+            return;
+        };
+
+        let width = ctx.viewport_size().width.max(1) as f32;
+        let height = ctx.viewport_size().height.max(1) as f32;
+
+        let model_matrix = self.screen_matrix(width, height, rect);
+
+        let cached_image = ctx.ui_image_data(&model_matrix).clone();
+
+        ctx.state().queue.write_buffer(
+            cached_image.uniform.buffer(MeshUniformIndex::MeshData),
+            0,
+            bytemuck::bytes_of(&model_matrix),
+        );
+
+        let mut pass = ctx.pass().write();
+        crate::must_pipeline!(pipeline = shader, ctx.gpu_ctx().pass_type => return);
+
+        pass.set_pipeline(pipeline);
+        pass.set_bind_group(
+            shader.bind_groups().render,
+            ctx.gpu_ctx().render_bind_group,
+            &[],
+        );
+        if let Some(idx) = shader.bind_groups().model {
+            pass.set_bind_group(idx, cached_image.uniform.bind_group(), &[]);
+        }
+
+        match ctx.pass_type() {
+            RenderPassType::Color2D => {
+                let material = ctx.cache().material_instance(self.material);
+                if let Some(idx) = shader.bind_groups().material {
+                    pass.set_bind_group(idx, &material.bind_group, &[]);
+                }
+                if shader.immediate_size > 0 {
+                    pass.set_immediates(0, &material.immediates);
+                }
+            }
+            RenderPassType::PickingUi => {
+                let color = hash_to_rgba(self.object_hash);
+                pass.set_immediates(0, bytemuck::bytes_of(&color));
+            }
+            _ => {}
+        }
+
+        ctx.cache().mesh_unit_square().draw_all(&mut pass);
+    }
+}

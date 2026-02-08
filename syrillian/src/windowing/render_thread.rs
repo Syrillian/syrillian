@@ -1,8 +1,11 @@
-use crate::ViewportId;
-use crate::assets::AssetStore;
-use crate::rendering::{PickResult, RenderMsg, RenderedFrame, Renderer, State};
 use crossbeam_channel::{Receiver, Sender, bounded, select, unbounded};
 use std::sync::Arc;
+use syrillian_asset::AssetStore;
+use syrillian_render::rendering::message::RenderMsg;
+use syrillian_render::rendering::picking::PickResult;
+use syrillian_render::rendering::renderer::{RenderedFrame, Renderer};
+use syrillian_render::rendering::state::State;
+use syrillian_render::rendering::viewport::ViewportId;
 use tracing::warn;
 use wgpu::SurfaceConfiguration;
 
@@ -33,7 +36,7 @@ impl RenderThreadInner {
         frame_tx: Sender<RenderBatch>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
-    ) -> Result<Self, crate::rendering::error::RenderError> {
+    ) -> Result<Self, syrillian_render::error::RenderError> {
         let renderer = Renderer::new(state, store, pick_result_tx, primary_config)?;
         Ok(Self {
             renderer,
@@ -137,7 +140,7 @@ impl RenderThread {
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
-    ) -> Result<Self, crate::rendering::error::RenderError> {
+    ) -> Result<Self, syrillian_render::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
         let (frame_tx, frame_rx) = bounded(1);
         let inner = RenderThreadInner::new(
@@ -207,7 +210,7 @@ impl RenderThread {
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
-    ) -> Result<Self, crate::rendering::error::RenderError> {
+    ) -> Result<Self, syrillian_render::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
         let (frame_tx, frame_rx) = unbounded();
         let inner = RenderThreadInner::new(

@@ -1,16 +1,18 @@
 //! Example that renders a textured spinning cube and some 2d images.
 
 use std::error::Error;
-use syrillian::assets::{HMaterialInstance, MaterialInstance, StoreType, Texture2D};
+use syrillian::SyrillianApp;
+use syrillian::assets::store::StoreType;
+use syrillian::assets::{HMaterialInstance, MaterialInstance, Texture2D};
+use syrillian::components::UiContext;
 use syrillian::core::{GameObjectExt, GameObjectId};
 use syrillian::input::MouseButton;
 use syrillian::math::{Vec2, Vec3};
 use syrillian::physics::QueryFilter;
-use syrillian::rendering::UiContext;
+use syrillian::rendering::rendering::viewport::ViewportId;
 use syrillian::strobe::UiImage;
 use syrillian::tracing::{info, warn};
 use syrillian::{AppState, World};
-use syrillian::{SyrillianApp, ViewportId};
 use syrillian_components::prefabs::CubePrefab;
 use syrillian_components::{Collider3D, RotateComponent};
 

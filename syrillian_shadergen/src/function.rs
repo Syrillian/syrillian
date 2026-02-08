@@ -1,19 +1,6 @@
 use crate::chunks::NodeId;
 use crate::generator::{MaterialCompiler, PostProcessCompiler};
-
-#[derive(Clone, Copy, Debug)]
-pub enum MaterialValueType {
-    F32,
-    U32,
-    Vec2,
-    Vec3,
-    Vec4,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum MaterialBindingType {
-    Texture2D,
-}
+use crate::value::MaterialValueType;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialExpressionValue {
@@ -60,15 +47,15 @@ impl MaterialExpression for PbrShader {
             },
             MaterialExpressionValue {
                 name: "lit",
-                value_type: MaterialValueType::F32,
+                value_type: MaterialValueType::Bool,
             },
             MaterialExpressionValue {
                 name: "cast_shadows",
-                value_type: MaterialValueType::F32,
+                value_type: MaterialValueType::Bool,
             },
             MaterialExpressionValue {
                 name: "grayscale_diffuse",
-                value_type: MaterialValueType::F32,
+                value_type: MaterialValueType::Bool,
             },
         ]
     }
@@ -128,6 +115,3 @@ impl PostProcessMaterialExpression for PostProcessPassthroughMaterial {
         compiler.texture_sample(tex, sampler, uv)
     }
 }
-
-pub use MaterialExpression as Material;
-pub use PostProcessMaterialExpression as PostProcessMaterial;

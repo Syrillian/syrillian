@@ -1,13 +1,14 @@
 use delegate::delegate;
+use syrillian::Reflect;
 use syrillian::World;
 use syrillian::assets::HFont;
 use syrillian::components::Component;
 use syrillian::math::{Vec2, Vec3};
-use syrillian::rendering::CPUDrawCtx;
-use syrillian::rendering::proxies::SceneProxy;
-use syrillian::rendering::proxies::text_proxy::{TextProxy, ThreeD};
-use syrillian::rendering::strobe::TextAlignment;
-use syrillian::{Reflect, ViewportId};
+use syrillian_render::proxies::SceneProxy;
+use syrillian_render::proxies::text_proxy::{TextProxy, ThreeD};
+use syrillian_render::rendering::CPUDrawCtx;
+use syrillian_render::rendering::viewport::ViewportId;
+use syrillian_render::strobe::TextAlignment;
 
 #[derive(Debug, Clone, Reflect)]
 pub struct Text3D {

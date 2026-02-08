@@ -5,9 +5,10 @@
 //!    using this for reference.
 
 use std::error::Error;
+use syrillian::assets::material::{CustomMaterial, MaterialShaderSet};
+use syrillian::assets::store::StoreType;
 use syrillian::assets::{
-    CustomMaterial, HMaterialInstance, HShader, HSound, Material, MaterialInstance,
-    MaterialShaderSet, Shader, Sound, StoreType,
+    HMaterialInstance, HShader, HSound, Material, MaterialInstance, Shader, Sound,
 };
 use syrillian::audio::effect::reverb::ReverbBuilder;
 use syrillian::audio::track::SpatialTrackBuilder;
@@ -22,12 +23,12 @@ use syrillian::physics::Ray;
 use syrillian::physics::rapier3d::prelude::{ColliderHandle, QueryFilter};
 use syrillian::prefabs::Prefab;
 #[cfg(debug_assertions)]
-use syrillian::rendering::DebugRenderer;
-use syrillian::rendering::lights::Light;
+use syrillian::rendering::rendering::debug_renderer::DebugRenderer;
 use syrillian::strobe::TextAlignment;
 use syrillian::tracing::{error, info};
 use syrillian::utils::FrameCounter;
 use syrillian::{AppRuntime, AppState, World};
+use syrillian_components::light::Light;
 use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab, SunPrefab};
 use syrillian_components::{
     AudioEmitter, Collider3D, FirstPersonCameraController, FlashlightComponent, FreecamController,

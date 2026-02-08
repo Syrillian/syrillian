@@ -3,6 +3,7 @@ use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::Component;
 use syrillian::math::Vec3;
+use syrillian::utils::TypedComponentHelper;
 
 #[derive(Debug, Default, Reflect)]
 struct MyComponent;

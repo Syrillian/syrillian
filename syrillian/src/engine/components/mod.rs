@@ -39,8 +39,10 @@
 pub mod camera;
 #[cfg(debug_assertions)]
 pub mod camera_debug;
+mod ui_context;
 
 pub use camera::CameraComponent;
+pub use ui_context::UiContext;
 
 #[cfg(debug_assertions)]
 pub use camera_debug::*;
@@ -49,11 +51,9 @@ use crate::World;
 use crate::core::GameObjectId;
 use crate::core::component_context_inference::ComponentContextInference;
 use crate::core::reflection::{ReflectedTypeInfo, Value, type_info};
-use crate::rendering::lights::LightProxy;
-use crate::rendering::proxies::SceneProxy;
-use crate::rendering::{CPUDrawCtx, UiContext};
+use crate::utils::TypedComponentHelper;
 use delegate::delegate;
-use slotmap::{Key, new_key_type};
+use slotmap::Key;
 use std::any::{Any, TypeId};
 use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
@@ -63,8 +63,10 @@ use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use syrillian::core::reflection::{Reflect, ReflectSerialize};
-
-new_key_type! { pub struct ComponentId; }
+use syrillian_render::lighting::proxy::LightProxy;
+use syrillian_render::proxies::SceneProxy;
+use syrillian_render::rendering::CPUDrawCtx;
+use syrillian_utils::{ComponentId, TypedComponentId};
 
 pub struct ComponentContext {
     pub(crate) tid: TypedComponentId,
@@ -146,7 +148,7 @@ impl ReflectSerialize for CRef<dyn Component> {
     where
         Self: Sized,
     {
-        let Some(type_info) = type_info(this.ctx.tid.0) else {
+        let Some(type_info) = type_info(this.ctx.tid.type_id()) else {
             return Value::None;
         };
         let base = std::ptr::from_mut(this.get_mut()).cast::<u8>();
@@ -227,7 +229,7 @@ impl<C: Component> CRef<C> {
 
 impl<C: Component + ?Sized> CRef<C> {
     pub fn is_a<O: Component>(&self) -> bool {
-        self.ctx.tid.0 == TypeId::of::<O>()
+        self.ctx.tid.type_id() == TypeId::of::<O>()
     }
 
     pub fn typed_id(&self) -> TypedComponentId {
@@ -239,7 +241,7 @@ impl<C: Component + ?Sized> CRef<C> {
     }
 
     pub fn type_info(&self) -> Option<ReflectedTypeInfo> {
-        type_info(self.ctx.tid.0)
+        type_info(self.ctx.tid.type_id())
     }
 
     #[allow(clippy::mut_from_ref)]
@@ -264,7 +266,7 @@ impl CRef<dyn Component> {
 
 impl<C: Component + ?Sized> From<CRef<C>> for CWeak<C> {
     fn from(value: CRef<C>) -> Self {
-        CWeak(value.ctx.tid.1, PhantomData)
+        CWeak(value.ctx.tid.component_id(), PhantomData)
     }
 }
 
@@ -346,45 +348,6 @@ impl<C: Component> CWeak<C> {
 impl<C: Component> Default for CWeak<C> {
     fn default() -> Self {
         CWeak::null()
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct TypedComponentId(pub(crate) TypeId, pub(crate) ComponentId);
-
-impl From<TypedComponentId> for ComponentId {
-    fn from(value: TypedComponentId) -> Self {
-        value.1
-    }
-}
-
-impl TypedComponentId {
-    pub fn is_a<C: Component>(&self) -> bool {
-        self.0 == TypeId::of::<C>()
-    }
-
-    pub fn type_id(&self) -> TypeId {
-        self.0
-    }
-
-    pub fn type_info(&self) -> Option<ReflectedTypeInfo> {
-        type_info(self.0)
-    }
-
-    pub fn type_name(&self) -> Option<&'static str> {
-        self.type_info().map(|info| info.full_path)
-    }
-
-    pub fn short_name(&self) -> Option<&'static str> {
-        self.type_info().map(|info| info.name)
-    }
-
-    pub(crate) fn null<C: Component + ?Sized>() -> TypedComponentId {
-        Self::from_typed::<C>(ComponentId::null())
-    }
-
-    pub(crate) fn from_typed<C: Component + ?Sized>(id: ComponentId) -> Self {
-        TypedComponentId(TypeId::of::<C>(), id)
     }
 }
 
