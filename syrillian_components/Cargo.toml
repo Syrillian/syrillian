@@ -16,7 +16,7 @@ itertools.workspace = true
 snafu.workspace = true
 bytemuck.workspace = true
 web-time.workspace = true
-kira = { version = "0.11", default-features = false, features = ["flac", "mp3", "ogg", "wav"] }
+kira.workspace = true
 
 [features]
 default = ["audio"]

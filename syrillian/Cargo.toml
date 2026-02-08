@@ -33,14 +33,14 @@ tracing.workspace = true
 uuid.workspace = true
 slotmap.workspace = true
 dashmap.workspace = true
+kira.workspace = true
+crossbeam-channel.workspace = true
 rapier3d = { version = "0.32", features = ["parallel"] }
 num-traits = "0.2"
 const_format = "0.2"
 gilrs = "0.11"
 delegate = "0.13"
-kira = { version = "0.11", default-features = false, features = ["flac", "mp3", "ogg", "wav"] }
 web-time = "1.0"
-crossbeam-channel.workspace = true
 inventory = "0.3"
 parking_lot = "0.12"
 profiling = "1.0"
@@ -95,5 +95,5 @@ wasm-bindgen-test = "0.3"
 [features]
 default = ["derive", "audio"]
 derive = ["syrillian_macros/derive_tracing_subscriber"]
-audio = ["kira/cpal"]
+audio = ["kira/cpal", "syrillian_asset/audio"]
 physics_profiler = ["rapier3d/profiler"]

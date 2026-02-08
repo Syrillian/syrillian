@@ -49,6 +49,7 @@ syrillian_render = { version = "0.6.1", path = "syrillian_render", default-featu
 
 wgpu = { version = "28.0", default-features = false, features = ["wgsl"] }
 naga = { version = "28.0", features = ["stderr"] }
+kira = { version = "0.11", default-features = false, features = ["flac", "mp3", "ogg", "wav"] }
 nalgebra = "0.34"
 winit = "0.30"
 glamx = "0.1"
