@@ -401,12 +401,9 @@ impl MaterialCompiler {
 
         match pass {
             MeshPass::Base | MeshPass::Shadow => {
-                out.push_str(MATERIAL_GROUP);
-                out.push('\n');
-                out.push_str(MATERIAL_TEXTURES_GROUP);
-                out.push('\n');
-                out.push_str(LIGHT_GROUP);
-                out.push('\n');
+                out.push_str("#use material\n");
+                out.push_str("#use material_textures\n");
+                out.push_str("#use light\n");
             }
             MeshPass::Picking => {}
         }
