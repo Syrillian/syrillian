@@ -97,8 +97,8 @@ fn shadergen_mesh3d() {
     use syrillian_shadergen::function::PbrShader;
     use syrillian_shadergen::generator::{MaterialCompiler, MeshPass, MeshSkinning};
 
-    let pbr = PbrShader;
-    let code = MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Unskinned, MeshPass::Base);
+    let mut pbr = PbrShader::default();
+    let code = MaterialCompiler::compile_mesh(&mut pbr, 0, MeshSkinning::Unskinned, MeshPass::Base);
     let shader = Shader::builder()
         .shader_type(ShaderType::Custom)
         .name("Shadergen Mesh3D")

@@ -225,19 +225,19 @@ impl StoreDefaults for Shader {
     fn populate(store: &mut Store<Self>) {
         let post_process_fs =
             PostProcessCompiler::compile_post_process_fragment(&PostProcessPassthroughMaterial, 0);
-        let pbr = PbrShader;
+        let mut pbr = PbrShader::default();
         let mesh3d =
-            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Unskinned, MeshPass::Base);
+            MaterialCompiler::compile_mesh(&mut pbr, 0, MeshSkinning::Unskinned, MeshPass::Base);
 
         debug!("{mesh3d}");
         let mesh3d_skinned =
-            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Skinned, MeshPass::Base);
+            MaterialCompiler::compile_mesh(&mut pbr, 0, MeshSkinning::Skinned, MeshPass::Base);
         let mesh3d_picking = MaterialCompiler::compile_mesh_picking(MeshSkinning::Unskinned);
         let mesh3d_picking_skinned = MaterialCompiler::compile_mesh_picking(MeshSkinning::Skinned);
         let mesh3d_shadow =
-            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Unskinned, MeshPass::Shadow);
+            MaterialCompiler::compile_mesh(&mut pbr, 0, MeshSkinning::Unskinned, MeshPass::Shadow);
         let mesh3d_shadow_skinned =
-            MaterialCompiler::compile_mesh(&pbr, 0, MeshSkinning::Skinned, MeshPass::Shadow);
+            MaterialCompiler::compile_mesh(&mut pbr, 0, MeshSkinning::Skinned, MeshPass::Shadow);
 
         let default_layout = Material::default_layout();
         let material_groups = MaterialShaderGroups {

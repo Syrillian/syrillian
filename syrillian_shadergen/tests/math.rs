@@ -6,10 +6,6 @@ use syrillian_shadergen::value::MaterialValueType;
 struct MathTestMaterial;
 
 impl PostProcessMaterialExpression for MathTestMaterial {
-    fn inputs(&self) -> Vec<MaterialExpressionValue> {
-        Vec::new()
-    }
-
     fn outputs(&self) -> Vec<MaterialExpressionValue> {
         vec![MaterialExpressionValue {
             name: "color",

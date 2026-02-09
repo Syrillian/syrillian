@@ -61,14 +61,15 @@ impl AssetStore {
     pub fn register_custom_material_with_layout<M: MaterialExpression>(
         &self,
         name: impl Into<String>,
-        material_expr: M,
+        mut material_expr: M,
         layout: MaterialInputLayout,
     ) -> HMaterial {
         let name = name.into();
 
         let unskinned =
-            MaterialCompiler::compile_shader_set(&material_expr, MeshSkinning::Unskinned);
-        let skinned = MaterialCompiler::compile_shader_set(&material_expr, MeshSkinning::Skinned);
+            MaterialCompiler::compile_shader_set(&mut material_expr, MeshSkinning::Unskinned);
+        let skinned =
+            MaterialCompiler::compile_shader_set(&mut material_expr, MeshSkinning::Skinned);
 
         let unskinned_set = self.store_shader_set(&name, unskinned, &layout);
         let skinned_set = self.store_shader_set(&name, skinned, &layout);

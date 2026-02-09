@@ -10,7 +10,9 @@ use syrillian::input::MouseButton;
 use syrillian::math::{Vec2, Vec3};
 use syrillian::physics::QueryFilter;
 use syrillian::rendering::rendering::viewport::ViewportId;
-use syrillian::shadergen::function::{MaterialExpression, MaterialExpressionValue};
+use syrillian::shadergen::function::{
+    ExpressionInput, ExpressionTexture, MaterialExpression, MaterialExpressionValue,
+};
 use syrillian::shadergen::value::MaterialValueType;
 use syrillian::shadergen::{MaterialCompiler, NodeId};
 use syrillian::strobe::UiImage;
@@ -21,14 +23,57 @@ use syrillian_components::{Collider3D, RotateComponent};
 
 const NECO_IMAGE: &[u8; 1293] = include_bytes!("assets/neco.jpg");
 
-struct TextureDownsizeMaterial;
+struct TextureDownsizeMaterial {
+    diffuse: ExpressionInput<Vec3>,
+    use_diffuse_texture: ExpressionInput<bool>,
+    diffuse_texture: ExpressionTexture,
+    use_normal_texture: ExpressionInput<bool>,
+    normal_texture: ExpressionTexture,
+    roughness: ExpressionInput<f32>,
+    use_roughness_texture: ExpressionInput<bool>,
+    roughness_texture: ExpressionTexture,
+    metallic: ExpressionInput<f32>,
+    alpha: ExpressionInput<f32>,
+    lit: ExpressionInput<bool>,
+    cast_shadows: ExpressionInput<bool>,
+    grayscale_diffuse: ExpressionInput<bool>,
+}
+
+impl Default for TextureDownsizeMaterial {
+    fn default() -> Self {
+        Self {
+            diffuse: ExpressionInput::material("diffuse"),
+            use_diffuse_texture: ExpressionInput::material("use_diffuse_texture"),
+            diffuse_texture: ExpressionTexture::material("diffuse"),
+            use_normal_texture: ExpressionInput::material("use_normal_texture"),
+            normal_texture: ExpressionTexture::material("normal"),
+            roughness: ExpressionInput::material("roughness"),
+            use_roughness_texture: ExpressionInput::material("use_roughness_texture"),
+            roughness_texture: ExpressionTexture::material("roughness"),
+            metallic: ExpressionInput::material("metallic"),
+            alpha: ExpressionInput::material("alpha"),
+            lit: ExpressionInput::material("lit"),
+            cast_shadows: ExpressionInput::material("cast_shadows"),
+            grayscale_diffuse: ExpressionInput::material("grayscale_diffuse"),
+        }
+    }
+}
 
 impl MaterialExpression for TextureDownsizeMaterial {
-    fn inputs(&self) -> Vec<MaterialExpressionValue> {
-        vec![MaterialExpressionValue {
-            name: "diffuse",
-            value_type: MaterialValueType::Vec4,
-        }]
+    fn bind_inputs(&mut self, compiler: &mut MaterialCompiler) {
+        self.diffuse.bind(compiler);
+        self.use_diffuse_texture.bind(compiler);
+        self.diffuse_texture.bind(compiler);
+        self.use_normal_texture.bind(compiler);
+        self.normal_texture.bind(compiler);
+        self.roughness.bind(compiler);
+        self.use_roughness_texture.bind(compiler);
+        self.roughness_texture.bind(compiler);
+        self.metallic.bind(compiler);
+        self.alpha.bind(compiler);
+        self.lit.bind(compiler);
+        self.cast_shadows.bind(compiler);
+        self.grayscale_diffuse.bind(compiler);
     }
 
     fn outputs(&self) -> Vec<MaterialExpressionValue> {
@@ -43,21 +88,25 @@ impl MaterialExpression for TextureDownsizeMaterial {
         let uv = compiler.vertex_uv();
         let uv_scaled = compiler.mul(uv, scale);
 
-        let diffuse =
-            compiler.material_base_color(uv_scaled, "diffuse", "use_diffuse_texture", "diffuse");
-
-        let normal = compiler.material_normal(uv_scaled, "use_normal_texture", "normal");
-        let roughness = compiler.material_roughness(
+        let diffuse = compiler.base_color(
             uv_scaled,
-            "roughness",
-            "use_roughness_texture",
-            "roughness",
+            &self.diffuse,
+            &self.use_diffuse_texture,
+            &self.diffuse_texture,
         );
-        let metallic = compiler.material_input("metallic");
-        let alpha = compiler.material_input("alpha");
-        let lit = compiler.material_input("lit");
-        let cast_shadows = compiler.material_input("cast_shadows");
-        let grayscale = compiler.material_input("grayscale_diffuse");
+
+        let normal = compiler.normal(uv_scaled, &self.use_normal_texture, &self.normal_texture);
+        let roughness = compiler.roughness(
+            uv_scaled,
+            &self.roughness,
+            &self.use_roughness_texture,
+            &self.roughness_texture,
+        );
+        let metallic = self.metallic.node();
+        let alpha = self.alpha.node();
+        let lit = self.lit.node();
+        let cast_shadows = self.cast_shadows.node();
+        let grayscale = self.grayscale_diffuse.node();
 
         compiler.pbr_shader(
             diffuse,
@@ -99,7 +148,7 @@ impl AppState for NecoArc {
 
         let custom_material = world
             .assets
-            .register_custom_material("Checkered Material", TextureDownsizeMaterial);
+            .register_custom_material("Checkered Material", TextureDownsizeMaterial::default());
 
         self.necoarc = MaterialInstance::builder()
             .name("Neco Arc")

@@ -1,10 +1,16 @@
 use crate::chunks::{
-    ConstantF32Node, EmitCtx, FunctionCallNode, MaterialBaseColorNode, MaterialInputNode,
-    MaterialNormalNode, MaterialRoughnessNode, MaterialSamplerNode, MaterialTextureNode, MathNode,
-    MathOp, NodeChunk, NodeId, PbrShaderNode, PickColorNode, PostSurfaceSamplerNode,
-    PostSurfaceTextureNode, RawChunk, SwizzleNode, TextureSampleNode, VertexUvNode,
+    ConstantF32Node, EmitCtx, ExpressionInput as NodeInput, FunctionCallNode,
+    MaterialBaseColorNode, MaterialInputNode, MaterialNormalNode, MaterialRoughnessNode,
+    MaterialSamplerNode, MaterialTextureNode, MathNode, MathOp, NodeChunk, NodeId, PbrShaderNode,
+    PickColorNode, PostSurfaceSamplerNode, PostSurfaceTextureNode, RawChunk, SwizzleNode,
+    TextureSampleNode, VertexUvNode,
 };
-use crate::function::{MaterialExpression, PostProcessMaterialExpression};
+use crate::function::{
+    ExpressionInput, ExpressionTexture, MaterialExpression, MaterialPinType,
+    PostProcessMaterialExpression,
+};
+use glamx::Vec3;
+use syrillian_utils::debug_panic;
 use wgpu::TextureFormat;
 
 pub const PICKING_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
@@ -194,55 +200,91 @@ impl MaterialCompiler {
         self.allocate(VertexUvNode)
     }
 
-    pub fn material_input(&mut self, name: impl Into<String>) -> NodeId {
+    pub fn input_value(&mut self, name: &'static str) -> NodeId {
         self.allocate(MaterialInputNode::new(name))
     }
 
-    pub fn material_texture(&mut self, name: impl Into<String>) -> NodeId {
+    pub fn bind_texture(&mut self, name: &'static str) -> NodeId {
         self.allocate(MaterialTextureNode::new(name))
     }
 
-    pub fn material_sampler(&mut self, name: impl Into<String>) -> NodeId {
+    pub fn bind_sampler(&mut self, name: &'static str) -> NodeId {
         self.allocate(MaterialSamplerNode::new(name))
     }
 
-    pub fn material_base_color(
+    pub fn bind_expression_input<T: MaterialPinType>(&mut self, input: &mut ExpressionInput<T>) {
+        if input.is_unbound() {
+            debug_panic!(
+                "unbound ExpressionInput: initialize with ExpressionInput::material(...) or ExpressionInput::bound(...)"
+            );
+            return;
+        }
+        let Some(name) = input.material_name() else {
+            return;
+        };
+        let node = self.input_value(name);
+        input.set_bound(node, 0);
+    }
+
+    pub fn bind_expression_texture(&mut self, texture: &mut ExpressionTexture) {
+        if texture.is_unbound() {
+            debug_panic!(
+                "unbound ExpressionTexture: initialize with ExpressionTexture::material(...) or ExpressionTexture::bound(...)"
+            );
+            return;
+        }
+        let Some(name) = texture.material_name() else {
+            return;
+        };
+        let texture_node = self.bind_texture(name);
+        let sampler_node = self.bind_sampler(name);
+        texture.set_bound(texture_node, 0, sampler_node, 0);
+    }
+
+    pub fn base_color(
         &mut self,
         uv: NodeId,
-        color_field: impl Into<String>,
-        use_texture_field: impl Into<String>,
-        texture_name: impl Into<String>,
+        color: &ExpressionInput<Vec3>,
+        use_texture: &ExpressionInput<bool>,
+        texture: &ExpressionTexture,
     ) -> NodeId {
         self.allocate(MaterialBaseColorNode::new(
-            uv,
-            color_field,
-            use_texture_field,
-            texture_name,
+            NodeInput::new(uv, 0),
+            color.as_chunk_input(),
+            use_texture.as_chunk_input(),
+            texture.texture_input(),
+            texture.sampler_input(),
         ))
     }
 
-    pub fn material_roughness(
+    pub fn roughness(
         &mut self,
         uv: NodeId,
-        roughness_field: impl Into<String>,
-        use_texture_field: impl Into<String>,
-        texture_name: impl Into<String>,
+        roughness: &ExpressionInput<f32>,
+        use_texture: &ExpressionInput<bool>,
+        texture: &ExpressionTexture,
     ) -> NodeId {
         self.allocate(MaterialRoughnessNode::new(
-            uv,
-            roughness_field,
-            use_texture_field,
-            texture_name,
+            NodeInput::new(uv, 0),
+            roughness.as_chunk_input(),
+            use_texture.as_chunk_input(),
+            texture.texture_input(),
+            texture.sampler_input(),
         ))
     }
 
-    pub fn material_normal(
+    pub fn normal(
         &mut self,
         uv: NodeId,
-        use_texture_field: impl Into<String>,
-        texture_name: impl Into<String>,
+        use_texture: &ExpressionInput<bool>,
+        texture: &ExpressionTexture,
     ) -> NodeId {
-        self.allocate(MaterialNormalNode::new(uv, use_texture_field, texture_name))
+        self.allocate(MaterialNormalNode::new(
+            NodeInput::new(uv, 0),
+            use_texture.as_chunk_input(),
+            texture.texture_input(),
+            texture.sampler_input(),
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -302,7 +344,7 @@ impl MaterialCompiler {
     }
 
     pub fn compile_shader_set<M: MaterialExpression>(
-        material: &M,
+        material: &mut M,
         skinning: MeshSkinning,
     ) -> MaterialShaderSetCode {
         let base = Self::compile_mesh(material, 0, skinning, MeshPass::Base);
@@ -316,12 +358,13 @@ impl MaterialCompiler {
     }
 
     pub fn compile_mesh<M: MaterialExpression>(
-        material: &M,
+        material: &mut M,
         output_index: u32,
         skinning: MeshSkinning,
         pass: MeshPass,
     ) -> String {
         let mut compiler = Self::new();
+        material.bind_inputs(&mut compiler);
         let output = material.compile(&mut compiler, output_index);
         compiler.build_mesh_shader(output, skinning, pass)
     }

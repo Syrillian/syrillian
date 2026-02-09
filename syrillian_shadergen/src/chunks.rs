@@ -1,5 +1,31 @@
 pub type NodeId = u32;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ExpressionInput {
+    node: NodeId,
+    output_index: u32,
+}
+
+impl ExpressionInput {
+    pub const fn new(node: NodeId, output_index: u32) -> Self {
+        Self { node, output_index }
+    }
+
+    pub const fn node(self) -> NodeId {
+        self.node
+    }
+
+    pub fn expr(self, ctx: &EmitCtx) -> String {
+        let value = ctx.expr(self.node);
+        debug_assert_eq!(
+            self.output_index, 0,
+            "output_index {} is not yet implemented for WGSL node emission",
+            self.output_index
+        );
+        value
+    }
+}
+
 pub struct RawChunk {
     pub(crate) node: Box<dyn NodeChunk>,
 }
@@ -117,24 +143,35 @@ impl NodeChunk for MaterialSamplerNode {
 }
 
 pub(crate) struct MaterialBaseColorNode {
-    deps: [NodeId; 1],
-    color_field: String,
-    use_texture_field: String,
-    texture_name: String,
+    uv: ExpressionInput,
+    color: ExpressionInput,
+    use_texture: ExpressionInput,
+    texture: ExpressionInput,
+    sampler: ExpressionInput,
+    deps: [NodeId; 5],
 }
 
 impl MaterialBaseColorNode {
     pub fn new(
-        uv: NodeId,
-        color_field: impl Into<String>,
-        use_texture_field: impl Into<String>,
-        texture_name: impl Into<String>,
+        uv: ExpressionInput,
+        color: ExpressionInput,
+        use_texture: ExpressionInput,
+        texture: ExpressionInput,
+        sampler: ExpressionInput,
     ) -> Self {
         Self {
-            deps: [uv],
-            color_field: color_field.into(),
-            use_texture_field: use_texture_field.into(),
-            texture_name: texture_name.into(),
+            uv,
+            color,
+            use_texture,
+            texture,
+            sampler,
+            deps: [
+                uv.node(),
+                color.node(),
+                use_texture.node(),
+                texture.node(),
+                sampler.node(),
+            ],
         }
     }
 }
@@ -145,16 +182,18 @@ impl NodeChunk for MaterialBaseColorNode {
     }
 
     fn emit(&self, id: NodeId, ctx: &EmitCtx) -> Option<String> {
-        let uv = ctx.expr(self.deps[0]);
-        let tex = format!("t_{}", self.texture_name);
-        let sampler = format!("s_{}", self.texture_name);
+        let uv = self.uv.expr(ctx);
+        let color = self.color.expr(ctx);
+        let use_tex = self.use_texture.expr(ctx);
+        let tex = self.texture.expr(ctx);
+        let sampler = self.sampler.expr(ctx);
         Some(format!(
-            "var _pv{id}: vec4f;\n    if (material.{use_tex} != 0) {{\n        _pv{id} = textureSample({tex}, {sampler}, {uv});\n    }} else {{\n        _pv{id} = vec4f(material.{color}, 1.0);\n    }}",
-            use_tex = self.use_texture_field,
-            color = self.color_field,
+            "var _pv{id}: vec4f;\n    if ({use_tex} != 0) {{\n        _pv{id} = textureSample({tex}, {sampler}, {uv});\n    }} else {{\n        _pv{id} = vec4f({color}, 1.0);\n    }}",
             tex = tex,
             sampler = sampler,
             uv = uv,
+            color = color,
+            use_tex = use_tex,
         ))
     }
 
@@ -164,24 +203,35 @@ impl NodeChunk for MaterialBaseColorNode {
 }
 
 pub(crate) struct MaterialRoughnessNode {
-    deps: [NodeId; 1],
-    roughness_field: String,
-    use_texture_field: String,
-    texture_name: String,
+    uv: ExpressionInput,
+    roughness: ExpressionInput,
+    use_texture: ExpressionInput,
+    texture: ExpressionInput,
+    sampler: ExpressionInput,
+    deps: [NodeId; 5],
 }
 
 impl MaterialRoughnessNode {
     pub fn new(
-        uv: NodeId,
-        roughness_field: impl Into<String>,
-        use_texture_field: impl Into<String>,
-        texture_name: impl Into<String>,
+        uv: ExpressionInput,
+        roughness: ExpressionInput,
+        use_texture: ExpressionInput,
+        texture: ExpressionInput,
+        sampler: ExpressionInput,
     ) -> Self {
         Self {
-            deps: [uv],
-            roughness_field: roughness_field.into(),
-            use_texture_field: use_texture_field.into(),
-            texture_name: texture_name.into(),
+            uv,
+            roughness,
+            use_texture,
+            texture,
+            sampler,
+            deps: [
+                uv.node(),
+                roughness.node(),
+                use_texture.node(),
+                texture.node(),
+                sampler.node(),
+            ],
         }
     }
 }
@@ -192,16 +242,18 @@ impl NodeChunk for MaterialRoughnessNode {
     }
 
     fn emit(&self, id: NodeId, ctx: &EmitCtx) -> Option<String> {
-        let uv = ctx.expr(self.deps[0]);
-        let tex = format!("t_{}", self.texture_name);
-        let sampler = format!("s_{}", self.texture_name);
+        let uv = self.uv.expr(ctx);
+        let roughness = self.roughness.expr(ctx);
+        let use_tex = self.use_texture.expr(ctx);
+        let tex = self.texture.expr(ctx);
+        let sampler = self.sampler.expr(ctx);
         Some(format!(
-            "var _pv{id}: f32;\n    if (material.{use_tex} != 0) {{\n        _pv{id} = textureSample({tex}, {sampler}, {uv}).g;\n    }} else {{\n        _pv{id} = material.{roughness};\n    }}",
-            use_tex = self.use_texture_field,
-            roughness = self.roughness_field,
+            "var _pv{id}: f32;\n    if ({use_tex} != 0) {{\n        _pv{id} = textureSample({tex}, {sampler}, {uv}).g;\n    }} else {{\n        _pv{id} = {roughness};\n    }}",
             tex = tex,
             sampler = sampler,
             uv = uv,
+            roughness = roughness,
+            use_tex = use_tex,
         ))
     }
 
@@ -211,21 +263,31 @@ impl NodeChunk for MaterialRoughnessNode {
 }
 
 pub(crate) struct MaterialNormalNode {
-    deps: [NodeId; 1],
-    use_texture_field: String,
-    texture_name: String,
+    uv: ExpressionInput,
+    use_texture: ExpressionInput,
+    texture: ExpressionInput,
+    sampler: ExpressionInput,
+    deps: [NodeId; 4],
 }
 
 impl MaterialNormalNode {
     pub fn new(
-        uv: NodeId,
-        use_texture_field: impl Into<String>,
-        texture_name: impl Into<String>,
+        uv: ExpressionInput,
+        use_texture: ExpressionInput,
+        texture: ExpressionInput,
+        sampler: ExpressionInput,
     ) -> Self {
         Self {
-            deps: [uv],
-            use_texture_field: use_texture_field.into(),
-            texture_name: texture_name.into(),
+            uv,
+            use_texture,
+            texture,
+            sampler,
+            deps: [
+                uv.node(),
+                use_texture.node(),
+                texture.node(),
+                sampler.node(),
+            ],
         }
     }
 }
@@ -236,15 +298,16 @@ impl NodeChunk for MaterialNormalNode {
     }
 
     fn emit(&self, id: NodeId, ctx: &EmitCtx) -> Option<String> {
-        let uv = ctx.expr(self.deps[0]);
-        let tex = format!("t_{}", self.texture_name);
-        let sampler = format!("s_{}", self.texture_name);
+        let uv = self.uv.expr(ctx);
+        let use_tex = self.use_texture.expr(ctx);
+        let tex = self.texture.expr(ctx);
+        let sampler = self.sampler.expr(ctx);
         Some(format!(
-            "var _pv{id}: vec3f;\n    if (material.{use_tex} != 0) {{\n        _pv{id} = normal_from_map({tex}, {sampler}, {uv}, in.normal, in.tangent, in.bitangent);\n    }} else {{\n        _pv{id} = safe_normalize(in.normal);\n    }}",
-            use_tex = self.use_texture_field,
+            "var _pv{id}: vec3f;\n    if ({use_tex} != 0) {{\n        _pv{id} = normal_from_map({tex}, {sampler}, {uv}, in.normal, in.tangent, in.bitangent);\n    }} else {{\n        _pv{id} = safe_normalize(in.normal);\n    }}",
             tex = tex,
             sampler = sampler,
             uv = uv,
+            use_tex = use_tex,
         ))
     }
 
