@@ -92,14 +92,6 @@ impl Component for Collider3D {
         self.phys_handle = Some(phys_handle);
         self.sync_with_transform_world(world, true);
     }
-    #[cfg(debug_assertions)]
-    fn update(&mut self, world: &mut World) {
-        if self.debug_collider_mesh.is_none() {
-            trace!("[Collider] Regenerating debug mesh");
-            let mesh = self.generate_collider_mesh(world);
-            self.debug_collider_mesh = Some(mesh);
-        }
-    }
 
     fn fixed_update(&mut self, world: &mut World) {
         if let Some(body_comp) = (*self.parent()).get_component::<RigidBodyComponent>()
@@ -115,6 +107,15 @@ impl Component for Collider3D {
         }
 
         self.sync_with_transform_world(world, false);
+    }
+
+    #[cfg(debug_assertions)]
+    fn late_update(&mut self, world: &mut World) {
+        if self.debug_collider_mesh.is_none() {
+            trace!("[Collider] Regenerating debug mesh");
+            let mesh = self.generate_collider_mesh(world);
+            self.debug_collider_mesh = Some(mesh);
+        }
     }
 
     #[cfg(debug_assertions)]
