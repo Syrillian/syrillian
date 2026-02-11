@@ -60,6 +60,7 @@ impl Component for Profiler {
 
             if !self.show_gbuffers {
                 let _ = world.set_gbuffer_debug_targets(ViewportId::PRIMARY, None);
+                self.release_gbuffer_assets(world);
             }
         }
 
@@ -113,14 +114,18 @@ impl Component for Profiler {
             });
         });
     }
+
+    fn delete(&mut self, world: &mut World) {
+        let _ = world.set_gbuffer_debug_targets(ViewportId::PRIMARY, None);
+        self.release_gbuffer_assets(world);
+    }
 }
 
 impl Profiler {
     fn sync_gbuffer_targets(&mut self, world: &mut World) {
         let Some(size) = world.viewport_size(ViewportId::PRIMARY) else {
-            self.gbuffer_view = None;
-            self.gbuffer_dirty = false;
             let _ = world.set_gbuffer_debug_targets(ViewportId::PRIMARY, None);
+            self.release_gbuffer_assets(world);
             return;
         };
 
@@ -131,6 +136,7 @@ impl Profiler {
             .map_or(true, |view| view.size != size);
 
         if rebuild {
+            self.release_gbuffer_assets(world);
             self.gbuffer_view = Some(Self::create_gbuffer_view(world, size));
             self.gbuffer_dirty = true;
         }
@@ -147,6 +153,22 @@ impl Profiler {
             }
             self.gbuffer_dirty = false;
         }
+    }
+
+    fn release_gbuffer_assets(&mut self, world: &World) {
+        let Some(view) = self.gbuffer_view.take() else {
+            self.gbuffer_dirty = false;
+            return;
+        };
+
+        let _ = world.assets.material_instances.remove(view.normal_material);
+        let _ = world
+            .assets
+            .material_instances
+            .remove(view.material_material);
+        let _ = world.assets.textures.remove(view.normal_texture);
+        let _ = world.assets.textures.remove(view.material_texture);
+        self.gbuffer_dirty = false;
     }
 
     fn create_gbuffer_view(world: &World, size: (u32, u32)) -> GBufferView {
