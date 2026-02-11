@@ -173,6 +173,8 @@ impl<'a, T> UiBuilder<'a, T> {
 
         let mut builder = self.enter(&mut node);
         f(&mut builder);
+        self.current_id = builder.current_id;
+
         self.node.children.push(node);
     }
 
@@ -185,6 +187,8 @@ impl<'a, T> UiBuilder<'a, T> {
 
         let mut builder = self.enter(&mut node);
         f(&mut builder);
+        self.current_id = builder.current_id;
+
         self.node.children.push(node);
     }
 
@@ -197,6 +201,8 @@ impl<'a, T> UiBuilder<'a, T> {
 
         let mut builder = self.enter(&mut node);
         f(&mut builder);
+        self.current_id = builder.current_id;
+
         self.node.children.push(node);
     }
 
@@ -320,5 +326,44 @@ mod tests {
 
         assert_eq!(calls[1].position.x, 50.0);
         assert_eq!(calls[1].size.x, 30.0);
+    }
+
+    #[test]
+    fn nested_builder_ids_are_unique() {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let mut root: StrobeNode<MockElement> = StrobeNode::default();
+        let mut builder = UiBuilder::new(&mut root, Vec2::ZERO);
+
+        builder.vertical(|ui| {
+            for _ in 0..6 {
+                ui.horizontal(|ui| {
+                    ui.add(MockElement::new(10.0, 10.0, log.clone()));
+                    ui.add(MockElement::new(2.0, 0.0, log.clone()));
+                    ui.add(MockElement::new(10.0, 10.0, log.clone()));
+                    ui.add(MockElement::new(2.0, 0.0, log.clone()));
+                    ui.add(MockElement::new(10.0, 10.0, log.clone()));
+                    ui.add(MockElement::new(2.0, 0.0, log.clone()));
+                    ui.add(MockElement::new(10.0, 10.0, log.clone()));
+                });
+                ui.add(MockElement::new(0.0, 2.0, log.clone()));
+            }
+        });
+
+        fn collect_child_ids<T>(node: &StrobeNode<T>, out: &mut Vec<u32>) {
+            for child in &node.children {
+                out.push(child.id);
+                collect_child_ids(child, out);
+            }
+        }
+
+        let mut ids = Vec::new();
+        collect_child_ids(&root, &mut ids);
+        let total = ids.len();
+
+        ids.sort_unstable();
+        ids.dedup();
+
+        assert_eq!(ids.len(), total);
+        assert!(total > 40);
     }
 }
