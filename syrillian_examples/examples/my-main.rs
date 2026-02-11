@@ -33,8 +33,8 @@ use syrillian_components::light::Light;
 use syrillian_components::prefabs::{CubePrefab, FirstPersonPlayerPrefab, SunPrefab};
 use syrillian_components::{
     AudioEmitter, Collider3D, FirstPersonCameraController, FlashlightComponent, FreecamController,
-    PointLightComponent, Profiler, RigidBodyComponent, RopeJoint, RotateComponent,
-    SpotLightComponent, SpringJoint, Text3D,
+    ParticleSystemComponent, PointLightComponent, Profiler, RigidBodyComponent, RopeJoint,
+    RotateComponent, SpotLightComponent, SpringJoint, Text3D,
 };
 use syrillian_scene::SceneLoader;
 use tracing_subscriber::layer::SubscriberExt;
@@ -119,6 +119,8 @@ impl AppState for MyMain {
         let serialized = ReflectSerialize::serialize(world);
         let serialized = JsonSerializer::value_to_string(&serialized);
         println!("{serialized}");
+
+        self.spawn_particle_system(world);
 
         Ok(())
     }
@@ -443,6 +445,10 @@ impl MyMain {
             syrillian::ENGINE_STR,
             self.frame_counter.fps_mean(),
         )
+    }
+
+    fn spawn_particle_system(&mut self, _world: &mut World) {
+        self.text3d.add_component::<ParticleSystemComponent>();
     }
 
     fn update_pickup_interaction(&mut self, world: &mut World) {

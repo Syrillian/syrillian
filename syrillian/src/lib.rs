@@ -12,6 +12,7 @@ pub use windowing::*;
 pub use ::gilrs;
 pub use ::inventory;
 pub use ::tracing;
+pub use ::wgpu;
 pub use ::winit;
 
 pub use ::syrillian_asset as assets;

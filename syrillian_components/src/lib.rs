@@ -46,6 +46,7 @@ pub mod gravity;
 pub mod joints;
 pub mod light;
 pub mod mesh_renderer;
+pub mod particle_system;
 pub mod rigid_body;
 pub mod rotate;
 pub mod skeletal;
@@ -54,6 +55,7 @@ pub mod text;
 pub mod extensions;
 pub mod prefabs;
 pub mod profiler;
+pub mod proxy;
 
 pub use animation::AnimationComponent;
 pub use audio::{AudioEmitter, AudioReceiver};
