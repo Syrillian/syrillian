@@ -79,7 +79,7 @@ impl CacheType for MaterialInstance {
         let cast_shadows = self.value_bool("cast_shadows").unwrap_or(true);
 
         let alpha = self.value_f32("alpha").unwrap_or(1.0);
-        let has_transparency_flag = self.value_bool("has_transparency").unwrap_or(true);
+        let has_transparency_flag = self.value_bool("has_transparency").unwrap_or(false);
         let diffuse_has_transparency = texture_map
             .get("diffuse")
             .is_some_and(|t| t.has_transparency);
