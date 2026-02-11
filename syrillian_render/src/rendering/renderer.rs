@@ -12,7 +12,7 @@ use crate::lighting::proxy::LightType;
 use crate::proxies::{SceneProxy, SceneProxyBinding};
 #[cfg(debug_assertions)]
 use crate::rendering::debug_renderer::DebugRenderer;
-use crate::rendering::message::{ProxyUpdateCommand, RenderMsg};
+use crate::rendering::message::{GBufferDebugTargets, ProxyUpdateCommand, RenderMsg};
 use crate::rendering::picking::{PickRequest, PickResult, color_bytes_to_hash};
 use crate::rendering::render_data::{CameraUniform, RenderUniformData};
 use crate::rendering::state::State;
@@ -59,6 +59,7 @@ pub struct Renderer {
     pick_result_tx: Sender<PickResult>,
     pending_pick_requests: Vec<PickRequest>,
     pub lights: LightManager,
+    gbuffer_debug: HashMap<ViewportId, GBufferDebugTargets>,
 }
 
 impl Renderer {
@@ -89,6 +90,7 @@ impl Renderer {
             pick_result_tx,
             pending_pick_requests: Vec::new(),
             lights,
+            gbuffer_debug: HashMap::new(),
         })
     }
 
@@ -635,6 +637,10 @@ impl Renderer {
             &self.cache,
         );
 
+        if let Some(targets) = self.gbuffer_debug.get(&viewport.id) {
+            self.copy_gbuffers(&mut encoder, viewport, targets);
+        }
+
         let frame = viewport
             .render_pipeline
             .finalize_frame(&mut encoder, viewport, &self.cache);
@@ -650,6 +656,72 @@ impl Renderer {
         self.state.queue.submit(Some(encoder.finish()));
 
         frame
+    }
+
+    fn copy_gbuffers(
+        &self,
+        encoder: &mut CommandEncoder,
+        viewport: &RenderViewport,
+        targets: &GBufferDebugTargets,
+    ) {
+        let viewport_size = viewport.size();
+        let width = viewport_size.width.max(1);
+        let height = viewport_size.height.max(1);
+
+        let normal_dst = self.cache.texture(targets.normal);
+        let material_dst = self.cache.texture(targets.material);
+
+        if normal_dst.format == TextureFormat::Rg16Float {
+            let normal_extent = Extent3d {
+                width: width.min(normal_dst.size.width),
+                height: height.min(normal_dst.size.height),
+                depth_or_array_layers: 1,
+            };
+
+            if normal_extent.width > 0 && normal_extent.height > 0 {
+                encoder.copy_texture_to_texture(
+                    TexelCopyTextureInfo {
+                        texture: &viewport.render_pipeline.g_normal,
+                        mip_level: 0,
+                        origin: Origin3d::ZERO,
+                        aspect: TextureAspect::All,
+                    },
+                    TexelCopyTextureInfo {
+                        texture: &normal_dst.texture,
+                        mip_level: 0,
+                        origin: Origin3d::ZERO,
+                        aspect: TextureAspect::All,
+                    },
+                    normal_extent,
+                );
+            }
+        }
+
+        if material_dst.format == TextureFormat::Bgra8Unorm {
+            let material_extent = Extent3d {
+                width: width.min(material_dst.size.width),
+                height: height.min(material_dst.size.height),
+                depth_or_array_layers: 1,
+            };
+
+            if material_extent.width > 0 && material_extent.height > 0 {
+                encoder.copy_texture_to_texture(
+                    TexelCopyTextureInfo {
+                        texture: &viewport.render_pipeline.g_material,
+                        mip_level: 0,
+                        origin: Origin3d::ZERO,
+                        aspect: TextureAspect::All,
+                    },
+                    TexelCopyTextureInfo {
+                        texture: &material_dst.texture,
+                        mip_level: 0,
+                        origin: Origin3d::ZERO,
+                        aspect: TextureAspect::All,
+                    },
+                    material_extent,
+                );
+            }
+        }
     }
 
     #[instrument(skip_all)]
@@ -703,6 +775,13 @@ impl Renderer {
             RenderMsg::CaptureTexture(texture, path) => {
                 if let Err(e) = self.export_cached_texture_png(texture, &path) {
                     warn!("Couldn't capture picking texture: {e}");
+                }
+            }
+            RenderMsg::SetGBufferDebug(target, targets) => {
+                if let Some(targets) = targets {
+                    self.gbuffer_debug.insert(target, targets);
+                } else {
+                    self.gbuffer_debug.remove(&target);
                 }
             }
             RenderMsg::UpdateStrobe(frame) => {
@@ -763,6 +842,7 @@ impl Renderer {
 
     pub fn remove_viewport(&mut self, target_id: ViewportId) {
         self.viewports.remove(&target_id);
+        self.gbuffer_debug.remove(&target_id);
     }
 
     #[instrument(skip_all)]

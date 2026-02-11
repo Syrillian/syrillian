@@ -35,7 +35,7 @@ use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use syrillian_macros::Reflect;
 use syrillian_render::rendering::CPUDrawCtx;
-use syrillian_render::rendering::message::RenderMsg;
+use syrillian_render::rendering::message::{GBufferDebugTargets, RenderMsg};
 use syrillian_render::rendering::picking::{PickRequest, PickResult};
 use syrillian_render::rendering::viewport::ViewportId;
 use syrillian_utils::EngineArgs;
@@ -937,6 +937,17 @@ impl World {
         self.channels
             .render_tx
             .send(RenderMsg::CapturePickingTexture(target, path.into()))
+            .is_ok()
+    }
+
+    pub fn set_gbuffer_debug_targets(
+        &self,
+        target: ViewportId,
+        targets: Option<GBufferDebugTargets>,
+    ) -> bool {
+        self.channels
+            .render_tx
+            .send(RenderMsg::SetGBufferDebug(target, targets))
             .is_ok()
     }
 

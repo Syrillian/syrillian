@@ -12,6 +12,12 @@ use std::path::PathBuf;
 use syrillian_asset::HTexture2D;
 use syrillian_utils::TypedComponentId;
 
+#[derive(Debug, Clone, Copy)]
+pub struct GBufferDebugTargets {
+    pub normal: HTexture2D,
+    pub material: HTexture2D,
+}
+
 pub type ProxyUpdateCommand = Box<dyn FnOnce(&mut dyn SceneProxy) + Send>;
 pub type LightProxyCommand = Box<dyn FnOnce(&mut LightProxy) + Send>;
 pub type CameraUpdateCommand = Box<dyn FnOnce(&mut CameraUniform) + Send>;
@@ -30,6 +36,7 @@ pub enum RenderMsg {
     CaptureOffscreenTextures(ViewportId, PathBuf),
     CapturePickingTexture(ViewportId, PathBuf),
     CaptureTexture(HTexture2D, PathBuf),
+    SetGBufferDebug(ViewportId, Option<GBufferDebugTargets>),
     UpdateStrobe(StrobeFrame),
     FrameEnd(ViewportId, Sender<()>),
 }
@@ -50,6 +57,7 @@ impl Debug for RenderMsg {
             RenderMsg::CaptureOffscreenTextures(_, _) => "Capture Offscreen Texture",
             RenderMsg::CapturePickingTexture(_, _) => "Capture Picking Texture",
             RenderMsg::CaptureTexture(_, _) => "Capture Texture",
+            RenderMsg::SetGBufferDebug(_, _) => "Set GBuffer Debug",
             RenderMsg::UpdateStrobe(_) => "Update Strobe Draw List",
             RenderMsg::FrameEnd(_, _) => "Frame End",
         };
