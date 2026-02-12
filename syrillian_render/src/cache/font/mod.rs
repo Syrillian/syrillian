@@ -19,6 +19,7 @@ use crate::cache::{AssetCache, CacheType};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, unbounded};
 use fdsm::bezier::prepared::PreparedColoredShape;
 use nalgebra::{Affine2, Matrix3};
+use profiling::function_scope;
 
 pub mod glyph;
 pub mod msdf_atlas;
@@ -49,6 +50,8 @@ impl CacheType for Font {
     type Hot = Arc<FontAtlas>;
 
     fn upload(self, _device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
+        function_scope!("upload font");
+
         let msdf = MsdfAtlas::new(
             self.font_bytes.clone(),
             self.atlas_em_px,

@@ -17,6 +17,7 @@ impl<T: TextureAsset> CacheType for T {
     type Hot = Arc<GpuTexture>;
 
     fn upload(self, device: &Device, queue: &Queue, _cache: &AssetCache) -> Self::Hot {
+        profiling::function_scope!("upload texture");
         let desc = self.desc();
 
         let texture = match self.data() {

@@ -51,6 +51,7 @@ fn material_textures(
 impl CacheType for MaterialInstance {
     type Hot = Arc<RuntimeMaterial>;
 
+    #[profiling::function]
     fn upload(mut self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
         let material_def = cache
             .store()

@@ -204,6 +204,7 @@ const MAX_BUFFER_INDICES: usize = 128_000_000 / size_of::<u32>(); // 128MiB limi
 impl CacheType for Mesh {
     type Hot = Arc<RuntimeMesh>;
 
+    #[profiling::function]
     fn upload(self, device: &Device, _queue: &Queue, _cache: &AssetCache) -> Self::Hot {
         let vertices_num = self.vertex_count();
         let indices_num = self.indices_count();

@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use syrillian_asset::Shader;
 use syrillian_asset::shader::{BindGroupMap, ShaderType};
+use tracing::debug;
 use wgpu::*;
 
 mod bindings;
@@ -25,6 +26,7 @@ pub struct RuntimeShader {
 impl CacheType for Shader {
     type Hot = Arc<RuntimeShader>;
 
+    #[profiling::function]
     fn upload(self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
         let bind_groups = self.bind_group_map();
         let code = self.gen_code_with_map(&bind_groups);

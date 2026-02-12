@@ -30,8 +30,12 @@ impl<T: CacheType + StoreTypeFallback> Cache<T> {
             .clone()
     }
 
+    #[profiling::function]
     fn refresh_item(&self, h: H<T>, device: &Device, queue: &Queue, cache: &AssetCache) -> T::Hot {
-        let cold = self.store.get(h).clone();
+        let cold = {
+            profiling::scope!("Store::get");
+            self.store.get(h).clone()
+        };
 
         let misses = self.cache_misses.load(Ordering::Acquire) + 1;
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
