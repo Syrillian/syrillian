@@ -1,5 +1,4 @@
 use super::{H, key::AssetKey};
-use crate::HShader;
 use dashmap::DashMap;
 use dashmap::iter::{Iter, IterMut};
 use dashmap::mapref::one::Ref as MapRef;
@@ -60,7 +59,7 @@ impl<'a, T: StoreType> Drop for Ref<'a, T> {
         if self.1.elapsed() > Duration::from_secs_f32(1.0 / 60.0) {
             warn!(
                 "Access to a {:?} Asset Store Object took {}s\n{}",
-                T::name(),
+                T::NAME,
                 self.1.elapsed().as_secs_f32(),
                 Backtrace::capture()
             );
@@ -74,7 +73,7 @@ impl<'a, T: StoreType> Drop for RefMut<'a, T> {
         if self.1.elapsed() > Duration::from_secs(1) {
             warn!(
                 "Mutable Access to a {:?} Asset Store Object took {}s\n{}",
-                T::name(),
+                T::NAME,
                 self.1.elapsed().as_secs_f32(),
                 Backtrace::capture()
             );
@@ -115,12 +114,13 @@ pub trait StoreDefaults: StoreType {
 }
 
 pub trait StoreType: Sized + Debug + Clone {
-    fn name() -> &'static str;
+    const NAME: &str;
+
     fn ident_fmt(handle: H<Self>) -> HandleName<Self>;
     fn ident(handle: H<Self>) -> String {
         match Self::ident_fmt(handle) {
             HandleName::Static(name) => name.to_string(),
-            HandleName::Id(id) => format!("{} #{id}", Self::name()),
+            HandleName::Id(id) => format!("{} #{id}", Self::NAME),
         }
     }
 
@@ -132,10 +132,6 @@ pub trait StoreType: Sized + Debug + Clone {
 
 pub trait StoreTypeFallback: StoreType {
     fn fallback() -> H<Self>;
-}
-
-pub trait StoreTypeName: StoreType {
-    fn name(&self) -> &str;
 }
 
 pub enum HandleName<T: StoreType> {
@@ -186,7 +182,7 @@ impl<T: StoreType> Store<T> {
         let id = self.next_id();
         self.data.insert(id.into(), elem.into());
 
-        trace!("[{} Store] Added element: {}", T::name(), T::ident_fmt(id));
+        trace!("[{} Store] Added element: {}", T::NAME, T::ident_fmt(id));
 
         id
     }
@@ -197,7 +193,7 @@ impl<T: StoreType> Store<T> {
             .or_else(|| {
                 warn!(
                     "[{} Store] Invalid Reference: h={} not found",
-                    T::name(),
+                    T::NAME,
                     T::ident_fmt(h)
                 );
                 None
@@ -209,7 +205,7 @@ impl<T: StoreType> Store<T> {
         let reference = self.data.get_mut(&h.into()).or_else(|| {
             warn!(
                 "[{} Store] Invalid Reference: h={} not found",
-                T::name(),
+                T::NAME,
                 T::ident_fmt(h)
             );
             None
@@ -225,7 +221,7 @@ impl<T: StoreType> Store<T> {
     fn set_dirty(&self, h: AssetKey) {
         let mut dirty_store = self.dirty.write();
         if !dirty_store.contains(&h) {
-            trace!("Set {} {} dirty", T::name(), T::ident(h.into()));
+            trace!("Set {} {} dirty", T::NAME, T::ident(h.into()));
             dirty_store.push(h);
         }
     }
@@ -293,15 +289,6 @@ impl<T: StoreTypeFallback> Store<T> {
                 None => unreachable!("Item was checked previously"),
             }
         }
-    }
-}
-
-impl<T: StoreTypeName> Store<T> {
-    pub fn find_by_name(&self, name: &str) -> Option<HShader> {
-        self.data
-            .iter()
-            .find(|e| e.value().name() == name)
-            .map(|e| (*e.key()).into())
     }
 }
 

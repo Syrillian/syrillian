@@ -9,9 +9,7 @@ pub struct RenderCubemap {
 }
 
 impl StoreType for RenderCubemap {
-    fn name() -> &'static str {
-        "Render Cubemap"
-    }
+    const NAME: &str = "Render Cubemap";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)

@@ -13,9 +13,7 @@ pub struct Font {
 }
 
 impl StoreType for Font {
-    fn name() -> &'static str {
-        "Font"
-    }
+    const NAME: &str = "Font";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)

@@ -30,9 +30,7 @@ impl RenderTexture2DArray {
 }
 
 impl StoreType for RenderTexture2DArray {
-    fn name() -> &'static str {
-        "Render Texture 2D Array"
-    }
+    const NAME: &str = "Render Texture 2D Array";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)

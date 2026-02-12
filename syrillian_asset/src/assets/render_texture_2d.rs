@@ -10,9 +10,7 @@ pub struct RenderTexture2D {
 }
 
 impl StoreType for RenderTexture2D {
-    fn name() -> &'static str {
-        "Render Texture 2D"
-    }
+    const NAME: &str = "Render Texture 2D";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)

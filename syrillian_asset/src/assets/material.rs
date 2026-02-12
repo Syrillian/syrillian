@@ -217,9 +217,7 @@ impl H<Material> {
 }
 
 impl StoreType for Material {
-    fn name() -> &'static str {
-        "Material"
-    }
+    const NAME: &str = "Material";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {

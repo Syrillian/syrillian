@@ -15,9 +15,7 @@ pub struct Texture2DArray {
 }
 
 impl StoreType for Texture2DArray {
-    fn name() -> &'static str {
-        "Texture 2D Array"
-    }
+    const NAME: &str = "Texture 2D Array";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)

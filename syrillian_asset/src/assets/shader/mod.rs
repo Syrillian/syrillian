@@ -13,9 +13,7 @@ use self::defaults::{
 use crate::HShader;
 use crate::material_inputs::MaterialInputLayout;
 use crate::shader::immediates::{TextImmediate, UiLineImmediate};
-use crate::store::{
-    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, StoreTypeName,
-};
+use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
 use crate::store_add_checked;
 use crate::{HBGL, Material};
 use bon::Builder;
@@ -583,18 +581,8 @@ impl StoreTypeFallback for Shader {
     }
 }
 
-impl StoreTypeName for Shader {
-    #[inline]
-    fn name(&self) -> &str {
-        self.name()
-    }
-}
-
 impl StoreType for Shader {
-    #[inline]
-    fn name() -> &'static str {
-        "Shader"
-    }
+    const NAME: &str = "Shader";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         let name = match handle.id() {

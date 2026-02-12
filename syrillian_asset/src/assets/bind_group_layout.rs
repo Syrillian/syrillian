@@ -32,9 +32,7 @@ impl HBGL {
 }
 
 impl StoreType for BGL {
-    fn name() -> &'static str {
-        "Bind Group Layout"
-    }
+    const NAME: &str = "Bind Group Layout";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {

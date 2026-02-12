@@ -223,9 +223,7 @@ impl StoreDefaults for MaterialInstance {
 }
 
 impl StoreType for MaterialInstance {
-    fn name() -> &'static str {
-        "MaterialInstance"
-    }
+    const NAME: &str = "MaterialInstance";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {

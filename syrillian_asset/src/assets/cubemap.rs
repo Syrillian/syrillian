@@ -14,9 +14,7 @@ pub struct Cubemap {
 }
 
 impl StoreType for Cubemap {
-    fn name() -> &'static str {
-        "Cubemap"
-    }
+    const NAME: &str = "Cubemap";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)

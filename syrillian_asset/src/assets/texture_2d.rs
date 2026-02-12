@@ -177,10 +177,7 @@ impl StoreDefaults for Texture2D {
 }
 
 impl StoreType for Texture2D {
-    #[inline]
-    fn name() -> &'static str {
-        "Texture 2D"
-    }
+    const NAME: &str = "Texture 2D";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {

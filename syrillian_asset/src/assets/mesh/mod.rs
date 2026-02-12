@@ -191,9 +191,7 @@ impl StoreDefaults for Mesh {
 }
 
 impl StoreType for Mesh {
-    fn name() -> &'static str {
-        "Mesh"
-    }
+    const NAME: &str = "Mesh";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {

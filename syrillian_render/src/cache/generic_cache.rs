@@ -40,12 +40,12 @@ impl<T: CacheType + StoreTypeFallback> Cache<T> {
         let misses = self.cache_misses.load(Ordering::Acquire) + 1;
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
 
-        trace!("Refreshing {} Cache Handle {}", T::name(), h.ident_fmt());
+        trace!("Refreshing {} Cache Handle {}", T::NAME, h.ident_fmt());
 
         if misses.is_multiple_of(1000) {
             warn!(
                 "[{} Cache] Invalid Handle: {}, Misses: {}",
-                T::name(),
+                T::NAME,
                 T::ident_fmt(h),
                 misses
             );
@@ -103,7 +103,7 @@ impl<T: CacheType> Cache<T> {
         if misses.is_multiple_of(1000) {
             warn!(
                 "[{} Cache] Invalid Handle: {}, Misses: {}",
-                T::name(),
+                T::NAME,
                 T::ident_fmt(h),
                 misses
             );

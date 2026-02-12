@@ -13,9 +13,7 @@ pub struct Sound {
 }
 
 impl StoreType for Sound {
-    fn name() -> &'static str {
-        "Sound"
-    }
+    const NAME: &str = "Sound";
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
