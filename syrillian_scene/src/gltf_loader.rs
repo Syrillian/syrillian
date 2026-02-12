@@ -279,7 +279,7 @@ fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
         ReadOutputs::Rotations(values) => {
             let rotations: Vec<Quat> = values
                 .into_f32()
-                .map(|q| quat(q[3], q[0], q[1], q[2]))
+                .map(|q| quat(q[0], q[1], q[2], q[3]))
                 .collect();
             TransformKeys {
                 r_times: times.to_vec(),
