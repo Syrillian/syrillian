@@ -7,7 +7,7 @@ mod logging;
 pub mod math;
 pub mod sizes;
 
-pub use bounds::BoundingSphere;
+pub use bounds::{BoundingBox, BoundingSphere};
 pub use component_id::*;
 pub use engine_args::{AntiAliasingMode, EngineArgs};
 pub use frustum::Frustum;
