@@ -1,6 +1,93 @@
 use glamx::{Mat4, Vec3, Vec4};
 use std::ops::Mul;
 
+/// AABB
+#[derive(Debug, Copy, Clone)]
+pub struct BoundingBox {
+    pub min: Vec3,
+    pub max: Vec3,
+}
+
+impl<F: Into<f32>> Mul<F> for BoundingBox {
+    type Output = BoundingBox;
+
+    fn mul(self, rhs: F) -> Self::Output {
+        let rhs = rhs.into();
+        BoundingBox {
+            min: self.min * rhs,
+            max: self.max * rhs,
+        }
+    }
+}
+
+impl Default for BoundingBox {
+    fn default() -> Self {
+        Self {
+            min: -Vec3::ONE,
+            max: Vec3::ONE,
+        }
+    }
+}
+
+impl BoundingBox {
+    /// The matrix is guaranteed to be affine
+    pub fn transformed_affine(&self, transform: &Mat4) -> Self {
+        let mut new_min = Vec3::splat(f32::INFINITY);
+        let mut new_max = Vec3::splat(f32::NEG_INFINITY);
+
+        for i in 0..8 {
+            let x = if i & 1 == 0 { self.min.x } else { self.max.x };
+            let y = if i & 2 == 0 { self.min.y } else { self.max.y };
+            let z = if i & 4 == 0 { self.min.z } else { self.max.z };
+
+            let point = Vec4::new(x, y, z, 1.0);
+            let transformed = transform * point;
+
+            let transformed_point = Vec3::new(transformed.x, transformed.y, transformed.z);
+
+            new_min = new_min.min(transformed_point);
+            new_max = new_max.max(transformed_point);
+        }
+
+        Self {
+            min: new_min,
+            max: new_max,
+        }
+    }
+
+    pub fn transformed(&self, transform: &Mat4) -> Self {
+        let mut new_min = Vec3::splat(f32::INFINITY);
+        let mut new_max = Vec3::splat(f32::NEG_INFINITY);
+
+        for i in 0..8 {
+            let x = if i & 1 == 0 { self.min.x } else { self.max.x };
+            let y = if i & 2 == 0 { self.min.y } else { self.max.y };
+            let z = if i & 4 == 0 { self.min.z } else { self.max.z };
+
+            let point = Vec4::new(x, y, z, 1.0);
+            let transformed = transform * point;
+
+            let transformed_point = Vec3::new(
+                transformed.x / transformed.w,
+                transformed.y / transformed.w,
+                transformed.z / transformed.w,
+            );
+
+            new_min = new_min.min(transformed_point);
+            new_max = new_max.max(transformed_point);
+        }
+
+        Self {
+            min: new_min,
+            max: new_max,
+        }
+    }
+
+    pub fn from_min_max(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct BoundingSphere {
     pub center: Vec3,
