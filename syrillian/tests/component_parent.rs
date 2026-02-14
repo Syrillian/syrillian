@@ -23,4 +23,5 @@ fn component_parent_delete() {
     let mut obj = world.new_object("Test");
     obj.add_component::<MyComponent>();
     world.update();
+    assert!(!obj.is_alive());
 }
