@@ -1,4 +1,4 @@
-pub mod impl_nalgebra;
+pub mod impl_glam;
 pub mod impl_primitive;
 pub mod macros;
 mod serialize_builtins;

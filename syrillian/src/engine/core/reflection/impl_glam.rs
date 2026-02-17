@@ -1,13 +1,14 @@
-use crate::core::reflection::Value;
+use crate::core::reflection::{ReflectSerialize, Value};
 use crate::math::{Mat2, Mat3, Mat4, Vec2, Vec3, Vec4};
+use crate::{reflect_type_info, register_type};
 
-impl syrillian::core::reflection::ReflectSerialize for Vec2 {
+impl ReflectSerialize for Vec2 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![Value::Float(this.x), Value::Float(this.y)])
     }
 }
 
-impl syrillian::core::reflection::ReflectSerialize for Vec3 {
+impl ReflectSerialize for Vec3 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![
             Value::Float(this.x),
@@ -17,7 +18,7 @@ impl syrillian::core::reflection::ReflectSerialize for Vec3 {
     }
 }
 
-impl syrillian::core::reflection::ReflectSerialize for Vec4 {
+impl ReflectSerialize for Vec4 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![
             Value::Float(this.x),
@@ -28,7 +29,7 @@ impl syrillian::core::reflection::ReflectSerialize for Vec4 {
     }
 }
 
-impl syrillian::core::reflection::ReflectSerialize for Mat2 {
+impl ReflectSerialize for Mat2 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![
             Value::Array(vec![
@@ -43,7 +44,7 @@ impl syrillian::core::reflection::ReflectSerialize for Mat2 {
     }
 }
 
-impl syrillian::core::reflection::ReflectSerialize for Mat3 {
+impl ReflectSerialize for Mat3 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![
             Value::Array(vec![
@@ -65,7 +66,7 @@ impl syrillian::core::reflection::ReflectSerialize for Mat3 {
     }
 }
 
-impl syrillian::core::reflection::ReflectSerialize for Mat4 {
+impl ReflectSerialize for Mat4 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![
             Value::Array(vec![
@@ -96,9 +97,9 @@ impl syrillian::core::reflection::ReflectSerialize for Mat4 {
     }
 }
 
-syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Vec2, &[]));
-syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Vec3, &[]));
-syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Vec4, &[]));
-syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Mat2, &[]));
-syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Mat3, &[]));
-syrillian::register_type!(syrillian::reflect_type_info!(syrillian::math, Mat4, &[]));
+register_type!(reflect_type_info!(syrillian::math, Vec2, &[]));
+register_type!(reflect_type_info!(syrillian::math, Vec3, &[]));
+register_type!(reflect_type_info!(syrillian::math, Vec4, &[]));
+register_type!(reflect_type_info!(syrillian::math, Mat2, &[]));
+register_type!(reflect_type_info!(syrillian::math, Mat3, &[]));
+register_type!(reflect_type_info!(syrillian::math, Mat4, &[]));
