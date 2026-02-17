@@ -9,6 +9,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::ptr::null_mut;
 use syrillian_macros::Reflect;
@@ -584,19 +585,24 @@ impl GameObject {
     /// Destroys this game object tree, cleaning up any component-specific data,
     /// then unlinks and removes the object from the world.
     pub fn delete(&mut self) {
+        self.delete_inner(true);
+    }
+
+    fn delete_inner(&mut self, unlink_self: bool) {
         if !self.alive.replace(false) {
             return;
         }
 
-        let children = self.children.clone();
+        let children = mem::take(&mut self.children);
         for mut child in children {
-            child.delete();
+            child.delete_inner(false);
         }
 
         let world = self.world();
         if world.is_in_component_phase() {
-            self.children.clear();
-            self.unlink();
+            if unlink_self {
+                self.unlink();
+            }
             world.schedule_object_removal(self.id);
             return;
         }
@@ -607,7 +613,9 @@ impl GameObject {
         }
 
         self.children.clear();
-        self.unlink();
+        if unlink_self {
+            self.unlink();
+        }
         world.schedule_object_removal(self.id);
     }
 
