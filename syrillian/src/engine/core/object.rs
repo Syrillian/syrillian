@@ -388,12 +388,12 @@ impl GameObject {
     /// Unlinks this game object from its parent or the world (root level).
     pub fn unlink(&mut self) {
         if let Some(mut parent) = self.parent.take() {
-            let pos_opt = parent
+            if let Some(pos) = parent
                 .children
                 .iter()
                 .find_position(|other| self.id == **other)
-                .map(|(id, _)| id);
-            if let Some(pos) = pos_opt {
+                .map(|(id, _)| id)
+            {
                 parent.children.remove(pos);
             }
         } else {
@@ -588,7 +588,8 @@ impl GameObject {
             return;
         }
 
-        for mut child in self.children.iter().copied() {
+        let children = self.children.clone();
+        for mut child in children {
             child.delete();
         }
 
