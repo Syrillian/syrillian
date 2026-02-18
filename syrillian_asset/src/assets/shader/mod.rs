@@ -229,7 +229,11 @@ impl StoreDefaults for Shader {
         store_add_checked!(
             store,
             HShader::FALLBACK_ID,
-            Shader::new_default("Fallback", SHADER_FALLBACK3D)
+            Shader::builder()
+                .shader_type(ShaderType::Default)
+                .name("Fallback")
+                .code(ShaderCode::Fragment(SHADER_FALLBACK3D.to_string()))
+                .build()
         );
 
         store_add_checked!(
