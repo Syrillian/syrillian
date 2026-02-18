@@ -109,9 +109,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
         let key = (self.cache_id, self.render_id as u64);
         self.image_cache.entry(key).or_insert_with(|| {
             let model_bgl = self.cache.bgl_model();
-            let mesh_data = ModelUniform {
-                model_mat: *model_mat,
-            };
+            let mesh_data = ModelUniform::from_matrix(model_mat);
 
             let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
                 .with_buffer_data(&mesh_data)

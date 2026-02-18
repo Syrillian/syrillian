@@ -84,11 +84,12 @@ impl UiImage {
         let model_matrix = self.screen_matrix(width, height, rect);
 
         let cached_image = ctx.ui_image_data(&model_matrix).clone();
+        let model_uniform = crate::model_uniform::ModelUniform::from_matrix(&model_matrix);
 
         ctx.state().queue.write_buffer(
             cached_image.uniform.buffer(MeshUniformIndex::MeshData),
             0,
-            bytemuck::bytes_of(&model_matrix),
+            bytemuck::bytes_of(&model_uniform),
         );
 
         let mut pass = ctx.pass().write();

@@ -202,7 +202,8 @@ impl SceneProxy for MeshSceneProxy {
     ) {
         let data: &mut RuntimeMeshData = proxy_data_mut!(data);
 
-        data.mesh_data.model_mat = (*local_to_world).into();
+        let model_mat: glamx::Mat4 = (*local_to_world).into();
+        data.mesh_data.update(&model_mat);
 
         renderer.state.queue.write_buffer(
             data.uniform.buffer(MeshUniformIndex::MeshData),
@@ -355,21 +356,21 @@ impl MeshSceneProxy {
     ) {
         let mut current_shader: Option<H<Shader>> = None;
 
-        let ranges: Vec<Range<u32>> = if self.material_ranges.is_empty() {
-            vec![Range {
+        let ranges: &[Range<u32>] = if self.material_ranges.is_empty() {
+            &[Range {
                 start: 0,
                 end: mesh.total_point_count(),
             }]
         } else {
-            self.material_ranges.clone()
+            &self.material_ranges
         };
 
         for (i, range) in ranges.iter().enumerate() {
             let h_mat = self
                 .materials
                 .get(i)
-                .cloned()
-                .unwrap_or(HMaterialInstance::FALLBACK);
+                .copied()
+                .unwrap_or(HMaterialInstance::DEFAULT);
             let material = cache.material_instance(h_mat);
             let shader_set = material.shader_set;
 

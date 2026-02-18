@@ -5,15 +5,14 @@ use syrillian_asset::ensure_aligned;
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ModelUniform {
     pub model_mat: Mat4,
+    pub normal_mat: Mat4,
 }
 
-ensure_aligned!(ModelUniform { model_mat }, align <= 16 * 4 => size);
+ensure_aligned!(ModelUniform { model_mat, normal_mat }, align <= 16 * 8 => size);
 
 impl ModelUniform {
     pub fn empty() -> Self {
-        ModelUniform {
-            model_mat: Mat4::IDENTITY,
-        }
+        Self::from_matrix(&Mat4::IDENTITY)
     }
 
     #[inline]
@@ -22,18 +21,27 @@ impl ModelUniform {
     }
 
     pub fn new_at_vec(pos: Vec3) -> Self {
-        ModelUniform {
-            model_mat: Mat4::from_translation(pos),
-        }
+        Self::from_matrix(&Mat4::from_translation(pos))
     }
 
-    pub fn from_matrix(translation: &Mat4) -> Self {
+    pub fn from_matrix(model_mat: &Mat4) -> Self {
         ModelUniform {
-            model_mat: *translation,
+            model_mat: *model_mat,
+            normal_mat: normal_matrix(model_mat),
         }
     }
 
     pub fn update(&mut self, transform: &Mat4) {
         self.model_mat = *transform;
+        self.normal_mat = normal_matrix(transform);
+    }
+}
+
+fn normal_matrix(model_mat: &Mat4) -> Mat4 {
+    let normal_mat = model_mat.inverse().transpose();
+    if normal_mat.is_finite() {
+        normal_mat
+    } else {
+        Mat4::IDENTITY
     }
 }
