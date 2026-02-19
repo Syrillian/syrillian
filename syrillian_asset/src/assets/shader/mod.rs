@@ -714,9 +714,18 @@ impl Shader {
         S: Into<String>,
         S2: Into<String>,
     {
+        let code = code.into();
+        let has_vertex = code.contains("@vertex");
+        let has_fragment = code.contains("@fragment");
+        let code = match (has_vertex, has_fragment) {
+            (true, true) => ShaderCode::Full(code),
+            (false, true) => ShaderCode::Fragment(code),
+            _ => ShaderCode::Full(code), // TODO: Error, maybe?
+        };
+
         Shader {
             name: name.into(),
-            code: ShaderCode::Full(code.into()),
+            code,
             polygon_mode: PolygonMode::Fill,
             topology: PrimitiveTopology::TriangleList,
             vertex_buffers: &DEFAULT_VBL,
