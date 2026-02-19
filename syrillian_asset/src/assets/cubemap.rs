@@ -2,6 +2,7 @@ use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFall
 use crate::{HCubemap, store_add_checked};
 use std::error::Error;
 use std::f32::consts::PI;
+use std::path::Path;
 use wgpu::{AddressMode, FilterMode, MipmapFilterMode, TextureFormat};
 
 #[derive(Debug, Clone)]
@@ -44,7 +45,7 @@ impl Cubemap {
         }
     }
 
-    pub fn load_equirect_hdr(path: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn load_equirect_hdr<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
         let bytes = std::fs::read(path)?;
         Self::load_equirect_hdr_from_memory(&bytes)
     }
