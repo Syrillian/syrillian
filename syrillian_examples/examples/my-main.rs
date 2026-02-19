@@ -36,7 +36,7 @@ use syrillian_components::{
     ParticleSystemComponent, PointLightComponent, Profiler, RigidBodyComponent, RopeJoint,
     RotateComponent, SpotLightComponent, SpringJoint, Text3D,
 };
-use syrillian_scene::SceneLoader;
+use syrillian_scene::GltfLoader;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -622,8 +622,8 @@ impl Prefab for City {
     }
 
     fn build(&self, world: &mut World) -> GameObjectId {
-        let testmap = include_bytes!("../../syrillian/testmodels/testmap/testmap.glb");
-        let mut city = SceneLoader::load_buffer(world, testmap).expect("Failed to load city file");
+        let testmap = include_bytes!("assets/testmodels/testmap/testmap.glb");
+        let mut city = GltfLoader::load_buffer(world, testmap).expect("Failed to load city file");
 
         world.spawn(&SunPrefab);
 
