@@ -69,7 +69,7 @@ impl LightManager {
                 continue;
             }
 
-            if next_layer + required_layers > layers {
+            if self.shadow_assignments.len() as u32 + required_layers > layers {
                 light.shadow_map_id = u32::MAX;
                 light.shadow_mat_base = u32::MAX;
                 continue;
@@ -98,6 +98,8 @@ impl LightManager {
 
             next_layer += required_layers;
         }
+
+        debug_assert_eq!(next_layer as usize, self.shadow_assignments.len());
 
         next_layer
     }

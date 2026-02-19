@@ -224,6 +224,14 @@ impl Renderer {
         }
         self.proxies = proxies;
 
+        let shadow_layers = self
+            .lights
+            .shadow_array(&self.cache.store().render_texture_arrays)
+            .unwrap()
+            .array_layers;
+        self.lights
+            .update_shadow_map_ids(shadow_layers, &self.state.device, &self.cache);
+
         self.lights
             .update(&self.cache, &self.state.queue, &self.state.device);
 
@@ -452,21 +460,6 @@ impl Renderer {
     #[instrument(skip_all)]
     #[profiling::function]
     fn shadow_pass(&mut self, ctx: &mut FrameCtx) {
-        self.lights
-            .update(&self.cache, &self.state.queue, &self.state.device);
-
-        let shadow_layers = self
-            .lights
-            .shadow_array(&self.cache.store().render_texture_arrays)
-            .unwrap()
-            .array_layers;
-        let light_count =
-            self.lights
-                .update_shadow_map_ids(shadow_layers, &self.state.device, &self.cache);
-
-        self.lights
-            .update(&self.cache, &self.state.queue, &self.state.device);
-
         let mut encoder = self
             .state
             .device
@@ -479,8 +472,7 @@ impl Renderer {
             .shadow_assignments()
             .iter()
             .copied()
-            .zip(self.lights.all_render_data())
-            .take(light_count as usize);
+            .zip(self.lights.all_render_data());
 
         for (assignment, render_data) in assignments {
             profiling::scope!("render shadow");
