@@ -18,6 +18,7 @@ readme = "../README.md"
 
 [dependencies]
 syrillian_asset.workspace = true
+syrillian_reflect.workspace = true
 syrillian_macros.workspace = true
 syrillian_render.workspace = true
 syrillian_shadergen.workspace = true

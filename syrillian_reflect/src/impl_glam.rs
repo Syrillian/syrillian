@@ -1,7 +1,5 @@
-use glamx::Quat;
-use crate::core::reflection::{ReflectSerialize, Value};
-use crate::math::{Affine3A, Mat2, Mat3, Mat3A, Mat4, Vec2, Vec3, Vec4};
-use crate::{reflect_type_info, register_type};
+use crate::{ReflectSerialize, Value};
+use glamx::{Affine3A, Mat2, Mat3, Mat3A, Mat4, Quat, Vec2, Vec3, Vec4};
 
 impl ReflectSerialize for Vec2 {
     fn serialize(this: &Self) -> Value {
@@ -66,7 +64,6 @@ impl ReflectSerialize for Mat3 {
         ])
     }
 }
-
 
 impl ReflectSerialize for Mat3A {
     fn serialize(this: &Self) -> Value {
@@ -157,15 +154,15 @@ impl ReflectSerialize for Affine3A {
                 Value::Float(mat[3][2]),
             ]),
         ])
-
     }
 }
 
-register_type!(reflect_type_info!(syrillian::math, Vec2, &[]));
-register_type!(reflect_type_info!(syrillian::math, Vec3, &[]));
-register_type!(reflect_type_info!(syrillian::math, Vec4, &[]));
-register_type!(reflect_type_info!(syrillian::math, Mat2, &[]));
-register_type!(reflect_type_info!(syrillian::math, Mat3, &[]));
-register_type!(reflect_type_info!(syrillian::math, Mat4, &[]));
-register_type!(reflect_type_info!(syrillian::math, Quat, &[]));
-register_type!(reflect_type_info!(syrillian::math, Affine3A, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Vec2, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Vec3, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Vec4, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat2, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat3, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat3A, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat4, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Quat, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Affine3A, &[]));

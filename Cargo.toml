@@ -8,10 +8,16 @@
 resolver = "2"
 members = [
     "syrillian",
-    "syrillian_components", "syrillian_examples",
-    "syrillian_macros", "syrillian_scene",
-    "syrillian_utils", "syrillian_examples",
-    "syrillian_shadergen", "syrillian_asset", "syrillian_render"]
+    "syrillian_asset",
+    "syrillian_components",
+    "syrillian_examples",
+    "syrillian_macros",
+    "syrillian_reflect",
+    "syrillian_render",
+    "syrillian_scene",
+    "syrillian_shadergen",
+    "syrillian_utils",
+]
 
 [workspace.package]
 version = "0.7.1"
@@ -38,6 +44,7 @@ panic = "abort"
 
 [workspace.dependencies]
 syrillian = { version = "0.7.1", path = "syrillian", default-features = false }
+syrillian_reflect = { version = "0.7.1", path = "syrillian_reflect", default-features = false }
 syrillian_asset = { version = "0.7.1", path = "syrillian_asset", default-features = false }
 syrillian_utils = { version = "0.7.1", path = "syrillian_utils", default-features = false }
 syrillian_macros = { version = "0.7.1", path = "syrillian_macros", default-features = false }

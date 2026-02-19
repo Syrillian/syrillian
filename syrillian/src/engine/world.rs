@@ -34,6 +34,7 @@ use crate::math::UVec2;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use syrillian_macros::Reflect;
+use syrillian_reflect::type_info;
 use syrillian_render::rendering::CPUDrawCtx;
 use syrillian_render::rendering::message::{GBufferDebugTargets, RenderMsg};
 use syrillian_render::rendering::picking::{PickRequest, PickResult};
@@ -1338,12 +1339,20 @@ fn print_objects_rec(children: &Vec<GameObjectId>, i: i32) {
         if !child.exists() {
             continue;
         }
-        info!("{}- {}", "  ".repeat(i as usize), &child.name);
+        info!("{}-> {}", "  ".repeat(i as usize), &child.name);
         info!(
-            "{}-> Components: {}",
+            "{}- Components: {}",
             "  ".repeat(i as usize + 1),
             child.components.len()
         );
+
+        for comp in &child.components {
+            let info = type_info(comp.ctx.tid.type_id())
+                .map(|i| i.name)
+                .unwrap_or("Unreflected Component");
+            info!("{}- {}", "  ".repeat(i as usize + 3), info);
+        }
+
         print_objects_rec(&child.children, i + 1);
     }
 }

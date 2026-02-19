@@ -17,6 +17,10 @@ pub use ::winit;
 
 pub use ::syrillian_asset as assets;
 pub use ::syrillian_macros;
+pub use ::syrillian_reflect as reflect;
+pub use ::syrillian_reflect::{
+    impl_reflect, impl_reflect_generic, reflect_field, reflect_type_info, register_type,
+};
 pub use ::syrillian_render as rendering;
 pub use ::syrillian_shadergen as shadergen;
 

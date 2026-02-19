@@ -1,0 +1,16 @@
+[package]
+name = "syrillian_reflect"
+description = "Reflection runtime and serializers used by Syrillian crates"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+dashmap.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+glamx.workspace = true
+web-time.workspace = true
+inventory = "0.3"

@@ -1,14 +1,13 @@
-use crate::components::{CRef, Component};
-use crate::core::GameObjectId;
-use crate::core::reflection::ReflectSerialize;
-use crate::core::reflection::serialize_primitive::Value;
+use crate::{ReflectSerialize, Value};
 use std::cell::Cell;
 use std::collections::HashMap;
 use web_time::Duration;
 
 macro_rules! register_primitive_type {
     ($primitive:ty) => {
-        ::syrillian::register_type!({ ::syrillian::reflect_type_info!(primitive, $primitive) });
+        ::syrillian_reflect::register_type!({
+            ::syrillian_reflect::reflect_type_info!(primitive, $primitive)
+        });
     };
 }
 
@@ -33,7 +32,7 @@ macro_rules! reflect_primitive {
         register_primitive_type!(Cell<$primitive>);
 
         reflect_primitive!($primitive, $name => $data);
-    }
+    };
 }
 
 reflect_primitive!(String, this => Value::String(this.clone()));
@@ -56,6 +55,4 @@ reflect_primitive!(bool, this => Value::Bool(*this), cell);
 reflect_primitive!(Value, this => this.clone());
 reflect_primitive!(Duration, this => Value::VeryBigUInt(this.as_millis()), cell);
 
-register_primitive_type!(Vec<GameObjectId>);
-register_primitive_type!(Vec<CRef<dyn Component>>);
 register_primitive_type!(HashMap<String, Value>);
