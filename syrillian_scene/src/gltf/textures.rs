@@ -124,11 +124,15 @@ impl GltfScene {
             pixels.to_vec()
         };
 
+        let (block_width, block_height) = format.block_dimensions();
+        let block_size = format.block_copy_size(None).unwrap() as usize;
+        let blocks_x = width.div_ceil(block_width) as usize;
+        let blocks_y = height.div_ceil(block_height) as usize;
+        let expected_size = blocks_x * blocks_y * block_size;
+
         debug_assert_eq!(
             data.len(),
-            width as usize * height as usize
-                / (format.block_dimensions().0 * format.block_dimensions().1) as usize
-                * format.block_copy_size(None).unwrap() as usize,
+            expected_size,
             "Data size of a {width} x {height} texture in format {format:?} did not match expectations. Original was: {original_format:?}",
         );
 
