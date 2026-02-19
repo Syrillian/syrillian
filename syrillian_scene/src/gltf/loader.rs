@@ -92,9 +92,9 @@ impl GltfLoader {
 
         let virtual_root = virtual_root.into();
 
-        let mut mesh_node_of: HashMap<usize, Node<'_>> = HashMap::new();
+        let mut mesh_nodes = Vec::new();
         for node in root_scene.nodes() {
-            collect_mesh_nodes(node, &mut mesh_node_of);
+            collect_mesh_nodes(node, &mut mesh_nodes);
         }
 
         let mut meshes_out = Vec::new();
@@ -103,13 +103,14 @@ impl GltfLoader {
         let mut used_mesh_names = HashSet::new();
         let mut used_material_indices = HashSet::new();
 
-        for gltf_mesh in scene.doc.meshes() {
-            let mesh_index = gltf_mesh.index();
-            let Some(node) = mesh_node_of.get(&mesh_index).cloned() else {
+        for node in mesh_nodes {
+            let Some(gltf_mesh) = node.mesh() else {
                 continue;
             };
+            let mesh_index = gltf_mesh.index();
+            let node_index = node.index();
 
-            let Some((mesh, material_indices)) = scene.load_mesh(node) else {
+            let Some((mesh, material_indices)) = scene.load_mesh(node.clone()) else {
                 continue;
             };
 
@@ -121,13 +122,13 @@ impl GltfLoader {
 
             let name = unique_name(
                 gltf_mesh.name(),
-                || format!("mesh_{mesh_index}"),
+                || format!("mesh_{mesh_index}_node_{node_index}"),
                 &mut used_mesh_names,
             );
             let virtual_path = format!("{virtual_root}/Meshes/{name}");
 
-            mesh_path_of.insert(mesh_index, virtual_path.clone());
-            mesh_materials_of.insert(mesh_index, material_indices);
+            mesh_path_of.insert(node_index, virtual_path.clone());
+            mesh_materials_of.insert(node_index, material_indices);
             meshes_out.push(PackagedMeshAsset { virtual_path, mesh });
         }
 
@@ -260,12 +261,12 @@ impl GltfLoader {
     }
 }
 
-fn collect_mesh_nodes<'a>(node: Node<'a>, mesh_node_of: &mut HashMap<usize, Node<'a>>) {
-    if let Some(mesh) = node.mesh() {
-        mesh_node_of.entry(mesh.index()).or_insert(node.clone());
+fn collect_mesh_nodes<'a>(node: Node<'a>, mesh_nodes: &mut Vec<Node<'a>>) {
+    if node.mesh().is_some() {
+        mesh_nodes.push(node.clone());
     }
 
     for child in node.children() {
-        collect_mesh_nodes(child, mesh_node_of);
+        collect_mesh_nodes(child, mesh_nodes);
     }
 }

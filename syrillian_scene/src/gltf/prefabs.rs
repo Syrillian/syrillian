@@ -14,11 +14,11 @@ pub fn build_prefab_node(
     let name = node.name().unwrap_or("Unnamed").to_string();
     let (position, rotation, scale) = node.transform().decomposed();
 
-    let mesh_binding = node.mesh().and_then(|mesh| {
-        let mesh_index = mesh.index();
-        let mesh_asset = mesh_path_of.get(&mesh_index)?.clone();
+    let mesh_binding = node.mesh().and_then(|_mesh| {
+        let node_index = node.index();
+        let mesh_asset = mesh_path_of.get(&node_index)?.clone();
         let material_hashes = mesh_materials_of
-            .get(&mesh_index)
+            .get(&node_index)
             .map(|materials| {
                 materials
                     .iter()
