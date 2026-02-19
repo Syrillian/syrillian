@@ -138,6 +138,10 @@ impl<T: LightTypeTrait> PartialReflect for LightComponent<T> {
     };
 }
 
+syrillian::inventory::submit! { SunLightComponent::DATA }
+syrillian::inventory::submit! { PointLightComponent::DATA }
+syrillian::inventory::submit! { SpotLightComponent::DATA }
+
 impl LightTypeTrait for Sun {
     const NAME: &str = "SunLightComponent";
     const FULL_NAME: &str = concat!(module_path!(), "::", "SunLightComponent");
