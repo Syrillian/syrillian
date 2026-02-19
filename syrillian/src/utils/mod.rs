@@ -1,4 +1,3 @@
-pub mod animation;
 pub mod fat_ptr;
 pub mod frame_counter;
 pub(crate) mod hacks;

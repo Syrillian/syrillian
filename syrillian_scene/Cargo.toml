@@ -9,9 +9,18 @@ authors.workspace = true
 
 [dependencies]
 syrillian.workspace = true
+syrillian_asset.workspace = true
 syrillian_components.workspace = true
 syrillian_utils.workspace = true
 gltf = { version = "1.4", features = ["KHR_materials_unlit", "KHR_lights_punctual", "KHR_materials_pbrSpecularGlossiness", "KHR_texture_transform", "extras"] }
 itertools.workspace = true
 snafu.workspace = true
 serde_json = "1.0"
+zerocopy = { version = "0.8", features = ["std"] }
+clap = { version = "4.5", features = ["derive"] }
+byte-unit = "5.1"
+block_compression = "0.8"
+
+[[bin]]
+name = "sypack"
+path = "src/bin/syrillian_asset_packer/main.rs"

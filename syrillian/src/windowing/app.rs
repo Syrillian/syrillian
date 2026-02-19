@@ -89,6 +89,15 @@ impl<S: AppState> App<S> {
         info!("Initializing render state");
 
         let asset_store = AssetStore::new();
+        match asset_store.hook_default_packages() {
+            Ok(count) if count > 0 => {
+                info!("Mounted {count} packaged asset file(s) for streaming");
+            }
+            Ok(_) => {}
+            Err(err) => {
+                warn!("Failed to mount default packaged assets: {err}");
+            }
+        }
 
         let (render_state_tx, render_state_rx) = unbounded();
         let (game_event_tx, game_event_rx) = unbounded();

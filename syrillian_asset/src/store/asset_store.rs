@@ -7,6 +7,7 @@
 //!
 //! See module level documentation for more info.
 
+use super::streaming::StreamingState;
 use crate::assets::*;
 use crate::material_inputs::MaterialInputLayout;
 use crate::store::{Store, StoreType};
@@ -30,6 +31,10 @@ pub struct AssetStore {
     pub bgls: Arc<Store<BGL>>,
     pub fonts: Arc<Store<Font>>,
     pub sounds: Arc<Store<Sound>>,
+    pub animation_clips: Arc<Store<AnimationClip>>,
+    pub prefab_materials: Arc<Store<PrefabMaterial>>,
+    pub prefabs: Arc<Store<PrefabAsset>>,
+    pub(crate) streaming: StreamingState,
 }
 
 impl AssetStore {
@@ -49,6 +54,10 @@ impl AssetStore {
             bgls: Arc::new(Store::populated()),
             fonts: Arc::new(Store::populated()),
             sounds: Arc::new(Store::empty()),
+            animation_clips: Arc::new(Store::empty()),
+            prefab_materials: Arc::new(Store::empty()),
+            prefabs: Arc::new(Store::empty()),
+            streaming: StreamingState::new(),
         })
     }
 
@@ -143,5 +152,23 @@ impl AsRef<Store<ComputeShader>> for AssetStore {
 impl AsRef<Store<Texture2D>> for AssetStore {
     fn as_ref(&self) -> &Store<Texture2D> {
         &self.textures
+    }
+}
+
+impl AsRef<Store<PrefabMaterial>> for AssetStore {
+    fn as_ref(&self) -> &Store<PrefabMaterial> {
+        &self.prefab_materials
+    }
+}
+
+impl AsRef<Store<AnimationClip>> for AssetStore {
+    fn as_ref(&self) -> &Store<AnimationClip> {
+        &self.animation_clips
+    }
+}
+
+impl AsRef<Store<PrefabAsset>> for AssetStore {
+    fn as_ref(&self) -> &Store<PrefabAsset> {
+        &self.prefabs
     }
 }

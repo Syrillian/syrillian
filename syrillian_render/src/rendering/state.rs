@@ -121,7 +121,8 @@ impl State {
                     | Features::POLYGON_MODE_LINE
                     | Features::IMMEDIATES
                     | Features::ADDRESS_MODE_CLAMP_TO_BORDER
-                    | Features::TEXTURE_FORMAT_16BIT_NORM,
+                    | Features::TEXTURE_FORMAT_16BIT_NORM
+                    | Features::TEXTURE_COMPRESSION_BC,
                 required_limits: Limits {
                     max_bind_groups: 6,
                     max_immediate_size: 128,

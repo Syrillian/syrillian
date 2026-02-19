@@ -27,11 +27,13 @@ pub mod material_inputs;
 pub mod mesh;
 pub mod shader;
 
+pub mod animation_clip;
 pub mod bind_group_layout;
 pub mod cubemap;
 pub mod font;
 pub mod material;
 pub mod material_instance;
+pub mod prefab;
 pub mod sound;
 
 pub mod render_cubemap;
@@ -40,6 +42,7 @@ pub mod render_texture_2d_array;
 pub mod texture_2d;
 pub mod texture_2d_array;
 
+pub use self::animation_clip::*;
 pub use self::bind_group_layout::*;
 pub use self::compute_shader::*;
 pub use self::cubemap::*;
@@ -47,6 +50,7 @@ pub use self::font::Font;
 pub use self::material::*;
 pub use self::material_instance::*;
 pub use self::mesh::Mesh;
+pub use self::prefab::*;
 pub use self::render_cubemap::*;
 pub use self::render_texture_2d::*;
 pub use self::render_texture_2d_array::*;
@@ -61,6 +65,8 @@ pub type HBGL = H<BGL>;
 pub type HMaterial = H<Material>;
 pub type HMaterialInstance = H<MaterialInstance>;
 pub type HMesh = H<Mesh>;
+pub type HPrefabAsset = H<PrefabAsset>;
+pub type HPrefabMaterial = H<PrefabMaterial>;
 pub type HShader = H<Shader>;
 pub type HComputeShader = H<ComputeShader>;
 pub type HTexture2D = H<Texture2D>;

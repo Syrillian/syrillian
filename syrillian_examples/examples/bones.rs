@@ -7,11 +7,16 @@ use std::error::Error;
 use syrillian::math::{Quat, Vec3};
 use syrillian::{AppState, SyrillianApp, World};
 use syrillian_components::SkeletalComponent;
-use syrillian_scene::SceneLoader;
+use syrillian_scene::GltfLoader;
 
 use syrillian::components::Component;
 #[cfg(debug_assertions)]
 use syrillian::input::KeyCode;
+
+const HAMPTER_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/examples/assets/testmodels/hampter/hampter.glb"
+);
 
 #[derive(Debug, Default, SyrillianApp)]
 struct BonesExample;
@@ -20,7 +25,7 @@ impl AppState for BonesExample {
     fn init(&mut self, world: &mut World) -> Result<(), Box<dyn Error>> {
         world.new_camera();
 
-        let mut boney_obj = SceneLoader::load(world, "./testmodels/hampter/hampter.glb")?;
+        let mut boney_obj = GltfLoader::spawn(world, HAMPTER_PATH)?;
         boney_obj.name = "Boney thing".to_owned();
 
         boney_obj.transform.set_position(0.0, -5.0, -20.0);

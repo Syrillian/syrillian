@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use syrillian::World;
-use syrillian_scene::SceneLoader;
+use syrillian_scene::GltfLoader;
 
 fn asset_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
@@ -9,10 +9,10 @@ fn asset_path(relative: &str) -> PathBuf {
 
 #[test]
 fn load_first_mesh_from_file_has_vertices() {
-    let path = asset_path("../syrillian/testmodels/hampter/hampter.glb");
+    let path = asset_path("../syrillian_examples/examples/assets/testmodels/hampter/hampter.glb");
     let path_str = path.to_string_lossy();
 
-    let mesh_data = SceneLoader::load_first_mesh(&path_str)
+    let mesh_data = GltfLoader::load_first_mesh(&path_str)
         .expect("scene should load")
         .expect("mesh should be present");
 
@@ -26,15 +26,15 @@ fn load_first_mesh_from_file_has_vertices() {
 
 #[test]
 fn load_first_mesh_from_memory_matches_file() {
-    let path = asset_path("../syrillian/testmodels/hampter/hampter.glb");
+    let path = asset_path("../syrillian_examples/examples/assets/testmodels/hampter/hampter.glb");
     let path_str = path.to_string_lossy();
     let bytes = std::fs::read(&path).expect("failed to read test model");
 
-    let file_mesh = SceneLoader::load_first_mesh(&path_str)
+    let file_mesh = GltfLoader::load_first_mesh(&path_str)
         .expect("scene should load from file")
         .expect("mesh should be present from file");
 
-    let buffer_mesh = SceneLoader::load_first_mesh_from_buffer(&bytes)
+    let buffer_mesh = GltfLoader::load_first_mesh_from_buffer(&bytes)
         .expect("scene should load from memory")
         .expect("mesh should be present from memory");
 
@@ -52,18 +52,20 @@ fn load_first_mesh_from_memory_matches_file() {
 
 #[test]
 fn load_scene_from_buffer_spawns_world_objects() {
-    let bytes = std::fs::read(asset_path("../syrillian/testmodels/hampter/hampter.glb"))
-        .expect("failed to read test model");
+    let bytes = std::fs::read(asset_path(
+        "../syrillian_examples/examples/assets/testmodels/hampter/hampter.glb",
+    ))
+    .expect("failed to read test model");
 
     let (mut world, _render_rx, _event_rx, _pick_tx) = World::fresh();
 
     let root =
-        SceneLoader::load_buffer(world.as_mut(), &bytes).expect("scene should load into the world");
+        GltfLoader::load_buffer(world.as_mut(), &bytes).expect("scene should load into the world");
 
     let root_obj = world
         .get_object(root)
         .expect("root object should be registered in the world");
-    assert_eq!(root_obj.name, "glTF Scene");
+    assert_eq!(root_obj.name, "Instantiated Prefab");
     assert!(
         !root_obj.children().is_empty(),
         "expected child nodes to be spawned under the scene root"

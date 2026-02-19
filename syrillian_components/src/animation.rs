@@ -5,17 +5,63 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use syrillian::Reflect;
 use syrillian::World;
+use syrillian::assets::AnimationClip;
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
 use syrillian::math::{Quat, Vec3};
 use syrillian::tracing::warn;
-use syrillian::utils::animation::{
-    AnimationClip, Binding, ChannelBinding, ClipIndex, sample_rotation, sample_scale,
-    sample_translation,
-};
 
 const DEFAULT_CROSSFADE_DURATION: f32 = 0.2;
 const LAYER_REMOVE_EPSILON: f32 = 1e-3;
+
+#[derive(Debug, Default, Clone)]
+pub struct ClipIndex {
+    pub by_name: HashMap<String, usize>,
+}
+
+impl ClipIndex {
+    pub fn new(clip: &AnimationClip) -> Self {
+        let mut by_name = HashMap::new();
+        for (i, ch) in clip.channels.iter().enumerate() {
+            by_name.insert(ch.target_name.clone(), i);
+        }
+        Self { by_name }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Binding {
+    Transform(GameObjectId),
+    Bone { skel: GameObjectId, idx: usize },
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelBinding {
+    /// Index into clip.channels
+    pub ch_index: usize,
+    pub target: Binding,
+}
+
+#[derive(Debug, Clone)]
+pub struct Playback {
+    pub clip_index: usize,
+    pub time: f32,
+    pub speed: f32,
+    pub weight: f32,
+    pub looping: bool,
+}
+
+impl Default for Playback {
+    fn default() -> Self {
+        Self {
+            clip_index: 0,
+            time: 0.0,
+            speed: 1.0,
+            weight: 1.0,
+            looping: true,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct ActiveLayer {
@@ -442,9 +488,7 @@ impl AnimationComponent {
 
             for b in binds {
                 let ch = &clip.channels[b.ch_index];
-                let t = sample_translation(&ch.keys, time);
-                let r = sample_rotation(&ch.keys, time);
-                let s = sample_scale(&ch.keys, time);
+                let (t, r, s) = ch.keys.sample(time);
 
                 match b.target {
                     Binding::Transform(go) => {
