@@ -92,9 +92,72 @@ impl GltfLoader {
 
         let virtual_root = virtual_root.into();
 
-        let mut mesh_nodes = Vec::new();
+        let parent_of = build_parent_index_map(scene);
+        let node_by_index = scene
+            .doc
+            .nodes()
+            .map(|node| (node.index(), node))
+            .collect::<HashMap<_, _>>();
+
+        let mut reachable = HashSet::new();
         for node in root_scene.nodes() {
-            collect_mesh_nodes(node, &mut mesh_nodes);
+            collect_node_indices(node, &mut reachable);
+        }
+
+        let mut required_indices = HashSet::new();
+        for node in scene.doc.nodes() {
+            if node.mesh().is_some() {
+                required_indices.insert(node.index());
+            }
+        }
+        for animation in scene.doc.animations() {
+            for channel in animation.channels() {
+                required_indices.insert(channel.target().node().index());
+            }
+        }
+        for skin in scene.doc.skins() {
+            if let Some(skeleton_root) = skin.skeleton() {
+                required_indices.insert(skeleton_root.index());
+            }
+            for joint in skin.joints() {
+                required_indices.insert(joint.index());
+            }
+        }
+
+        let mut supplemental_root_indices = HashSet::new();
+        for index in required_indices {
+            if reachable.contains(&index) {
+                continue;
+            }
+            supplemental_root_indices.insert(find_unreachable_root(index, &reachable, &parent_of));
+        }
+
+        let mut scene_roots = Vec::new();
+        let mut seen_root_indices = HashSet::new();
+        for node in root_scene.nodes() {
+            if seen_root_indices.insert(node.index()) {
+                scene_roots.push(node);
+            }
+        }
+
+        let mut supplemental_root_indices =
+            supplemental_root_indices.into_iter().collect::<Vec<_>>();
+        supplemental_root_indices.sort_unstable();
+        for index in supplemental_root_indices {
+            if seen_root_indices.contains(&index) {
+                continue;
+            }
+            let Some(node) = node_by_index.get(&index).cloned() else {
+                continue;
+            };
+            seen_root_indices.insert(index);
+            scene_roots.push(node);
+        }
+
+        let mut mesh_nodes = Vec::new();
+        let mut visited_mesh_nodes = HashSet::new();
+        for node in &scene_roots {
+            collect_mesh_nodes(node.clone(), &mut mesh_nodes, &mut visited_mesh_nodes);
         }
 
         let mut meshes_out = Vec::new();
@@ -229,7 +292,7 @@ impl GltfLoader {
 
         let mut prefab_nodes = Vec::new();
         let mut prefab_roots = Vec::new();
-        for node in root_scene.nodes() {
+        for node in scene_roots {
             let root_index = build_prefab_node(
                 node,
                 &mut prefab_nodes,
@@ -261,12 +324,61 @@ impl GltfLoader {
     }
 }
 
-fn collect_mesh_nodes<'a>(node: Node<'a>, mesh_nodes: &mut Vec<Node<'a>>) {
+fn collect_mesh_nodes<'a>(
+    node: Node<'a>,
+    mesh_nodes: &mut Vec<Node<'a>>,
+    visited: &mut HashSet<usize>,
+) {
+    if !visited.insert(node.index()) {
+        return;
+    }
+
     if node.mesh().is_some() {
         mesh_nodes.push(node.clone());
     }
 
     for child in node.children() {
-        collect_mesh_nodes(child, mesh_nodes);
+        collect_mesh_nodes(child, mesh_nodes, visited);
+    }
+}
+
+fn collect_node_indices(node: Node<'_>, out: &mut HashSet<usize>) {
+    if !out.insert(node.index()) {
+        return;
+    }
+    for child in node.children() {
+        collect_node_indices(child, out);
+    }
+}
+
+fn build_parent_index_map(scene: &GltfScene) -> HashMap<usize, Option<usize>> {
+    let mut parent_of = scene
+        .doc
+        .nodes()
+        .map(|node| (node.index(), None))
+        .collect::<HashMap<_, _>>();
+
+    for node in scene.doc.nodes() {
+        for child in node.children() {
+            parent_of.insert(child.index(), Some(node.index()));
+        }
+    }
+
+    parent_of
+}
+
+fn find_unreachable_root(
+    mut node_index: usize,
+    reachable: &HashSet<usize>,
+    parent_of: &HashMap<usize, Option<usize>>,
+) -> usize {
+    loop {
+        let Some(parent) = parent_of.get(&node_index).copied().flatten() else {
+            return node_index;
+        };
+        if reachable.contains(&parent) {
+            return node_index;
+        }
+        node_index = parent;
     }
 }

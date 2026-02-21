@@ -11,7 +11,10 @@ pub fn build_prefab_node(
     material_hash_of: &HashMap<u32, u64>,
 ) -> u32 {
     let node_index = nodes.len() as u32;
-    let name = node.name().unwrap_or("Unnamed").to_string();
+    let name = node
+        .name()
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("node{}", node.index()));
     let (position, rotation, scale) = node.transform().decomposed();
 
     let mesh_binding = node.mesh().and_then(|_mesh| {

@@ -1,7 +1,7 @@
 use crate::prefab_material_instantiation::PrefabMaterialInstantiation;
 use crate::utils::json_to_reflection_value;
 use snafu::{ResultExt, Snafu};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use syrillian::World;
 use syrillian::assets::{HMaterialInstance, HMesh, HTexture2D, Mesh, Texture2D};
 use syrillian::core::GameObjectId;
@@ -216,9 +216,10 @@ impl<'a> PrefabInstantiationContext<'a> {
         }
 
         if !clips.is_empty() {
+            let autoplay_indices = select_default_autoplay_indices(&clips);
             let mut animation = root.add_component::<AnimationComponent>();
             animation.set_clips(clips);
-            animation.play_index(0, true, 1.0, 1.0);
+            animation.play_indices(&autoplay_indices, true, 1.0, 1.0);
         }
     }
 
@@ -309,4 +310,82 @@ fn resolve_cached_by_path<A: StreamingLoadableAsset>(
     let handle = assets.load_by_path::<A>(&path).ok()?;
     cache.insert(path, handle);
     Some(handle)
+}
+
+fn select_default_autoplay_indices(clips: &[AnimationClip]) -> Vec<usize> {
+    if clips.is_empty() {
+        return Vec::new();
+    }
+
+    let mut selected = Vec::new();
+    let mut claimed_targets = HashSet::<String>::new();
+    for (index, clip) in clips.iter().enumerate() {
+        if index == 0 {
+            selected.push(index);
+            for channel in &clip.channels {
+                claimed_targets.insert(channel.target_name.clone());
+            }
+            continue;
+        }
+
+        let mut overlaps = false;
+        for channel in &clip.channels {
+            if claimed_targets.contains(&channel.target_name) {
+                overlaps = true;
+                break;
+            }
+        }
+        if overlaps {
+            continue;
+        }
+
+        selected.push(index);
+        for channel in &clip.channels {
+            claimed_targets.insert(channel.target_name.clone());
+        }
+    }
+
+    if selected.is_empty() {
+        selected.push(0);
+    }
+    selected
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_default_autoplay_indices;
+    use syrillian_asset::{AnimationChannel, AnimationClip};
+
+    fn clip(name: &str, targets: &[&str]) -> AnimationClip {
+        AnimationClip {
+            name: name.to_string(),
+            channels: targets
+                .iter()
+                .map(|target| AnimationChannel {
+                    target_name: (*target).to_string(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn autoplay_selects_first_and_disjoint_targets() {
+        let clips = vec![
+            clip("rig", &["root", "arm"]),
+            clip("stick", &["other"]),
+            clip("alt_rig", &["root"]),
+        ];
+
+        let selected = select_default_autoplay_indices(&clips);
+        assert_eq!(selected, vec![0, 1]);
+    }
+
+    #[test]
+    fn autoplay_falls_back_to_first_clip() {
+        let clips = vec![AnimationClip::default()];
+        let selected = select_default_autoplay_indices(&clips);
+        assert_eq!(selected, vec![0]);
+    }
 }

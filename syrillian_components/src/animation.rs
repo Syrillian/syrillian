@@ -1,8 +1,8 @@
 // TODO: refactor
 
 use crate::SkeletalComponent;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::assets::AnimationClip;
@@ -255,7 +255,7 @@ impl AnimationComponent {
         self.bindings.clear();
         self.bindings.reserve(self.clips.len());
 
-        let mut map_nodes = HashMap::<String, GameObjectId>::new();
+        let mut map_nodes = HashMap::<String, Vec<GameObjectId>>::new();
         collect_subtree_by_name(self.parent(), &mut map_nodes);
 
         let mut bone_map = HashMap::<String, Vec<(GameObjectId, usize)>>::new();
@@ -281,6 +281,8 @@ impl AnimationComponent {
         for clip in self.clips.iter() {
             let mut binds = Vec::<ChannelBinding>::with_capacity(clip.channels.len());
             for (ch_index, ch) in clip.channels.iter().enumerate() {
+                let mut resolved = false;
+
                 if let Some(bones) = bone_map.get(&ch.target_name) {
                     for (skel_go, i) in bones.iter().copied() {
                         binds.push(ChannelBinding {
@@ -291,12 +293,20 @@ impl AnimationComponent {
                             },
                         });
                     }
-                } else if let Some(&go) = map_nodes.get(&ch.target_name) {
-                    binds.push(ChannelBinding {
-                        ch_index,
-                        target: Binding::Transform(go),
-                    });
-                } else {
+                    resolved = true;
+                }
+
+                if let Some(nodes) = map_nodes.get(&ch.target_name) {
+                    for &go in nodes {
+                        binds.push(ChannelBinding {
+                            ch_index,
+                            target: Binding::Transform(go),
+                        });
+                    }
+                    resolved = true;
+                }
+
+                if !resolved {
                     warn!(
                         "No valid animation binding found for channel {}",
                         ch.target_name
@@ -317,14 +327,26 @@ impl AnimationComponent {
     }
 
     pub fn play_index(&mut self, index: usize, looping: bool, speed: f32, weight: f32) {
-        if index >= self.clips.len() {
-            warn!("No clip #{index} found in {}", self.parent().name);
+        self.play_indices(&[index], looping, speed, weight);
+    }
+
+    pub fn play_indices(&mut self, indices: &[usize], looping: bool, speed: f32, weight: f32) {
+        let target_weight = weight.clamp(0.0, 1.0);
+        self.layers.clear();
+        if target_weight <= 0.0 {
             return;
         }
 
-        let target_weight = weight.clamp(0.0, 1.0);
-        self.layers.clear();
-        if target_weight > 0.0 {
+        let mut seen = HashSet::new();
+        for &index in indices {
+            if index >= self.clips.len() {
+                warn!("No clip #{index} found in {}", self.parent().name);
+                continue;
+            }
+            if !seen.insert(index) {
+                continue;
+            }
+
             self.layers.push(ActiveLayer::new_immediate(
                 index,
                 looping,
@@ -425,7 +447,7 @@ impl AnimationComponent {
         )
     }
 
-    fn find_clip_index_by_name(&self, name: &str) -> Option<usize> {
+    pub fn find_clip_index_by_name(&self, name: &str) -> Option<usize> {
         self.clips.iter().position(|c| c.name == name)
     }
 
@@ -589,8 +611,8 @@ impl AnimationComponent {
     }
 }
 
-fn collect_subtree_by_name(root: GameObjectId, out: &mut HashMap<String, GameObjectId>) {
-    out.insert(root.name.clone(), root);
+fn collect_subtree_by_name(root: GameObjectId, out: &mut HashMap<String, Vec<GameObjectId>>) {
+    out.entry(root.name.clone()).or_default().push(root);
     for child in root.children().iter().copied() {
         collect_subtree_by_name(child, out);
     }
