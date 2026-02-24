@@ -37,8 +37,7 @@ impl<T: CacheType + StoreTypeFallback> Cache<T> {
             self.store.get(h).clone()
         };
 
-        let misses = self.cache_misses.load(Ordering::Acquire) + 1;
-        self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        let misses = self.cache_misses.fetch_add(1, Ordering::SeqCst);
 
         trace!("Refreshing {} Cache Handle {}", T::NAME, h.ident_fmt());
 
@@ -97,8 +96,7 @@ impl<T: CacheType> Cache<T> {
     ) -> Result<T::Hot, ()> {
         let cold = self.store.try_get(h).ok_or(())?.clone();
 
-        let misses = self.cache_misses.load(Ordering::Acquire) + 1;
-        self.cache_misses.fetch_add(1, Ordering::Relaxed);
+        let misses = self.cache_misses.fetch_add(1, Ordering::SeqCst);
 
         if misses.is_multiple_of(1000) {
             warn!(
