@@ -21,6 +21,7 @@ impl PrefabMaterialInstantiation {
             .metallic_roughness_texture
             .as_deref()
             .and_then(&mut resolve_texture);
+        let use_metallic_texture = roughness_texture.is_some();
 
         let mut builder = MaterialInstance::builder()
             .name(material.name.clone())
@@ -36,6 +37,7 @@ impl PrefabMaterialInstantiation {
             .diffuse_texture(diffuse_texture)
             .normal_texture(normal_texture)
             .roughness_texture(roughness_texture)
+            .use_metallic_texture(use_metallic_texture)
             .lit(!material.unlit);
 
         let has_transparency =

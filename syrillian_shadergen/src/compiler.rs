@@ -1,8 +1,9 @@
 use crate::chunks::{
     ConstantF32Node, EmitCtx, FunctionCallNode, MaterialBaseColorNode, MaterialInputNode,
-    MaterialNormalNode, MaterialRoughnessNode, MaterialSamplerNode, MaterialTextureNode, MathNode,
-    MathOp, NodeChunk, NodeExpressionInput, PbrShaderNode, PickColorNode, PostSurfaceSamplerNode,
-    PostSurfaceTextureNode, RawChunk, SwizzleNode, TextureSampleNode, VertexUvNode,
+    MaterialMetallicNode, MaterialNormalNode, MaterialRoughnessNode, MaterialSamplerNode,
+    MaterialTextureNode, MathNode, MathOp, NodeChunk, NodeExpressionInput, PbrShaderNode,
+    PickColorNode, PostSurfaceSamplerNode, PostSurfaceTextureNode, RawChunk, SwizzleNode,
+    TextureSampleNode, VertexUvNode,
 };
 use crate::function::{
     ExpressionInput, ExpressionTexture, MaterialExpression, MaterialPinType,
@@ -103,6 +104,22 @@ impl MaterialCompiler {
         self.allocate(MaterialRoughnessNode::new(
             NodeExpressionInput::new(uv, 0),
             roughness.as_chunk_input(),
+            use_texture.as_chunk_input(),
+            texture.texture_input(),
+            texture.sampler_input(),
+        ))
+    }
+
+    pub fn metallic(
+        &mut self,
+        uv: NodeId,
+        metallic: &ExpressionInput<f32>,
+        use_texture: &ExpressionInput<bool>,
+        texture: &ExpressionTexture,
+    ) -> NodeId {
+        self.allocate(MaterialMetallicNode::new(
+            NodeExpressionInput::new(uv, 0),
+            metallic.as_chunk_input(),
             use_texture.as_chunk_input(),
             texture.texture_input(),
             texture.sampler_input(),

@@ -250,11 +250,71 @@ impl NodeChunk for MaterialRoughnessNode {
         let tex = self.texture.expr(ctx);
         let sampler = self.sampler.expr(ctx);
         Some(format!(
-            "var _pv{id}: f32;\n    if ({use_tex} != 0) {{\n        _pv{id} = textureSample({tex}, {sampler}, {uv}).g;\n    }} else {{\n        _pv{id} = {roughness};\n    }}",
+            "var _pv{id}: f32;\n    if ({use_tex} != 0) {{\n        _pv{id} = {roughness} * textureSample({tex}, {sampler}, {uv}).g;\n    }} else {{\n        _pv{id} = {roughness};\n    }}",
             tex = tex,
             sampler = sampler,
             uv = uv,
             roughness = roughness,
+            use_tex = use_tex,
+        ))
+    }
+
+    fn expr(&self, id: NodeId, _ctx: &EmitCtx) -> String {
+        format!("_pv{id}")
+    }
+}
+
+pub(crate) struct MaterialMetallicNode {
+    uv: ExpressionInput,
+    metallic: ExpressionInput,
+    use_texture: ExpressionInput,
+    texture: ExpressionInput,
+    sampler: ExpressionInput,
+    deps: [NodeId; 5],
+}
+
+impl MaterialMetallicNode {
+    pub fn new(
+        uv: ExpressionInput,
+        metallic: ExpressionInput,
+        use_texture: ExpressionInput,
+        texture: ExpressionInput,
+        sampler: ExpressionInput,
+    ) -> Self {
+        Self {
+            uv,
+            metallic,
+            use_texture,
+            texture,
+            sampler,
+            deps: [
+                uv.node(),
+                metallic.node(),
+                use_texture.node(),
+                texture.node(),
+                sampler.node(),
+            ],
+        }
+    }
+}
+
+impl NodeChunk for MaterialMetallicNode {
+    fn deps(&self) -> &[NodeId] {
+        &self.deps
+    }
+
+    fn emit(&self, id: NodeId, ctx: &EmitCtx) -> Option<String> {
+        let uv = self.uv.expr(ctx);
+        let metallic = self.metallic.expr(ctx);
+        let use_tex = self.use_texture.expr(ctx);
+        let tex = self.texture.expr(ctx);
+        let sampler = self.sampler.expr(ctx);
+        Some(format!(
+            "var _pv{id}: f32;\n    if ({use_tex} != 0) {{\n        _pv{id} = {metallic} * textureSample({tex}, {sampler}, {uv}).b;\n    }} else {{\n        _pv{id} = {metallic};\n    }}",
+            tex = tex,
+            sampler = sampler,
+            uv = uv,
+            metallic = metallic,
             use_tex = use_tex,
         ))
     }

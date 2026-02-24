@@ -289,6 +289,7 @@ pub struct PbrShader {
     pub roughness: ExpressionInput<f32>,
     pub use_roughness_texture: ExpressionInput<bool>,
     pub roughness_texture: ExpressionTexture,
+    pub use_metallic_texture: ExpressionInput<bool>,
     pub metallic: ExpressionInput<f32>,
     pub alpha: ExpressionInput<f32>,
     pub lit: ExpressionInput<bool>,
@@ -307,6 +308,7 @@ impl Default for PbrShader {
             roughness: ExpressionInput::material("roughness"),
             use_roughness_texture: ExpressionInput::material("use_roughness_texture"),
             roughness_texture: ExpressionTexture::material("roughness"),
+            use_metallic_texture: ExpressionInput::material("use_metallic_texture"),
             metallic: ExpressionInput::material("metallic"),
             alpha: ExpressionInput::material("alpha"),
             lit: ExpressionInput::material("lit"),
@@ -326,6 +328,7 @@ impl MaterialExpression for PbrShader {
         self.roughness.bind(compiler);
         self.use_roughness_texture.bind(compiler);
         self.roughness_texture.bind(compiler);
+        self.use_metallic_texture.bind(compiler);
         self.metallic.bind(compiler);
         self.alpha.bind(compiler);
         self.lit.bind(compiler);
@@ -357,7 +360,12 @@ impl MaterialExpression for PbrShader {
             &self.roughness_texture,
         );
         let normal = compiler.normal(uv, &self.use_normal_texture, &self.normal_texture);
-        let metallic = self.metallic.node();
+        let metallic = compiler.metallic(
+            uv,
+            &self.metallic,
+            &self.use_metallic_texture,
+            &self.roughness_texture,
+        );
         let alpha = self.alpha.node();
         let lit = self.lit.node();
         let cast_shadows = self.cast_shadows.node();

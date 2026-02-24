@@ -179,6 +179,14 @@ impl MaterialInstanceBuilder {
         self.texture("roughness", texture)
     }
 
+    pub fn use_metallic_texture(mut self, enabled: bool) -> Self {
+        self.values.insert(
+            "use_metallic_texture".to_string(),
+            MaterialValue::Bool(enabled),
+        );
+        self
+    }
+
     pub fn build(self) -> MaterialInstance {
         MaterialInstance {
             name: self.name.unwrap_or_else(|| "Material Instance".to_string()),

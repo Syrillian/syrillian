@@ -147,6 +147,11 @@ impl Material {
                     default: MaterialValue::Bool(false),
                 },
                 MaterialImmediateDef {
+                    name: "use_metallic_texture".to_string(),
+                    ty: MaterialValueType::Bool,
+                    default: MaterialValue::Bool(false),
+                },
+                MaterialImmediateDef {
                     name: "lit".to_string(),
                     ty: MaterialValueType::Bool,
                     default: MaterialValue::Bool(true),

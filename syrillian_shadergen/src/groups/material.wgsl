@@ -6,6 +6,7 @@ struct Material {
     use_diffuse_texture: u32,
     use_normal_texture: u32,
     use_roughness_texture: u32,
+    use_metallic_texture: u32,
     lit: u32,
     cast_shadows: u32,
     grayscale_diffuse: u32,
