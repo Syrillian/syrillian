@@ -9,6 +9,7 @@ use std::backtrace::Backtrace;
 use std::fmt::{Debug, Display, Formatter};
 use std::mem;
 use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicU32, Ordering};
 #[cfg(debug_assertions)]
 use std::time::Duration;
 use tracing::{trace, warn};
@@ -105,7 +106,7 @@ impl<'a, T: StoreType> DerefMut for RefMut<'a, T> {
 
 pub struct Store<T: StoreType> {
     data: DashMap<AssetKey, T>,
-    next_id: RwLock<u32>,
+    next_id: AtomicU32,
     dirty: RwLock<Vec<AssetKey>>,
 }
 
@@ -143,7 +144,7 @@ impl<T: StoreType> Store<T> {
     pub fn empty() -> Self {
         Self {
             data: DashMap::new(),
-            next_id: RwLock::new(0),
+            next_id: AtomicU32::new(0),
             dirty: RwLock::default(),
         }
     }
@@ -172,10 +173,8 @@ impl<T: StoreType> Display for HandleName<T> {
 
 impl<T: StoreType> Store<T> {
     fn next_id(&self) -> H<T> {
-        let mut id_lock = self.next_id.write();
-        let id = H::new(*id_lock);
-        *id_lock += 1;
-        id
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        H::new(id)
     }
 
     pub fn add<T2: Into<T>>(&self, elem: T2) -> H<T> {
