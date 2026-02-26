@@ -218,7 +218,10 @@ impl UiText {
             pass.set_bind_group(idx, cached_text.uniform.bind_group(), &[]);
         }
         let atlas_binding = font.atlas_binding();
-        pass.set_bind_group(2, &atlas_binding, &[]);
+        let Some(material) = groups.material else {
+            return;
+        };
+        pass.set_bind_group(material, &atlas_binding, &[]);
 
         pass.set_immediates(0, bytemuck::bytes_of(&pc));
         pass.set_vertex_buffer(0, cached_text.glyph_vbo.slice(..));

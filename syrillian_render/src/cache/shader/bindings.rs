@@ -25,7 +25,11 @@ impl ShaderBindings for Shader {
         }
 
         if self.needs_bgl(HBGL::MODEL) {
-            out.push(cache.bgl_model().clone());
+            if self.needs_bgl(HBGL::PARTICLE_RENDER) {
+                out.push(cache.bgl_particle_render());
+            } else {
+                out.push(cache.bgl_model().clone());
+            }
         }
 
         if self.needs_bgl(HBGL::MATERIAL) {

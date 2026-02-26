@@ -125,6 +125,10 @@ impl StoreType for Mesh {
         key: crate::store::AssetKey,
         assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
     ) -> bool {
+        if !self.data.is_valid() {
+            return false;
+        }
+
         assets_tx
             .send((key, UpdateAssetMessage::UpdateMesh(self.clone())))
             .is_ok()
@@ -219,6 +223,8 @@ impl StreamableAsset for Mesh {
             tangents,
             indices,
         };
+
+        debug_assert!(buffers.is_valid());
 
         Ok(Mesh {
             data: Arc::new(buffers),

@@ -33,7 +33,7 @@ impl StoreType for Font {
     }
 
     fn is_builtin(handle: H<Self>) -> bool {
-        handle.id() <= HFont::DEFAULT_ID
+        handle.id() == HFont::DEFAULT_ID
     }
 }
 

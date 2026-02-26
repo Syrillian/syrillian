@@ -43,6 +43,10 @@ impl StoreType for SkinnedMesh {
         key: crate::store::AssetKey,
         assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
     ) -> bool {
+        if !self.data.is_valid() {
+            return false;
+        }
+
         assets_tx
             .send((key, UpdateAssetMessage::UpdateSkinnedMesh(self.clone())))
             .is_ok()
@@ -189,6 +193,8 @@ impl StreamableAsset for SkinnedMesh {
             bone_indices,
             bone_weights,
         };
+
+        debug_assert!(buffers.is_valid());
 
         Ok(SkinnedMesh {
             data: Arc::new(buffers),

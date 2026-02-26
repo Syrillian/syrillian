@@ -271,6 +271,8 @@ impl PrimitiveBuffers {
             bone_weights,
         };
 
+        debug_assert!(buffers.is_valid());
+
         let mesh = SkinnedMesh::builder()
             .data(Arc::new(buffers))
             .skinning_data(Arc::new(skinning_buffers))
@@ -298,6 +300,8 @@ impl PrimitiveBuffers {
             tangents,
             indices: None,
         };
+
+        debug_assert!(buffers.is_valid());
 
         let mesh = Mesh::builder()
             .data(Arc::new(buffers))

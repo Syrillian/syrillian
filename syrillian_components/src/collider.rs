@@ -37,6 +37,8 @@ pub struct Collider3D {
     #[cfg(debug_assertions)]
     debug_collider_mesh: Option<HMesh>,
     #[cfg(debug_assertions)]
+    regenerate_debug_collider_mesh: bool,
+    #[cfg(debug_assertions)]
     was_debug_enabled: bool,
 }
 
@@ -77,6 +79,8 @@ impl Default for Collider3D {
             #[cfg(debug_assertions)]
             debug_collider_mesh: None,
             #[cfg(debug_assertions)]
+            regenerate_debug_collider_mesh: true,
+            #[cfg(debug_assertions)]
             was_debug_enabled: true,
         }
     }
@@ -112,10 +116,12 @@ impl Component for Collider3D {
 
     #[cfg(debug_assertions)]
     fn late_update(&mut self, world: &mut World) {
-        if self.debug_collider_mesh.is_none() {
+        if self.regenerate_debug_collider_mesh {
+            self.regenerate_debug_collider_mesh = false;
+
             trace!("[Collider] Regenerating debug mesh");
             let mesh = self.generate_collider_mesh(world);
-            self.debug_collider_mesh = Some(mesh);
+            self.debug_collider_mesh = mesh;
         }
     }
 
@@ -303,20 +309,28 @@ impl Collider3D {
     }
 
     #[cfg(debug_assertions)]
-    fn generate_collider_mesh(&mut self, world: &mut World) -> HMesh {
+    fn generate_collider_mesh(&mut self, world: &mut World) -> Option<HMesh> {
         let Some(collider) = self.collider() else {
             debug_panic!("No collider attached to Collider 3D component");
-            return HMesh::UNIT_CUBE;
+            return None;
         };
 
         let (vertices, indices) = collider.shared_shape().to_trimesh();
 
+        if vertices.is_empty() || indices.is_empty() {
+            return None;
+        }
+
         let vertices = RawVertexBuffers::from_positions(vertices, Some(indices.into_flattened()));
 
-        Mesh::builder()
-            .data(Arc::new(vertices))
-            .build()
-            .store(world)
+        debug_assert!(vertices.is_valid());
+
+        Some(
+            Mesh::builder()
+                .data(Arc::new(vertices))
+                .build()
+                .store(world),
+        )
     }
 
     #[cfg(debug_assertions)]
