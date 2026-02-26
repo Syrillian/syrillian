@@ -437,7 +437,7 @@ impl SkinnedMeshSceneProxy {
         local_to_world: &Affine3A,
     ) -> RenderSkinnedMeshData {
         let device = &renderer.state.device;
-        let model_bgl = renderer.cache.bgl_model();
+        let model_bgl = renderer.cache.bgl_model_skinning();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
         let uniform = ShaderUniform::<SkinnedMeshUniformIndex>::builder(model_bgl)

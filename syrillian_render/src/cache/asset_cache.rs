@@ -158,6 +158,12 @@ impl AssetCache {
             .expect("Model is a default layout")
     }
 
+    pub fn bgl_model_skinning(&self) -> BindGroupLayout {
+        self.bgls
+            .try_get(HBGL::MODEL_SKINNING)
+            .expect("Model Skinning is a default layout")
+    }
+
     pub fn bgl_render(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::RENDER)

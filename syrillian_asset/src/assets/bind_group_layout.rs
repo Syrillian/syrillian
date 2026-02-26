@@ -15,24 +15,26 @@ pub struct BGL {
 impl HBGL {
     pub const RENDER_ID: u32 = 0;
     pub const MODEL_ID: u32 = 1;
-    pub const MATERIAL_ID: u32 = 2;
-    pub const LIGHT_ID: u32 = 3;
-    pub const SHADOW_ID: u32 = 4;
-    pub const POST_PROCESS_ID: u32 = 5;
-    pub const EMPTY_ID: u32 = 6;
-    pub const POST_PROCESS_COMPUTE_ID: u32 = 7;
-    pub const MESH_SKINNING_COMPUTE_ID: u32 = 8;
-    pub const PARTICLE_COMPUTE_ID: u32 = 9;
-    pub const PARTICLE_RENDER_ID: u32 = 10;
-    pub const BLOOM_COMPUTE_ID: u32 = 11;
-    pub const SSAO_COMPUTE_ID: u32 = 12;
-    pub const SSAO_APPLY_COMPUTE_ID: u32 = 13;
-    pub const FONT_ATLAS_ID: u32 = 14;
+    pub const MODEL_SKINNING_ID: u32 = 2;
+    pub const MATERIAL_ID: u32 = 3;
+    pub const LIGHT_ID: u32 = 4;
+    pub const SHADOW_ID: u32 = 5;
+    pub const POST_PROCESS_ID: u32 = 6;
+    pub const EMPTY_ID: u32 = 7;
+    pub const POST_PROCESS_COMPUTE_ID: u32 = 8;
+    pub const MESH_SKINNING_COMPUTE_ID: u32 = 9;
+    pub const PARTICLE_COMPUTE_ID: u32 = 10;
+    pub const PARTICLE_RENDER_ID: u32 = 11;
+    pub const BLOOM_COMPUTE_ID: u32 = 12;
+    pub const SSAO_COMPUTE_ID: u32 = 13;
+    pub const SSAO_APPLY_COMPUTE_ID: u32 = 14;
+    pub const FONT_ATLAS_ID: u32 = 15;
 
-    const MAX_BUILTIN_ID: u32 = 14;
+    const MAX_BUILTIN_ID: u32 = 15;
 
     pub const RENDER: HBGL = HBGL::new(Self::RENDER_ID);
     pub const MODEL: HBGL = HBGL::new(Self::MODEL_ID);
+    pub const MODEL_SKINNING: HBGL = HBGL::new(Self::MODEL_SKINNING_ID);
     pub const MATERIAL: HBGL = HBGL::new(Self::MATERIAL_ID);
     pub const LIGHT: HBGL = HBGL::new(Self::LIGHT_ID);
     pub const SHADOW: HBGL = HBGL::new(Self::SHADOW_ID);
@@ -55,6 +57,7 @@ impl StoreType for BGL {
         match handle.id() {
             HBGL::RENDER_ID => HandleName::Static("Render Bind Group Layout"),
             HBGL::MODEL_ID => HandleName::Static("Model Bind Group Layout"),
+            HBGL::MODEL_SKINNING_ID => HandleName::Static("Model Skinning Bind Group Layout"),
             HBGL::MATERIAL_ID => HandleName::Static("Material Bind Group Layout"),
             HBGL::LIGHT_ID => HandleName::Static("Light Bind Group Layout"),
             HBGL::SHADOW_ID => HandleName::Static("Shadow Bind Group Layout"),
@@ -151,6 +154,29 @@ const MODEL_ENTRIES: [BindGroupLayoutEntry; 1] = [BindGroupLayoutEntry {
     },
     count: None,
 }];
+
+const MODEL_SKINNING_ENTRIES: [BindGroupLayoutEntry; 2] = [
+    BindGroupLayoutEntry {
+        binding: 0,
+        visibility: ShaderStages::all(),
+        ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 1,
+        visibility: ShaderStages::all(),
+        ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    },
+];
 
 const MATERIAL_ENTRIES: [BindGroupLayoutEntry; 6] = [
     BindGroupLayoutEntry {
@@ -673,6 +699,15 @@ impl StoreDefaults for BGL {
             BGL {
                 label: HBGL::MODEL.ident(),
                 entries: MODEL_ENTRIES.to_vec()
+            }
+        );
+
+        store_add_checked!(
+            store,
+            HBGL::MODEL_SKINNING_ID,
+            BGL {
+                label: HBGL::MODEL_SKINNING.ident(),
+                entries: MODEL_SKINNING_ENTRIES.to_vec()
             }
         );
 
