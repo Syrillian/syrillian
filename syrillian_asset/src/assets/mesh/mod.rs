@@ -56,6 +56,11 @@ pub trait PartialMesh {
     }
 
     #[inline]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline]
     fn triangle_count(&self) -> usize {
         self.len() / 3
     }
