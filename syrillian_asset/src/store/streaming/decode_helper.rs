@@ -201,14 +201,15 @@ where
         }
     }
 }
+
 impl<T, P> ParseDecode<Option<T>> for Option<&P>
 where
-    P: ParseDecode<T>,
+    P: ParseDecode<Option<T>>,
 {
     fn expect_parse(&self, label: &str) -> Result<Option<T>> {
         match self {
             None => Ok(None),
-            Some(this) => this.expect_parse(label).map(Some),
+            Some(this) => this.expect_parse(label),
         }
     }
 }
