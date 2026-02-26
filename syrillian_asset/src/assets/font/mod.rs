@@ -24,14 +24,16 @@ impl StoreType for Font {
 
     fn refresh_dirty(
         &self,
-        _key: crate::store::AssetKey,
-        _assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
     ) -> bool {
-        false
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateFont(self.clone())))
+            .is_ok()
     }
 
-    fn is_builtin(_: H<Self>) -> bool {
-        false
+    fn is_builtin(handle: H<Self>) -> bool {
+        handle.id() <= HFont::DEFAULT_ID
     }
 }
 
