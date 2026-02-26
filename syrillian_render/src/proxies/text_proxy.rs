@@ -21,7 +21,6 @@ use parking_lot::RwLock;
 use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::shader::immediates::TextImmediate;
 use syrillian_asset::{HFont, HShader, ensure_aligned};
 use syrillian_utils::color::hsv_to_rgb;
@@ -398,7 +397,6 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         let model_bgl = renderer.cache.bgl_model();
         let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
             .with_buffer_data(&self.translation)
-            .with_buffer_data(&BoneData::DUMMY)
             .build(device);
 
         Box::new(TextRenderData { uniform, glyph_vbo })

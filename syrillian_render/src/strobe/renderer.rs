@@ -14,7 +14,6 @@ use glamx::{Mat4, Vec2};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::mem;
-use syrillian_asset::mesh::bone::BoneData;
 use web_time::Instant;
 use wgpu::{BindGroup, BufferDescriptor, BufferUsages, RenderPass};
 use winit::dpi::PhysicalSize;
@@ -91,7 +90,6 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
             let model = ModelUniform::empty();
             let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
                 .with_buffer_data(&model)
-                .with_buffer_data(&BoneData::DUMMY)
                 .build(&self.state.device);
 
             let glyph_vbo = self.state.device.create_buffer(&BufferDescriptor {
@@ -113,7 +111,6 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
 
             let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
                 .with_buffer_data(&mesh_data)
-                .with_buffer_data(&BoneData::DUMMY)
                 .build(&self.state.device);
 
             RenderMeshData { mesh_data, uniform }
