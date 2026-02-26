@@ -200,6 +200,12 @@ impl AssetCache {
             .expect("Mesh Skinning Compute is a default layout")
     }
 
+    pub fn bgl_particle_render(&self) -> BindGroupLayout {
+        self.bgls
+            .try_get(HBGL::PARTICLE_RENDER)
+            .expect("Particle Render is a default layout")
+    }
+
     pub fn bgl_particle_compute(&self) -> BindGroupLayout {
         self.bgls
             .try_get(HBGL::PARTICLE_COMPUTE)

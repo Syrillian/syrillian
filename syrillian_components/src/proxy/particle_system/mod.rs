@@ -44,7 +44,7 @@ impl ShaderUniformIndex for ParticleUniformIndex {
     }
 
     fn name() -> &'static str {
-        "Particle Uniform"
+        "Particle"
     }
 }
 
@@ -181,7 +181,7 @@ impl SceneProxy for ParticleSystemProxy {
         let runtime = ParticleRuntimeUniform::const_default();
 
         let render_uniform =
-            ShaderUniform::<ParticleUniformIndex>::builder(renderer.cache.bgl_model())
+            ShaderUniform::<ParticleUniformIndex>::builder(renderer.cache.bgl_particle_render())
                 .with_buffer_data(&settings)
                 .with_buffer_data(&runtime)
                 .build(&renderer.state.device);

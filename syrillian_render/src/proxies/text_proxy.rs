@@ -263,7 +263,11 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         if let Some(idx) = groups.model {
             pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
         }
-        pass.set_bind_group(2, &atlas_binding, &[]);
+        let Some(material) = groups.material else {
+            debug_panic!("Text shader is missing material bind group mapping");
+            return;
+        };
+        pass.set_bind_group(material, &atlas_binding, &[]);
 
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
 
@@ -464,10 +468,16 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         let font = renderer.cache.font(self.font);
         let atlas_binding = font.atlas_binding();
 
-        if let Some(model) = shader.bind_groups().model {
+        let groups = shader.bind_groups();
+
+        if let Some(model) = groups.model {
             pass.set_bind_group(model, data.uniform.bind_group(), &[]);
         }
-        pass.set_bind_group(2, &atlas_binding, &[]);
+        let Some(material) = groups.material else {
+            debug_panic!("Text picking shader is missing material bind group mapping");
+            return;
+        };
+        pass.set_bind_group(material, &atlas_binding, &[]);
 
         let color = hash_to_rgba(binding.object_hash);
         let mut pc = self.pc;

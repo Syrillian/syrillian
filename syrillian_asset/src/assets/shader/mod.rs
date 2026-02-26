@@ -857,15 +857,16 @@ impl Shader {
 
     pub fn needs_bgl(&self, bgl: HBGL) -> bool {
         if !self.is_custom() {
-            if bgl == HBGL::LIGHT || bgl == HBGL::SHADOW {
-                return self.is_depth_enabled();
-            }
-
-            return true;
+            return match bgl.id() {
+                HBGL::RENDER_ID | HBGL::MODEL_ID | HBGL::MATERIAL_ID => true,
+                HBGL::LIGHT_ID | HBGL::SHADOW_ID => self.is_depth_enabled(),
+                _ => false,
+            };
         }
 
         let use_name = match bgl.id() {
             HBGL::MODEL_ID => "model",
+            HBGL::PARTICLE_RENDER_ID => "particle_render",
             HBGL::MATERIAL_ID => "material",
             HBGL::LIGHT_ID => "light",
             HBGL::SHADOW_ID => "shadow",
@@ -900,8 +901,18 @@ impl Shader {
             source.contains(&needle)
         }
 
+        fn has_group_binding(source: &str, group: u32, binding: u32) -> bool {
+            let group_needle = format!("@group({group})");
+            let binding_needle = format!("@binding({binding})");
+            source.lines().any(|line| {
+                let compact: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+                compact.contains(&group_needle) && compact.contains(&binding_needle)
+            })
+        }
+
         match bgl.id() {
             HBGL::MODEL_ID => has_group(source, 1),
+            HBGL::PARTICLE_RENDER_ID => has_group_binding(source, 1, 1),
             HBGL::MATERIAL_ID => has_group(source, 2),
             HBGL::LIGHT_ID => has_group(source, 3),
             HBGL::SHADOW_ID => has_group(source, 4),
@@ -918,7 +929,7 @@ impl Shader {
             return map;
         }
 
-        if self.needs_bgl(HBGL::MODEL) {
+        if self.needs_bgl(HBGL::MODEL) || self.needs_bgl(HBGL::PARTICLE_RENDER) {
             map.model = Some(idx);
             idx += 1;
         }

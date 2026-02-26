@@ -76,11 +76,12 @@ impl VertexBufferExt for RawVertexBuffers {
     }
 
     fn from_positions(positions: Vec<Vec3>, indices: Option<Vec<u32>>) -> Self {
+        let len = positions.len();
         Self {
             positions,
-            uvs: vec![],
-            normals: vec![],
-            tangents: vec![],
+            uvs: vec![Vec2::ZERO; len],
+            normals: vec![Vec3::ZERO; len],
+            tangents: vec![Vec3::ZERO; len],
             indices,
         }
     }

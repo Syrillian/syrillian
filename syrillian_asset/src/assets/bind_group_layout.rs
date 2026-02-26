@@ -23,12 +23,13 @@ impl HBGL {
     pub const POST_PROCESS_COMPUTE_ID: u32 = 7;
     pub const MESH_SKINNING_COMPUTE_ID: u32 = 8;
     pub const PARTICLE_COMPUTE_ID: u32 = 9;
-    pub const BLOOM_COMPUTE_ID: u32 = 10;
-    pub const SSAO_COMPUTE_ID: u32 = 11;
-    pub const SSAO_APPLY_COMPUTE_ID: u32 = 12;
-    pub const FONT_ATLAS_ID: u32 = 13;
+    pub const PARTICLE_RENDER_ID: u32 = 10;
+    pub const BLOOM_COMPUTE_ID: u32 = 11;
+    pub const SSAO_COMPUTE_ID: u32 = 12;
+    pub const SSAO_APPLY_COMPUTE_ID: u32 = 13;
+    pub const FONT_ATLAS_ID: u32 = 14;
 
-    const MAX_BUILTIN_ID: u32 = 13;
+    const MAX_BUILTIN_ID: u32 = 14;
 
     pub const RENDER: HBGL = HBGL::new(Self::RENDER_ID);
     pub const MODEL: HBGL = HBGL::new(Self::MODEL_ID);
@@ -40,6 +41,7 @@ impl HBGL {
     pub const POST_PROCESS_COMPUTE: HBGL = HBGL::new(Self::POST_PROCESS_COMPUTE_ID);
     pub const MESH_SKINNING_COMPUTE: HBGL = HBGL::new(Self::MESH_SKINNING_COMPUTE_ID);
     pub const PARTICLE_COMPUTE: HBGL = HBGL::new(Self::PARTICLE_COMPUTE_ID);
+    pub const PARTICLE_RENDER: HBGL = HBGL::new(Self::PARTICLE_RENDER_ID);
     pub const BLOOM_COMPUTE: HBGL = HBGL::new(Self::BLOOM_COMPUTE_ID);
     pub const SSAO_COMPUTE: HBGL = HBGL::new(Self::SSAO_COMPUTE_ID);
     pub const SSAO_APPLY_COMPUTE: HBGL = HBGL::new(Self::SSAO_APPLY_COMPUTE_ID);
@@ -64,6 +66,7 @@ impl StoreType for BGL {
                 HandleName::Static("Mesh Skinning Compute Bind Group Layout")
             }
             HBGL::PARTICLE_COMPUTE_ID => HandleName::Static("Particle Compute Bind Group Layout"),
+            HBGL::PARTICLE_RENDER_ID => HandleName::Static("Particle Render Bind Group Layout"),
             HBGL::BLOOM_COMPUTE_ID => HandleName::Static("Bloom Compute Bind Group Layout"),
             HBGL::SSAO_COMPUTE_ID => HandleName::Static("SSAO Compute Bind Group Layout"),
             HBGL::SSAO_APPLY_COMPUTE_ID => {
@@ -476,6 +479,29 @@ const PARTICLE_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 4] = [
     },
 ];
 
+const PARTICLE_RENDER_ENTRIES: [BindGroupLayoutEntry; 2] = [
+    BindGroupLayoutEntry {
+        binding: 0,
+        visibility: ShaderStages::all(),
+        ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 1,
+        visibility: ShaderStages::all(),
+        ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    },
+];
+
 const BLOOM_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 5] = [
     BindGroupLayoutEntry {
         binding: 0,
@@ -719,6 +745,15 @@ impl StoreDefaults for BGL {
             BGL {
                 label: HBGL::PARTICLE_COMPUTE.ident(),
                 entries: PARTICLE_COMPUTE_ENTRIES.to_vec()
+            }
+        );
+
+        store_add_checked!(
+            store,
+            HBGL::PARTICLE_RENDER_ID,
+            BGL {
+                label: HBGL::PARTICLE_RENDER.ident(),
+                entries: PARTICLE_RENDER_ENTRIES.to_vec()
             }
         );
 
