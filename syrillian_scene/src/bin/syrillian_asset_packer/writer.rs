@@ -255,6 +255,7 @@ fn append_packaged_scene_assets(
     extract_duration: Duration,
 ) {
     let asset_count = scene.meshes.len()
+        + scene.skinned_meshes.len()
         + scene.textures.len()
         + scene.materials.len()
         + scene.animations.len()
@@ -273,6 +274,22 @@ fn append_packaged_scene_assets(
         on_asset_packaged(
             AssetType::Mesh,
             &mesh_asset.virtual_path,
+            shared_extract.saturating_add(cook_start.elapsed()),
+        );
+    }
+
+    for skinned_mesh_asset in scene.skinned_meshes {
+        let cook_start = Instant::now();
+        let built = skinned_mesh_asset.asset.encode();
+        out.push(PackedAsset {
+            asset_type: AssetType::SkinnedMesh,
+            relative_path: skinned_mesh_asset.virtual_path.clone(),
+            payload: built.payload.into_bytes(),
+            blobs: built.blobs,
+        });
+        on_asset_packaged(
+            AssetType::SkinnedMesh,
+            &skinned_mesh_asset.virtual_path,
             shared_extract.saturating_add(cook_start.elapsed()),
         );
     }
