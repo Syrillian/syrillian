@@ -1,7 +1,10 @@
 use crate::HComputeShader;
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
+use crate::store::{
+    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+};
 use crate::{HBGL, store_add_checked};
 use bon::Builder;
+use crossbeam_channel::Sender;
 
 const COMPUTE_MESH_SKINNING: &str = include_str!("shader/shaders/compute/mesh_skinning.wgsl");
 const COMPUTE_POST_PROCESS_SSR: &str =
@@ -216,6 +219,16 @@ impl StoreType for ComputeShader {
             }
             _ => HandleName::Id(handle),
         }
+    }
+
+    fn refresh_dirty(
+        &self,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateComputeShader(self.clone())))
+            .is_ok()
     }
 
     fn is_builtin(handle: H<Self>) -> bool {

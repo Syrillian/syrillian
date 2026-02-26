@@ -1,6 +1,9 @@
 use crate::assets::HFont;
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
+use crate::store::{
+    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+};
 use crate::store_add_checked;
+use crossbeam_channel::Sender;
 use std::convert::Into;
 use std::sync::Arc;
 use tracing::trace;
@@ -17,6 +20,14 @@ impl StoreType for Font {
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
+    }
+
+    fn refresh_dirty(
+        &self,
+        _key: crate::store::AssetKey,
+        _assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        false
     }
 
     fn is_builtin(_: H<Self>) -> bool {

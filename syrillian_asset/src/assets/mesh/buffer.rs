@@ -1,64 +1,63 @@
-use crate::mesh::Vertex3D;
-use crate::mesh::vertex::SimpleVertex3D;
+use crate::mesh::{SimpleVertex3D, UnskinnedVertex3D};
 
 #[allow(dead_code)]
 #[rustfmt::skip]
-pub const TRIANGLE_VERT: [Vertex3D; 3] = [
+pub const TRIANGLE_VERT: [UnskinnedVertex3D; 3] = [
     SimpleVertex3D {
         position: [0.0, 1.0, 0.0],
         normal:   [0.0, 0.0, -1.0],
         uv:       [0.5, 1.0],
-    }.upgrade(),
+    }.upgrade_unskinned(),
     SimpleVertex3D {
         position: [0.5, 0.0, 0.0],
         normal:   [0.0, 0.0, -1.0],
         uv:       [1.0, 0.0],
-    }.upgrade(),
+    }.upgrade_unskinned(),
     SimpleVertex3D {
         position: [-0.5, 0.0, 0.0],
         normal:   [0.0, 0.0, -1.0],
         uv:       [0.0, 0.0],
-    }.upgrade(),
+    }.upgrade_unskinned(),
 ];
 
 #[allow(dead_code)]
 #[rustfmt::skip]
-pub const CUBE_VERT: [Vertex3D; 24] = [  // 4 vertices per face × 6 faces = 24 vertices
+pub const CUBE_VERT: [UnskinnedVertex3D; 24] = [  // 4 vertices per face × 6 faces = 24 vertices
     // Front face (z = -0.5)
-    SimpleVertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }.upgrade(),
+    SimpleVertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
 
     // Back face (z = 0.5)
-    SimpleVertex3D { position: [-0.5,  0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5,  0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5, -0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5, -0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [1.0, 0.0] }.upgrade(),
+    SimpleVertex3D { position: [-0.5,  0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5,  0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5, -0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5, -0.5, 0.5], normal: [0.0, 0.0, 1.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
 
     // Top face (y = 0.5)
-    SimpleVertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 0.0] }.upgrade(),
+    SimpleVertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
 
     // Bottom face (y = -0.5)
-    SimpleVertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [ 0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0], uv: [1.0, 0.0] }.upgrade(),
+    SimpleVertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [ 0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
 
     // Right face (x = 0.5)
-    SimpleVertex3D { position: [0.5,  0.5, -0.5], normal: [1.0, 0.0, 0.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [0.5,  0.5,  0.5], normal: [1.0, 0.0, 0.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [0.5, -0.5, -0.5], normal: [1.0, 0.0, 0.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [0.5, -0.5,  0.5], normal: [1.0, 0.0, 0.0], uv: [1.0, 0.0] }.upgrade(),
+    SimpleVertex3D { position: [0.5,  0.5, -0.5], normal: [1.0, 0.0, 0.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [0.5,  0.5,  0.5], normal: [1.0, 0.0, 0.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [0.5, -0.5, -0.5], normal: [1.0, 0.0, 0.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [0.5, -0.5,  0.5], normal: [1.0, 0.0, 0.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
 
     // Left face (x = -0.5)
-    SimpleVertex3D { position: [-0.5,  0.5, -0.5], normal: [-1.0, 0.0, 0.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5,  0.5,  0.5], normal: [-1.0, 0.0, 0.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5, -0.5, -0.5], normal: [-1.0, 0.0, 0.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [-0.5, -0.5,  0.5], normal: [-1.0, 0.0, 0.0], uv: [1.0, 0.0] }.upgrade(),
+    SimpleVertex3D { position: [-0.5,  0.5, -0.5], normal: [-1.0, 0.0, 0.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5,  0.5,  0.5], normal: [-1.0, 0.0, 0.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5, -0.5, -0.5], normal: [-1.0, 0.0, 0.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-0.5, -0.5,  0.5], normal: [-1.0, 0.0, 0.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
 ];
 
 #[allow(dead_code)]
@@ -80,13 +79,13 @@ pub const CUBE_IDX: [u32; 6 * 6] = [
 
 #[allow(dead_code)]
 #[rustfmt::skip]
-pub const UNIT_SQUARE_VERT: [Vertex3D; 6] = [
-    SimpleVertex3D { position: [-1.0, -1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [0.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [1.0,  -1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [-1.0,  1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [1.0,  -1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }.upgrade(),
-    SimpleVertex3D { position: [1.0,   1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [1.0, 1.0] }.upgrade(),
-    SimpleVertex3D { position: [-1.0,  1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }.upgrade(),
+pub const UNIT_SQUARE_VERT: [UnskinnedVertex3D; 6] = [
+    SimpleVertex3D { position: [-1.0, -1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [0.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [1.0,  -1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-1.0,  1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [1.0,  -1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [1.0,   1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [1.0, 1.0] }.upgrade_unskinned(),
+    SimpleVertex3D { position: [-1.0,  1.0, 0.0], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }.upgrade_unskinned(),
 ];
 
 #[macro_export]

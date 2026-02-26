@@ -1,5 +1,7 @@
 #use model
-#use material_textures
+
+@group(2) @binding(0) var t_atlas: texture_2d<f32>;
+@group(2) @binding(1) var s_atlas: sampler;
 
 struct GlyphIn {
     @location(0) pos_em: vec2<f32>,
@@ -37,7 +39,7 @@ fn median3(a: vec3<f32>) -> f32 {
 
 @fragment
 fn text_3d_fs_main(in: VOut) -> @location(0) vec4<f32> {
-    let msdf = textureSample(t_diffuse, s_diffuse, in.uv).rgb;
+    let msdf = textureSample(t_atlas, s_atlas, in.uv).rgb;
     let sig = median3(msdf);
     var dist = (sig - 0.5) * pc.msdf_range_px;
 

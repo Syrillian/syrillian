@@ -7,10 +7,11 @@
 //!
 //! See module level documentation for more info.
 
-use super::streaming::StreamingState;
 use crate::assets::*;
 use crate::material_inputs::MaterialInputLayout;
-use crate::store::{Store, StoreType};
+use crate::store::streaming::decode::StreamingState;
+use crate::store::{AssetKey, Store, StoreType};
+use crossbeam_channel::{Receiver, Sender};
 use std::sync::Arc;
 use syrillian_shadergen::MaterialCompiler;
 use syrillian_shadergen::function::MaterialExpression;
@@ -18,6 +19,7 @@ use syrillian_shadergen::generator::MaterialShaderSetCode;
 
 pub struct AssetStore {
     pub meshes: Arc<Store<Mesh>>,
+    pub skinned_meshes: Arc<Store<SkinnedMesh>>,
     pub shaders: Arc<Store<Shader>>,
     pub compute_shaders: Arc<Store<ComputeShader>>,
     pub textures: Arc<Store<Texture2D>>,
@@ -35,12 +37,33 @@ pub struct AssetStore {
     pub prefab_materials: Arc<Store<PrefabMaterial>>,
     pub prefabs: Arc<Store<PrefabAsset>>,
     pub(crate) streaming: StreamingState,
+
+    assets_tx: Sender<(AssetKey, UpdateAssetMessage)>,
+}
+
+pub enum UpdateAssetMessage {
+    UpdateMesh(Mesh),
+    UpdateSkinnedMesh(SkinnedMesh),
+    UpdateShader(Shader),
+    UpdateComputeShader(ComputeShader),
+    UpdateTexture2D(Texture2D),
+    UpdateTexture2DArray(Texture2DArray),
+    UpdateCubemap(Cubemap),
+    UpdateRenderTexture2D(RenderTexture2D),
+    UpdateRenderTexture2DArray(RenderTexture2DArray),
+    UpdateRenderCubemap(RenderCubemap),
+    UpdateMaterial(Material),
+    UpdateMaterialInstance(MaterialInstance),
+    UpdateBGL(BGL),
+    UpdateFont(Font),
 }
 
 impl AssetStore {
-    pub fn new() -> Arc<AssetStore> {
-        Arc::new(AssetStore {
+    pub fn new() -> (Arc<AssetStore>, Receiver<(AssetKey, UpdateAssetMessage)>) {
+        let (assets_tx, assets_rx) = crossbeam_channel::unbounded();
+        let store = Arc::new(AssetStore {
             meshes: Arc::new(Store::populated()),
+            skinned_meshes: Arc::new(Store::empty()),
             shaders: Arc::new(Store::populated()),
             compute_shaders: Arc::new(Store::populated()),
             textures: Arc::new(Store::populated()),
@@ -58,7 +81,35 @@ impl AssetStore {
             prefab_materials: Arc::new(Store::empty()),
             prefabs: Arc::new(Store::empty()),
             streaming: StreamingState::new(),
-        })
+            assets_tx,
+        });
+
+        store.refresh_dirty();
+
+        (store, assets_rx)
+    }
+
+    pub fn refresh_dirty(&self) -> usize {
+        let mut refreshed = 0;
+        refreshed += self.bgls.refresh_dirty(&self.assets_tx);
+        refreshed += self.textures.refresh_dirty(&self.assets_tx);
+        refreshed += self.texture_arrays.refresh_dirty(&self.assets_tx);
+        refreshed += self.cubemaps.refresh_dirty(&self.assets_tx);
+        refreshed += self.render_textures.refresh_dirty(&self.assets_tx);
+        refreshed += self.render_texture_arrays.refresh_dirty(&self.assets_tx);
+        refreshed += self.render_cubemaps.refresh_dirty(&self.assets_tx);
+        refreshed += self.shaders.refresh_dirty(&self.assets_tx);
+        refreshed += self.compute_shaders.refresh_dirty(&self.assets_tx);
+        refreshed += self.materials.refresh_dirty(&self.assets_tx);
+        refreshed += self.material_instances.refresh_dirty(&self.assets_tx);
+        refreshed += self.meshes.refresh_dirty(&self.assets_tx);
+        refreshed += self.skinned_meshes.refresh_dirty(&self.assets_tx);
+        refreshed += self.fonts.refresh_dirty(&self.assets_tx);
+        refreshed += self.sounds.refresh_dirty(&self.assets_tx);
+        refreshed += self.animation_clips.refresh_dirty(&self.assets_tx);
+        refreshed += self.prefab_materials.refresh_dirty(&self.assets_tx);
+        refreshed += self.prefabs.refresh_dirty(&self.assets_tx);
+        refreshed
     }
 
     pub fn register_custom_material<M: MaterialExpression>(

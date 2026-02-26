@@ -1,8 +1,21 @@
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
+use crate::store::streaming::asset_store::{
+    StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
+};
+use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
+use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
+use crate::store::streaming::payload::StreamableAsset;
+use crate::store::{
+    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+    streaming,
+};
 use crate::{HCubemap, store_add_checked};
+use crossbeam_channel::Sender;
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::f32::consts::PI;
 use std::path::Path;
+use syrillian_reflect::serializer::JsonSerializer;
+use syrillian_reflect::{ReflectSerialize, Value};
 use wgpu::{AddressMode, FilterMode, MipmapFilterMode, TextureFormat};
 
 #[derive(Debug, Clone)]
@@ -140,6 +153,16 @@ impl StoreType for Cubemap {
         }
     }
 
+    fn refresh_dirty(
+        &self,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateCubemap(self.clone())))
+            .is_ok()
+    }
+
     fn is_builtin(handle: H<Self>) -> bool {
         handle.id() == HCubemap::MAX_BUILTIN_ID
     }
@@ -148,6 +171,136 @@ impl StoreType for Cubemap {
 impl StoreTypeFallback for Cubemap {
     fn fallback() -> H<Self> {
         HCubemap::FALLBACK
+    }
+}
+
+struct CubemapMeta<'a> {
+    cubemap: &'a Cubemap,
+}
+
+impl<'a> ReflectSerialize for CubemapMeta<'a> {
+    fn serialize(this: &Self) -> Value {
+        let data_len = this.cubemap.data.as_ref().map_or(0, |data| data.len()) as u64;
+
+        Value::Object(BTreeMap::from([
+            ("width".to_string(), Value::UInt(this.cubemap.width)),
+            ("height".to_string(), Value::UInt(this.cubemap.height)),
+            (
+                "mip_level_count".to_string(),
+                Value::UInt(this.cubemap.mip_level_count),
+            ),
+            (
+                "format".to_string(),
+                Value::String(format!("{:?}", this.cubemap.format)),
+            ),
+            (
+                "repeat_mode".to_string(),
+                Value::String(format!("{:?}", this.cubemap.repeat_mode)),
+            ),
+            (
+                "filter_mode".to_string(),
+                Value::String(format!("{:?}", this.cubemap.filter_mode)),
+            ),
+            (
+                "mip_filter_mode".to_string(),
+                Value::String(format!("{:?}", this.cubemap.mip_filter_mode)),
+            ),
+            (
+                "has_transparency".to_string(),
+                Value::Bool(this.cubemap.has_transparency),
+            ),
+            (
+                "has_data".to_string(),
+                Value::Bool(this.cubemap.data.is_some()),
+            ),
+            ("data_len".to_string(), Value::BigUInt(data_len)),
+            ("data".to_string(), Value::None),
+        ]))
+    }
+}
+
+impl StreamableAsset for Cubemap {
+    fn encode(&self) -> BuiltPayload {
+        let mut blobs = Vec::new();
+        if let Some(data) = self.data.as_deref()
+            && !data.is_empty()
+        {
+            blobs.push(PackedBlob {
+                kind: StreamingAssetBlobKind::TextureData,
+                element_count: data.len() as u64,
+                data: data.to_vec(),
+            });
+        }
+
+        BuiltPayload {
+            payload: JsonSerializer::serialize_to_string(&CubemapMeta { cubemap: self }),
+            blobs,
+        }
+    }
+
+    fn decode(
+        payload: &StreamingAssetPayload,
+        package: &mut StreamingAssetFile,
+    ) -> streaming::error::Result<Self> {
+        let root = payload.data.expect_object("texture metadata root")?;
+
+        let width = root
+            .required_field("width")?
+            .expect_parse("texture width")?;
+        let height = root
+            .required_field("height")?
+            .expect_parse("texture height")?;
+        let mip_level_count = root
+            .required_field("mip_level_count")?
+            .expect_parse("mip level count")?;
+        let format = root
+            .required_field("format")?
+            .expect_parse("texture format")?;
+        let repeat_mode = root
+            .required_field("repeat_mode")?
+            .expect_parse("texture repeat mode")?;
+        let filter_mode = root
+            .required_field("filter_mode")?
+            .expect_parse("texture filter mode")?;
+        let mip_filter_mode = root
+            .required_field("mip_filter_mode")?
+            .expect_parse("texture mip filter mode")?;
+        let has_transparency = root
+            .required_field("has_transparency")?
+            .expect_parse("texture has_transparency")?;
+        let has_data = root
+            .required_field("has_data")?
+            .expect_parse("texture has_data")?;
+        let data_len: usize = root
+            .optional_field("data_len")
+            .expect_parse("texture data_len")?
+            .unwrap_or(0usize);
+
+        let data = if has_data {
+            let blob = payload
+                .blob_infos
+                .find(StreamingAssetBlobKind::TextureData)?;
+            let data_len = if data_len == 0 {
+                blob.element_count
+            } else {
+                data_len
+            };
+            Some(blob.decode_from_io("texture data", data_len, package)?)
+        } else {
+            None
+        };
+
+        Ok(Cubemap {
+            width,
+            height,
+            mip_level_count,
+            format,
+            data,
+            repeat_mode,
+            filter_mode,
+            mip_filter_mode,
+            has_transparency,
+        })
     }
 }
 

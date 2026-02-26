@@ -1580,6 +1580,8 @@ dependencies = [
  "bytemuck",
  "libm",
  "mint",
+ "zerocopy",
+ "zerocopy-derive",
 ]
 
 [[package]]
@@ -3985,9 +3987,11 @@ version = "0.7.1"
 dependencies = [
  "bon",
  "bytemuck",
+ "crossbeam-channel",
  "dashmap",
  "delegate",
  "fontdb",
+ "glam 0.30.10",
  "glamx",
  "image",
  "itertools",

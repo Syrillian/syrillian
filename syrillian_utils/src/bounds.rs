@@ -93,6 +93,28 @@ impl BoundingBox {
         }
     }
 
+    pub fn from_positions<P>(positions: P) -> BoundingBox
+    where
+        P: IntoIterator<Item = Vec3>,
+    {
+        let mut it = positions.into_iter();
+
+        let Some(first) = it.next() else {
+            return BoundingBox::empty();
+        };
+
+        let mut min = first;
+        let mut max = first;
+
+        for v in it {
+            let p = v;
+            min = min.min(p);
+            max = max.max(p);
+        }
+
+        BoundingBox { min, max }
+    }
+
     pub fn from_min_max(min: Vec3, max: Vec3) -> Self {
         Self { min, max }
     }
@@ -147,10 +169,13 @@ impl BoundingSphere {
         }
     }
 
-    pub fn from_corners(corners: &[Vec3; 8]) -> Self {
+    pub fn from_positions<P>(positions: P) -> Self
+    where
+        P: IntoIterator<Item = Vec3> + Clone,
+    {
         let mut center = Vec3::ZERO;
         let mut count = 0;
-        for corner in corners {
+        for corner in positions.clone() {
             if corner.is_finite() {
                 center += corner;
                 count += 1;
@@ -162,7 +187,7 @@ impl BoundingSphere {
         center /= count as f32;
 
         let mut radius: f32 = 0.0;
-        for corner in corners {
+        for corner in positions {
             if corner.is_finite() {
                 radius = radius.max((corner - center).length());
             }

@@ -1,7 +1,7 @@
 use serde_json::Value as JsonValue;
 use std::collections::HashSet;
 use syrillian::core::reflection::Value;
-use syrillian_asset::store::streaming_asset_store::normalize_asset_path;
+use syrillian_asset::store::streaming::asset_store::normalize_asset_path;
 
 pub fn json_to_reflection_value(json: JsonValue) -> Value {
     match json {

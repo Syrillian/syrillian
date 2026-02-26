@@ -1,7 +1,20 @@
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
+use crate::store::streaming::asset_store::{
+    StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
+};
+use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
+use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
+use crate::store::streaming::payload::StreamableAsset;
+use crate::store::{
+    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+    streaming,
+};
 use crate::{HTexture2D, store_add_checked};
+use crossbeam_channel::Sender;
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs;
+use syrillian_reflect::serializer::JsonSerializer;
+use syrillian_reflect::{ReflectSerialize, Value};
 use wgpu::{AddressMode, FilterMode, MipmapFilterMode, TextureFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,6 +201,16 @@ impl StoreType for Texture2D {
         }
     }
 
+    fn refresh_dirty(
+        &self,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateTexture2D(self.clone())))
+            .is_ok()
+    }
+
     fn is_builtin(handle: H<Self>) -> bool {
         handle.id() <= H::<Self>::MAX_BUILTIN_ID
     }
@@ -196,6 +219,128 @@ impl StoreType for Texture2D {
 impl StoreTypeFallback for Texture2D {
     fn fallback() -> H<Self> {
         HTexture2D::FALLBACK_DIFFUSE
+    }
+}
+
+struct TextureMeta<'a> {
+    texture: &'a Texture2D,
+}
+
+impl ReflectSerialize for TextureMeta<'_> {
+    fn serialize(this: &Self) -> Value {
+        let data_len = this.texture.data.as_ref().map_or(0, |data| data.len()) as u64;
+
+        Value::Object(BTreeMap::from([
+            ("width".to_string(), Value::UInt(this.texture.width)),
+            ("height".to_string(), Value::UInt(this.texture.height)),
+            (
+                "format".to_string(),
+                Value::String(format!("{:?}", this.texture.format)),
+            ),
+            (
+                "repeat_mode".to_string(),
+                Value::String(format!("{:?}", this.texture.repeat_mode)),
+            ),
+            (
+                "filter_mode".to_string(),
+                Value::String(format!("{:?}", this.texture.filter_mode)),
+            ),
+            (
+                "mip_filter_mode".to_string(),
+                Value::String(format!("{:?}", this.texture.mip_filter_mode)),
+            ),
+            (
+                "has_transparency".to_string(),
+                Value::Bool(this.texture.has_transparency),
+            ),
+            (
+                "has_data".to_string(),
+                Value::Bool(this.texture.data.is_some()),
+            ),
+            ("data_len".to_string(), Value::BigUInt(data_len)),
+            ("data".to_string(), Value::None),
+        ]))
+    }
+}
+
+impl StreamableAsset for Texture2D {
+    fn encode(&self) -> BuiltPayload {
+        let mut blobs = Vec::new();
+        if let Some(data) = self.data.as_deref()
+            && !data.is_empty()
+        {
+            blobs.push(PackedBlob {
+                kind: StreamingAssetBlobKind::TextureData,
+                element_count: data.len() as u64,
+                data: data.to_vec(),
+            });
+        }
+
+        BuiltPayload {
+            payload: JsonSerializer::serialize_to_string(&TextureMeta { texture: self }),
+            blobs,
+        }
+    }
+
+    fn decode(
+        payload: &StreamingAssetPayload,
+        package: &mut StreamingAssetFile,
+    ) -> streaming::error::Result<Self> {
+        let root = payload.data.expect_object("texture metadata root")?;
+
+        let width = root
+            .required_field("width")?
+            .expect_parse("texture width")?;
+        let height = root
+            .required_field("height")?
+            .expect_parse("texture height")?;
+        let format = root
+            .required_field("format")?
+            .expect_parse("texture format")?;
+        let repeat_mode = root
+            .required_field("repeat_mode")?
+            .expect_parse("texture repeat mode")?;
+        let filter_mode = root
+            .required_field("filter_mode")?
+            .expect_parse("texture filter mode")?;
+        let mip_filter_mode = root
+            .required_field("mip_filter_mode")?
+            .expect_parse("texture mip filter mode")?;
+        let has_transparency = root
+            .required_field("has_transparency")?
+            .expect_parse("texture has_transparency")?;
+        let has_data = root
+            .required_field("has_data")?
+            .expect_parse("texture has_data")?;
+        let data_len: usize = root
+            .optional_field("data_len")
+            .expect_parse("texture data_len")?
+            .unwrap_or(0usize);
+
+        let data = if has_data {
+            let blob = payload
+                .blob_infos
+                .find(StreamingAssetBlobKind::TextureData)?;
+            let data_len = if data_len == 0 {
+                blob.element_count
+            } else {
+                data_len
+            };
+            Some(blob.decode_from_io("texture data", data_len, package)?)
+        } else {
+            None
+        };
+
+        Ok(Texture2D {
+            width,
+            height,
+            format,
+            data,
+            repeat_mode,
+            filter_mode,
+            mip_filter_mode,
+            has_transparency,
+        })
     }
 }
 

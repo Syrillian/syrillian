@@ -355,6 +355,7 @@ impl<S: AppState> GameThreadInner<S> {
             error!("Error happened when calling post update function hook: {e}");
         }
 
+        world.assets.refresh_dirty();
         world.next_frame();
 
         self.signal_frame_end(target)

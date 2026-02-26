@@ -24,34 +24,35 @@ pub struct RuntimeShader {
 
 impl CacheType for Shader {
     type Hot = Arc<RuntimeShader>;
+    type UpdateMessage = Self;
 
     #[profiling::function]
-    fn upload(self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
-        let bind_groups = self.bind_group_map();
-        let code = self.gen_code_with_map(&bind_groups);
+    fn upload(this: Self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
+        let bind_groups = this.bind_group_map();
+        let code = this.gen_code_with_map(&bind_groups);
 
         debug_assert!(
             code.contains("@fragment"),
             "No fragment entry point in shader {:?}: \n{code}",
-            self.name()
+            this.name()
         );
         debug_assert!(
             code.contains("@vertex"),
             "No vertex entry point in shader {:?}: \n{code}",
-            self.name()
+            this.name()
         );
 
         let module = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some(self.name()),
+            label: Some(this.name()),
             source: ShaderSource::Wgsl(Cow::Owned(code)),
         });
-        let name = self.name().to_string();
+        let name = this.name().to_string();
 
-        let solid_layout = self.solid_layout(device, cache);
-        let solid_builder = RenderPipelineBuilder::builder(&self, &solid_layout, &module);
+        let solid_layout = this.solid_layout(device, cache);
+        let solid_builder = RenderPipelineBuilder::builder(&this, &solid_layout, &module);
         let pipeline = solid_builder.build(device);
-        let shadow_pipeline = self.shadow_layout(device, cache).and_then(|layout| {
-            let shadow_builder = RenderPipelineBuilder::builder(&self, &layout, &module);
+        let shadow_pipeline = this.shadow_layout(device, cache).and_then(|layout| {
+            let shadow_builder = RenderPipelineBuilder::builder(&this, &layout, &module);
             shadow_builder.build_shadow(device)
         });
 
@@ -60,9 +61,9 @@ impl CacheType for Shader {
             module,
             pipeline,
             shadow_pipeline,
-            immediate_size: self.immediate_size(),
+            immediate_size: this.immediate_size(),
             bind_groups,
-            shader_type: self.stage(),
+            shader_type: this.stage(),
         })
     }
 }

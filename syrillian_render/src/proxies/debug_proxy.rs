@@ -9,7 +9,6 @@ use crate::{must_pipeline, proxy_data, proxy_data_mut, try_activate_shader};
 use glamx::{Affine3A, Vec3, Vec4};
 use std::any::Any;
 use syrillian_asset::mesh::bone::BoneData;
-use syrillian_asset::store::AssetStore;
 use syrillian_asset::{HMesh, HShader};
 use syrillian_utils::debug_panic;
 use tracing::warn;
@@ -105,7 +104,7 @@ impl SceneProxy for DebugSceneProxy {
         self.render_meshes(data, cache, ctx)
     }
 
-    fn priority(&self, _store: &AssetStore) -> u32 {
+    fn priority(&self, _cache: Option<&AssetCache>) -> u32 {
         PROXY_PRIORITY_SOLID
     }
 }
@@ -158,14 +157,7 @@ impl DebugSceneProxy {
             .with_buffer_data(&BoneData::DUMMY)
             .build(device);
 
-        Some(RuntimeMeshData {
-            mesh_data,
-            uniform,
-            skinned_buffers: Vec::new(),
-            skinning_uniforms: Vec::new(),
-            skinning_vertex_counts: Vec::new(),
-            skinning_mesh: None,
-        })
+        Some(RuntimeMeshData { mesh_data, uniform })
     }
 
     fn update_mesh_buffer(
@@ -234,7 +226,7 @@ impl DebugSceneProxy {
         };
 
         for mesh in self.meshes.iter().copied() {
-            let Some(runtime_mesh) = cache.meshes.try_get(mesh, cache) else {
+            let Some(runtime_mesh) = cache.meshes.try_get(mesh) else {
                 warn!("Couldn't render {}", mesh.ident_fmt());
                 continue;
             };

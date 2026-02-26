@@ -3,8 +3,9 @@ use crate::cache::generic_cache::CacheType;
 use more_asserts::debug_assert_le;
 use std::ops::Range;
 use std::sync::Arc;
-use syrillian_asset::Mesh;
-use syrillian_asset::mesh::Vertex3D;
+use syrillian_asset::mesh::{PartialMesh, UnskinnedVertex3D};
+use syrillian_asset::store::StoreType;
+use syrillian_asset::{Mesh, SkinnedMesh};
 use syrillian_utils::debug_panic;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{BufferUsages, Device, IndexFormat, Queue};
@@ -239,14 +240,12 @@ impl RuntimeMesh {
     }
 }
 
-const MAX_BUFFER_VERTS: usize = 128_000_000 / size_of::<Vertex3D>(); // 128MiB limit
+const MAX_BUFFER_VERTS: usize = 128_000_000 / size_of::<UnskinnedVertex3D>(); // 128MiB limit
 const MAX_BUFFER_INDICES: usize = 128_000_000 / size_of::<u32>(); // 128MiB limit
 
-impl CacheType for Mesh {
-    type Hot = Arc<RuntimeMesh>;
-
+pub trait PartialMeshCacheType: PartialMesh + StoreType {
     #[profiling::function]
-    fn upload(self, device: &Device, _queue: &Queue, _cache: &AssetCache) -> Self::Hot {
+    fn upload(self, device: &Device) -> Arc<RuntimeMesh> {
         let vertices_num = self.vertex_count();
         let indices_num = self.indices_count();
 
@@ -303,5 +302,36 @@ impl CacheType for Mesh {
         }
 
         Arc::new(RuntimeMesh::new(meshlets))
+    }
+}
+
+impl PartialMeshCacheType for SkinnedMesh {}
+impl PartialMeshCacheType for Mesh {}
+
+impl CacheType for SkinnedMesh {
+    type Hot = Arc<RuntimeMesh>;
+    type UpdateMessage = Self;
+
+    fn upload(
+        msg: Self::UpdateMessage,
+        device: &Device,
+        _queue: &Queue,
+        _cache: &AssetCache,
+    ) -> Self::Hot {
+        msg.upload(device)
+    }
+}
+
+impl CacheType for Mesh {
+    type Hot = Arc<RuntimeMesh>;
+    type UpdateMessage = Self;
+
+    fn upload(
+        msg: Self::UpdateMessage,
+        device: &Device,
+        _queue: &Queue,
+        _cache: &AssetCache,
+    ) -> Self::Hot {
+        msg.upload(device)
     }
 }

@@ -5,14 +5,12 @@ use bytemuck::bytes_of;
 use std::any::Any;
 use std::mem::size_of;
 use std::time::Instant;
-use syrillian::assets::defaults::DEFAULT_COLOR_TARGETS;
-use syrillian::assets::store::StoreType;
-use syrillian::assets::{AssetStore, HComputeShader, HShader, Shader, ShaderCode, ShaderType};
+use syrillian::assets::defaults::ParticleVertex;
+use syrillian::assets::{HComputeShader, HShader};
 use syrillian::math::{Affine3A, Vec3};
 use syrillian::syrillian_macros::UniformIndex;
 use syrillian::wgpu::{
     BufferDescriptor, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor,
-    PrimitiveTopology, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode,
 };
 use syrillian_render::proxies::{
     PROXY_PRIORITY_SOLID, PROXY_PRIORITY_TRANSPARENT, SceneProxy, SceneProxyBinding,
@@ -20,7 +18,7 @@ use syrillian_render::proxies::{
 use syrillian_render::rendering::GPUDrawCtx;
 use syrillian_render::rendering::renderer::Renderer;
 use syrillian_render::rendering::uniform::ShaderUniform;
-use syrillian_render::{proxy_data, proxy_data_mut};
+use syrillian_render::{AssetCache, proxy_data, proxy_data_mut};
 use syrillian_utils::{ShaderUniformIndex, ShaderUniformMultiIndex};
 
 #[repr(u8)]
@@ -92,39 +90,12 @@ pub struct ParticleRuntimeUniform {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct ParticleVertex {
-    pub world_pos_alive: [f32; 4],
-    pub life_t: f32,
-    pub _pad0: f32,
-    pub _pad1: f32,
-    pub _pad2: f32,
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ParticleDispatchUniform {
     pub start_index: u32,
     pub chunk_count: u32,
     pub total_count: u32,
     pub _pad0: u32,
 }
-
-const PARTICLE_VERTEX_LAYOUT: &[VertexBufferLayout] = &[VertexBufferLayout {
-    array_stride: size_of::<ParticleVertex>() as u64,
-    step_mode: VertexStepMode::Vertex,
-    attributes: &[
-        VertexAttribute {
-            format: VertexFormat::Float32x4,
-            offset: 0,
-            shader_location: 0,
-        },
-        VertexAttribute {
-            format: VertexFormat::Float32,
-            offset: 16,
-            shader_location: 1,
-        },
-    ],
-}];
 
 #[derive(Debug)]
 struct ParticleChunkGpu {
@@ -135,7 +106,6 @@ struct ParticleChunkGpu {
 
 #[derive(Debug)]
 pub struct ParticleSystemGpuData {
-    shader: HShader,
     render_uniform: ShaderUniform<ParticleUniformIndex>,
     chunks: Vec<ParticleChunkGpu>,
     runtime: ParticleRuntimeUniform,
@@ -207,19 +177,6 @@ impl SceneProxy for ParticleSystemProxy {
         renderer: &Renderer,
         _local_to_world: &Affine3A,
     ) -> Box<dyn Any + Send> {
-        let store = renderer.cache.store();
-        let shader = Shader::builder()
-            .name("Particle System")
-            .color_target(DEFAULT_COLOR_TARGETS)
-            .shader_type(ShaderType::Custom)
-            .vertex_buffers(PARTICLE_VERTEX_LAYOUT)
-            .topology(PrimitiveTopology::PointList)
-            .code(ShaderCode::Full(
-                include_str!("particle_system_render.wgsl").to_string(),
-            ))
-            .build()
-            .store(store);
-
         let settings = ParticleSystemUniform::new(&self.settings, self.particle_count);
         let runtime = ParticleRuntimeUniform::const_default();
 
@@ -283,7 +240,6 @@ impl SceneProxy for ParticleSystemProxy {
         self.start_time = Instant::now();
 
         Box::new(ParticleSystemGpuData {
-            shader,
             render_uniform,
             chunks,
             runtime,
@@ -354,7 +310,7 @@ impl SceneProxy for ParticleSystemProxy {
         }
 
         let data: &ParticleSystemGpuData = proxy_data!(binding.proxy_data());
-        let shader = renderer.cache.shader(data.shader);
+        let shader = renderer.cache.shader(HShader::PARTICLE_SYSTEM);
         let mut pass = ctx.pass.write();
 
         if !shader.activate(&mut pass, ctx) {
@@ -373,7 +329,7 @@ impl SceneProxy for ParticleSystemProxy {
         }
     }
 
-    fn priority(&self, _store: &AssetStore) -> u32 {
+    fn priority(&self, _cache: Option<&AssetCache>) -> u32 {
         if self.settings.opacity < 1.0 || self.settings.end_opacity < 1.0 {
             PROXY_PRIORITY_TRANSPARENT
         } else {

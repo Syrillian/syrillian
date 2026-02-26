@@ -4,14 +4,14 @@ use std::fmt::Debug;
 
 pub mod debug_proxy;
 pub mod mesh_proxy;
+pub mod skinned_mesh_proxy;
 pub mod text_proxy;
 
-use crate::ObjectHash;
 use crate::rendering::renderer::Renderer;
 use crate::rendering::{GPUDrawCtx, RenderPassType};
+use crate::{AssetCache, ObjectHash};
 pub use debug_proxy::*;
 pub use mesh_proxy::*;
-use syrillian_asset::store::AssetStore;
 use syrillian_utils::BoundingSphere;
 use syrillian_utils::component_id::TypedComponentId;
 pub use text_proxy::*;
@@ -98,10 +98,11 @@ pub trait SceneProxy: Send + Any + Debug {
     );
     fn update_render(
         &mut self,
-        renderer: &Renderer,
-        data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
-    );
+        _renderer: &Renderer,
+        _data: &mut (dyn Any + Send),
+        _local_to_world: &Affine3A,
+    ) {
+    }
     fn render(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding);
 
     fn render_shadows(
@@ -120,7 +121,7 @@ pub trait SceneProxy: Send + Any + Debug {
     ) {
     }
 
-    fn priority(&self, store: &AssetStore) -> u32;
+    fn priority(&self, cache: Option<&AssetCache>) -> u32;
 
     fn bounds(&self, _local_to_world: &Affine3A) -> Option<BoundingSphere> {
         None

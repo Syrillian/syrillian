@@ -22,7 +22,7 @@ use crate::rendering::viewport::{RenderViewport, ViewportId};
 use crate::rendering::{FrameCtx, GPUDrawCtx, RenderPassType};
 use crate::strobe::StrobeRenderer;
 use crate::strobe::UiGPUContext;
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 use glamx::Affine3A;
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem;
 use std::sync::Arc;
-use syrillian_asset::store::AssetStore;
+use syrillian_asset::store::{AssetKey, UpdateAssetMessage};
 use syrillian_asset::{HShader, HTexture2D};
 use syrillian_utils::frustum::FrustumSide;
 use syrillian_utils::{EngineArgs, Frustum, TypedComponentId, debug_panic};
@@ -66,13 +66,14 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(
         state: Arc<State>,
-        store: Arc<AssetStore>,
+        assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self> {
-        let cache = AssetCache::new(store, state.as_ref());
+        let cache = AssetCache::new(state.as_ref(), assets_rx);
+        cache.refresh_dirty();
 
-        let lights = LightManager::new(&cache, &state.device);
+        let lights = LightManager::new(&cache, &state.device, &state.queue);
         let start_time = Instant::now();
 
         info!("Render Pipeline AA mode: {:?}", EngineArgs::aa_mode());
@@ -224,11 +225,7 @@ impl Renderer {
         }
         self.proxies = proxies;
 
-        let shadow_layers = self
-            .lights
-            .shadow_array(&self.cache.store().render_texture_arrays)
-            .unwrap()
-            .array_layers;
+        let shadow_layers = self.lights.shadow_array().array_layers();
         self.lights
             .update_shadow_map_ids(shadow_layers, &self.state.device, &self.cache);
 
@@ -247,17 +244,12 @@ impl Renderer {
     fn sorted_proxies(&self, camera_data: &CameraUniform) -> Vec<TypedComponentId> {
         let frustum = camera_data.frustum();
 
-        sorted_enabled_proxy_ids(&self.proxies, self.cache.store(), Some(&frustum))
+        sorted_enabled_proxy_ids(&self.proxies, Some(&frustum), Some(&self.cache))
     }
 
     #[instrument(skip_all)]
     #[profiling::function]
     fn render_frame_inner(&mut self, viewport: &mut RenderViewport) -> RenderedFrame {
-        let refreshed_count = self.cache.refresh_all();
-        if cfg!(debug_assertions) && refreshed_count != 0 {
-            trace!("Refreshed cache elements {}", refreshed_count);
-        }
-
         viewport.refresh_skybox_binding(&self.state.device, &self.cache);
 
         let mut ctx = viewport.begin_render();
@@ -512,7 +504,7 @@ impl Renderer {
     ) {
         let sorted_proxies = self.sorted_proxies(&render_data.camera_data);
 
-        let Some(layer_view) = self.lights.shadow_layer(&self.cache, layer) else {
+        let Some(layer_view) = self.lights.shadow_layer(layer) else {
             debug_panic!("Shadow layer view {layer} was not found");
             return;
         };
@@ -702,21 +694,13 @@ impl Renderer {
         viewport: &RenderViewport,
         targets: &GBufferDebugTargets,
     ) {
-        let viewport_size = viewport.size();
-        let width = viewport_size.width.max(1);
-        let height = viewport_size.height.max(1);
-
         let normal_dst = self.cache.texture(targets.normal);
         let material_dst = self.cache.texture(targets.material);
 
-        if normal_dst.format == TextureFormat::Rg16Float {
-            let normal_extent = Extent3d {
-                width: width.min(normal_dst.size.width),
-                height: height.min(normal_dst.size.height),
-                depth_or_array_layers: 1,
-            };
+        if normal_dst.format() == TextureFormat::Rg16Float {
+            let extent = normal_dst.size();
 
-            if normal_extent.width > 0 && normal_extent.height > 0 {
+            if extent.width > 0 && extent.height > 0 {
                 encoder.copy_texture_to_texture(
                     TexelCopyTextureInfo {
                         texture: &viewport.render_pipeline.g_normal,
@@ -730,19 +714,15 @@ impl Renderer {
                         origin: Origin3d::ZERO,
                         aspect: TextureAspect::All,
                     },
-                    normal_extent,
+                    extent,
                 );
             }
         }
 
-        if material_dst.format == TextureFormat::Bgra8Unorm {
-            let material_extent = Extent3d {
-                width: width.min(material_dst.size.width),
-                height: height.min(material_dst.size.height),
-                depth_or_array_layers: 1,
-            };
+        if material_dst.format() == TextureFormat::Bgra8Unorm {
+            let extent = material_dst.size();
 
-            if material_extent.width > 0 && material_extent.height > 0 {
+            if extent.width > 0 && extent.height > 0 {
                 encoder.copy_texture_to_texture(
                     TexelCopyTextureInfo {
                         texture: &viewport.render_pipeline.g_material,
@@ -756,7 +736,7 @@ impl Renderer {
                         origin: Origin3d::ZERO,
                         aspect: TextureAspect::All,
                     },
-                    material_extent,
+                    extent,
                 );
             }
         }
@@ -1005,15 +985,15 @@ impl Renderer {
 #[profiling::function]
 fn sorted_enabled_proxy_ids(
     proxies: &HashMap<TypedComponentId, SceneProxyBinding>,
-    store: &AssetStore,
     frustum: Option<&Frustum>,
+    cache: Option<&AssetCache>,
 ) -> Vec<TypedComponentId> {
     let is_culling_enabled = !EngineArgs::get().no_frustum_culling;
     proxies
         .iter()
         .filter(|(_, binding)| binding.enabled)
         .filter_map(|(tid, binding)| {
-            let priority = binding.proxy.priority(store);
+            let priority = binding.proxy.priority(cache);
             let mut distance = 0.0;
             if let Some(f) = frustum
                 && let Some(bounds) = binding.bounds()
@@ -1058,11 +1038,9 @@ mod tests {
         ) {
         }
 
-        fn update_render(&mut self, _: &Renderer, _: &mut (dyn Any + Send), _: &Affine3A) {}
-
         fn render(&self, _renderer: &Renderer, _ctx: &GPUDrawCtx, _binding: &SceneProxyBinding) {}
 
-        fn priority(&self, _: &AssetStore) -> u32 {
+        fn priority(&self, _cache: Option<&AssetCache>) -> u32 {
             self.priority
         }
     }
@@ -1073,14 +1051,13 @@ mod tests {
         struct MarkerMid;
         struct MarkerHigh;
 
-        let store = AssetStore::new();
         let mut proxies = HashMap::new();
 
         let id_high = insert_proxy::<MarkerHigh>(&mut proxies, 900, true);
         let id_low = insert_proxy::<MarkerLow>(&mut proxies, 10, true);
         let id_mid = insert_proxy::<MarkerMid>(&mut proxies, 50, true);
 
-        let sorted = sorted_enabled_proxy_ids(&proxies, &store, None);
+        let sorted = sorted_enabled_proxy_ids(&proxies, None, None);
         assert_eq!(sorted, vec![id_low, id_mid, id_high]);
     }
 
@@ -1089,13 +1066,12 @@ mod tests {
         struct MarkerEnabled;
         struct MarkerDisabled;
 
-        let store = AssetStore::new();
         let mut proxies = HashMap::new();
 
         let id_enabled = insert_proxy::<MarkerEnabled>(&mut proxies, 5, true);
         let id_disabled = insert_proxy::<MarkerDisabled>(&mut proxies, 1, false);
 
-        let sorted = sorted_enabled_proxy_ids(&proxies, &store, None);
+        let sorted = sorted_enabled_proxy_ids(&proxies, None, None);
         assert_eq!(sorted, vec![id_enabled]);
         assert!(!sorted.contains(&id_disabled));
     }

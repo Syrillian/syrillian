@@ -1,4 +1,5 @@
-use super::{H, key::AssetKey};
+use super::{H, UpdateAssetMessage, key::AssetKey};
+use crossbeam_channel::Sender;
 use dashmap::DashMap;
 use dashmap::iter::{Iter, IterMut};
 use dashmap::mapref::one::Ref as MapRef;
@@ -128,6 +129,13 @@ pub trait StoreType: Sized + Debug + Clone {
     fn store<S: AsRef<Store<Self>>>(self, store: &S) -> H<Self> {
         store.as_ref().add(self)
     }
+
+    fn refresh_dirty(
+        &self,
+        key: AssetKey,
+        assets_tx: &Sender<(AssetKey, UpdateAssetMessage)>,
+    ) -> bool;
+
     fn is_builtin(handle: H<Self>) -> bool;
 }
 
@@ -180,6 +188,7 @@ impl<T: StoreType> Store<T> {
     pub fn add<T2: Into<T>>(&self, elem: T2) -> H<T> {
         let id = self.next_id();
         self.data.insert(id.into(), elem.into());
+        self.set_dirty(id.into());
 
         trace!("[{} Store] Added element: {}", T::NAME, T::ident_fmt(id));
 
@@ -217,7 +226,7 @@ impl<T: StoreType> Store<T> {
         reference.map(|i| i.into())
     }
 
-    fn set_dirty(&self, h: AssetKey) {
+    pub fn set_dirty(&self, h: AssetKey) {
         let mut dirty_store = self.dirty.write();
         if !dirty_store.contains(&h) {
             trace!("Set {} {} dirty", T::NAME, T::ident(h.into()));
@@ -231,6 +240,23 @@ impl<T: StoreType> Store<T> {
         mem::swap::<Vec<AssetKey>>(dirty_store.as_mut(), swap_store.as_mut());
 
         swap_store
+    }
+
+    pub fn refresh_dirty(&self, assets_tx: &Sender<(AssetKey, UpdateAssetMessage)>) -> usize {
+        let mut refreshed = 0;
+        let dirty = self.pop_dirty();
+
+        for key in dirty {
+            let Some(asset) = self.try_get(key.into()) else {
+                continue;
+            };
+
+            if asset.refresh_dirty(key, assets_tx) {
+                refreshed += 1;
+            }
+        }
+
+        refreshed
     }
 
     pub fn remove(&self, h: H<T>) -> Option<T> {

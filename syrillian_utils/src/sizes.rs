@@ -4,6 +4,7 @@ use static_assertions::const_assert_eq;
 pub const VEC2_SIZE: u64 = size_of::<Vec2>() as u64;
 pub const VEC3_SIZE: u64 = size_of::<Vec3>() as u64;
 pub const VEC4_SIZE: u64 = size_of::<Vec4>() as u64;
+pub const UINT16X4_SIZE: u64 = size_of::<[u16; 4]>() as u64;
 
 pub const WGPU_VEC2_ALIGN: u64 = 8;
 pub const WGPU_VEC3_ALIGN: u64 = 16;

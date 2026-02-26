@@ -3,12 +3,15 @@ use gltf::{Node, mesh};
 use itertools::izip;
 use std::collections::HashMap;
 use syrillian::assets::Mesh;
-use syrillian::core::{Bones, Vertex3D};
+use syrillian::core::Bones;
 use syrillian::math::{Vec2, Vec3};
 use syrillian::tracing::warn;
+use syrillian::utils::iter::interpolate_zeros;
+use syrillian_asset::SkinnedMesh;
+use syrillian_asset::mesh::{SkinnedVertex3D, UnskinnedVertex3D};
 
 /// Mesh and associated material indices for each sub-mesh range
-pub type MeshData = Option<(Mesh, Vec<u32>)>;
+pub type MeshData = Option<(MeshLoadResult, Vec<u32>)>;
 
 pub type SkinAttributes = (Vec<[u16; 4]>, Vec<[f32; 4]>);
 
@@ -30,9 +33,8 @@ pub struct PrimitiveBuffers {
     tex_coords: Vec<Vec2>,
     normals: Vec<Vec3>,
     tangents: Vec<Vec3>,
-    bitangents: Vec<Vec3>,
-    bone_indices: Vec<Vec<u32>>,
-    bone_weights: Vec<Vec<f32>>,
+    bone_indices: Vec<[u16; 4]>,
+    bone_weights: Vec<[f32; 4]>,
     ranges: Vec<std::ops::Range<u32>>,
     materials: Vec<u32>,
 }
@@ -105,22 +107,14 @@ pub fn read_skin_attributes(
 pub fn map_joint_indices(
     joints: &[u16; 4],
     joint_node_index_of: &HashMap<usize, usize>,
-) -> Vec<u32> {
-    joints
-        .iter()
-        .map(|j| {
-            joint_node_index_of
-                .get(&(*j as usize))
-                .copied()
-                .unwrap_or(0) as u32
-        })
-        .collect()
+) -> [u16; 4] {
+    joints.map(|j| joint_node_index_of.get(&(j as usize)).copied().unwrap_or(0) as u16)
 }
 
 /// Normalizes the four bone weights associated with a vertex
-pub fn normalize_weights(weights: [f32; 4]) -> Vec<f32> {
+pub fn normalize_weights(weights: [f32; 4]) -> [f32; 4] {
     let sum = weights.iter().copied().sum::<f32>().max(1e-8);
-    weights.iter().map(|w| w / sum).collect()
+    weights.map(|w| w / sum)
 }
 
 /// Computes the bitangent vector for a vertex from the normal and tangent
@@ -149,7 +143,7 @@ impl VertexSources<'_> {
             .map_or(Vec2::ZERO, |list| Vec2::from(list[index]))
     }
 
-    pub fn triangle_tangent_frame(&self, indices: [usize; 3]) -> Option<(Vec3, Vec3)> {
+    pub fn triangle_tangent(&self, indices: [usize; 3]) -> Option<Vec3> {
         let _ = self.tex_coords?;
 
         let p0 = self.vertex_position(indices[0]);
@@ -172,33 +166,14 @@ impl VertexSources<'_> {
 
         let inv_det = 1.0 / det;
         let tangent = (edge1 * delta_uv2.y - edge2 * delta_uv1.y) * inv_det;
-        let bitangent = (edge2 * delta_uv1.x - edge1 * delta_uv2.x) * inv_det;
-        Some((tangent, bitangent))
+        Some(tangent)
     }
 
-    fn generated_tangent_frame(
-        &self,
-        index: usize,
-        triangle_tangent: Vec3,
-        triangle_bitangent: Vec3,
-    ) -> (Vec3, Vec3) {
+    fn generated_tangent_frame(&self, index: usize, triangle_tangent: Vec3) -> Vec3 {
         let normal = self.vertex_normal(index);
         let tangent = orthonormalize_tangent(normal, triangle_tangent);
 
-        let handedness =
-            if normal.length_squared() <= 1e-10 || triangle_bitangent.length_squared() <= 1e-10 {
-                1.0
-            } else {
-                let reference = normal.cross(tangent);
-                if reference.dot(triangle_bitangent) < 0.0 {
-                    -1.0
-                } else {
-                    1.0
-                }
-            };
-
-        let bitangent = compute_bitangent(normal, tangent, handedness);
-        (tangent, bitangent)
+        tangent
     }
 }
 
@@ -239,7 +214,6 @@ impl PrimitiveBuffers {
             tex_coords,
             normals,
             tangents,
-            bitangents,
             bone_indices,
             bone_weights,
             material_index,
@@ -250,7 +224,6 @@ impl PrimitiveBuffers {
         self.tex_coords.extend(tex_coords);
         self.normals.extend(normals);
         self.tangents.extend(tangents);
-        self.bitangents.extend(bitangents);
         self.bone_indices.extend(bone_indices);
         self.bone_weights.extend(bone_weights);
 
@@ -266,25 +239,19 @@ impl PrimitiveBuffers {
 
     /// Fills missing attribute channels with zeros where necessary
     pub fn fill_missing(&mut self) {
-        syrillian::utils::iter::interpolate_zeros(
+        interpolate_zeros(
             self.positions.len(),
-            &mut [
-                &mut self.tex_coords,
-                &mut self.normals,
-                &mut self.tangents,
-                &mut self.bitangents,
-            ],
+            &mut [&mut self.tex_coords, &mut self.normals, &mut self.tangents],
         );
     }
 
     /// Builds the final mesh along with its material indices from the collected data
-    pub fn build_mesh(self, bones: Bones) -> (Mesh, Vec<u32>) {
+    pub fn build_skinned_mesh(self, bones: Bones) -> (SkinnedMesh, Vec<u32>) {
         let PrimitiveBuffers {
             positions,
             tex_coords,
             normals,
             tangents,
-            bitangents,
             bone_indices,
             bone_weights,
             ranges,
@@ -296,16 +263,38 @@ impl PrimitiveBuffers {
             tex_coords,
             normals,
             tangents,
-            bitangents,
             bone_indices,
             bone_weights
         )
-        .map(Vertex3D::from)
+        .map(|(p, uv, n, t, i, w)| SkinnedVertex3D::new(p, uv, n, t, i, w))
         .collect();
 
-        let mesh = Mesh::builder(vertices)
-            .with_many_textures(ranges)
-            .with_bones(bones)
+        let mesh = SkinnedMesh::builder()
+            .data(vertices, None)
+            .material_ranges(ranges)
+            .bones(bones)
+            .build();
+        (mesh, materials)
+    }
+
+    pub fn build_mesh(self) -> (Mesh, Vec<u32>) {
+        let PrimitiveBuffers {
+            positions,
+            tex_coords,
+            normals,
+            tangents,
+            ranges,
+            materials,
+            ..
+        } = self;
+
+        let vertices = izip!(positions, tex_coords, normals, tangents)
+            .map(|(p, uv, n, t)| UnskinnedVertex3D::new(p, uv, n, t))
+            .collect();
+
+        let mesh = Mesh::builder()
+            .data(vertices, None)
+            .material_ranges(ranges)
             .build();
         (mesh, materials)
     }
@@ -316,9 +305,8 @@ pub struct PrimitiveResult {
     tex_coords: Vec<Vec2>,
     normals: Vec<Vec3>,
     tangents: Vec<Vec3>,
-    bitangents: Vec<Vec3>,
-    bone_indices: Vec<Vec<u32>>,
-    bone_weights: Vec<Vec<f32>>,
+    bone_indices: Vec<[u16; 4]>,
+    bone_weights: Vec<[f32; 4]>,
     material_index: u32,
 }
 
@@ -330,7 +318,6 @@ impl PrimitiveResult {
             tex_coords: Vec::new(),
             normals: Vec::new(),
             tangents: Vec::new(),
-            bitangents: Vec::new(),
             bone_indices: Vec::new(),
             bone_weights: Vec::new(),
             material_index,
@@ -347,18 +334,15 @@ impl PrimitiveResult {
         triangle: [usize; 3],
         sources: &VertexSources<'_>,
     ) {
-        let (triangle_tangent, triangle_bitangent) =
-            sources.triangle_tangent_frame(triangle).unwrap_or_else(|| {
-                let normal = sources.vertex_normal(triangle[0]);
-                let tangent = fallback_tangent_for_normal(normal);
-                let bitangent = compute_bitangent(normal, tangent, 1.0);
-                (tangent, bitangent)
-            });
+        let triangle_tangent = sources.triangle_tangent(triangle).unwrap_or_else(|| {
+            let normal = sources.vertex_normal(triangle[0]);
+            let tangent = fallback_tangent_for_normal(normal);
+            tangent
+        });
 
         for index in triangle {
-            let tangent_frame =
-                sources.generated_tangent_frame(index, triangle_tangent, triangle_bitangent);
-            self.push_vertex_with_frame(index, sources, Some(tangent_frame));
+            let tangent = sources.generated_tangent_frame(index, triangle_tangent);
+            self.push_vertex_with_frame(index, sources, Some(tangent));
         }
     }
 
@@ -371,7 +355,7 @@ impl PrimitiveResult {
         &mut self,
         index: usize,
         sources: &VertexSources<'_>,
-        tangent_frame: Option<(Vec3, Vec3)>,
+        tangent_frame: Option<Vec3>,
     ) {
         let position = sources.vertex_position(index);
         self.positions.push(position);
@@ -379,19 +363,17 @@ impl PrimitiveResult {
         let normal = sources.vertex_normal(index);
         self.normals.push(normal);
 
-        let (tangent, bitangent) = tangent_frame.unwrap_or_else(|| {
+        let tangent = tangent_frame.unwrap_or_else(|| {
             sources.tangents.map_or_else(
-                || (Vec3::ZERO, Vec3::ZERO),
+                || Vec3::ZERO,
                 |list| {
                     let t = list[index];
                     let tangent = Vec3::new(t[0], t[1], t[2]);
-                    let bitangent = compute_bitangent(normal, tangent, t[3]);
-                    (tangent, bitangent)
+                    tangent
                 },
             )
         });
         self.tangents.push(tangent);
-        self.bitangents.push(bitangent);
 
         let uv = sources.vertex_tex_coord(index);
         self.tex_coords.push(uv);
@@ -402,11 +384,13 @@ impl PrimitiveResult {
             self.bone_indices
                 .push(map_joint_indices(&joint, sources.joint_map));
             self.bone_weights.push(normalize_weights(weight));
-        } else {
-            self.bone_indices.push(Vec::new());
-            self.bone_weights.push(Vec::new());
         }
     }
+}
+
+pub enum MeshLoadResult {
+    Skinned(SkinnedMesh),
+    Unskinned(Mesh),
 }
 
 impl GltfScene {
@@ -467,7 +451,7 @@ impl GltfScene {
     }
 
     /// Loads the first mesh found in the scene graph
-    pub(super) fn load_first_mesh_from_scene(&self) -> Option<(Mesh, Vec<u32>)> {
+    pub(super) fn load_first_mesh_from_scene(&self) -> Option<(MeshLoadResult, Vec<u32>)> {
         let doc = &self.doc;
         let scene0 = doc.default_scene().or_else(|| doc.scenes().next())?;
         for node in scene0.nodes() {
@@ -479,13 +463,14 @@ impl GltfScene {
     }
 
     /// Loads a mesh attached to the given node if one exists
-    pub(super) fn load_mesh(&self, node: Node) -> Option<(Mesh, Vec<u32>)> {
+    pub(super) fn load_mesh(&self, node: Node) -> Option<(MeshLoadResult, Vec<u32>)> {
         let gltf_mesh = node.mesh()?;
-        let mut bones = Bones::default();
+        let mut node_bones = None;
         let mut joint_node_index_of = HashMap::new();
 
         if let Some(skin) = node.skin() {
-            self.build_bones_from_skin(skin, node.clone(), &mut bones, &mut joint_node_index_of);
+            let bones = self.build_bones_from_skin(skin, node.clone(), &mut joint_node_index_of);
+            node_bones = Some(bones);
         }
 
         let mut buffers = self.read_mesh_primitives(gltf_mesh, &joint_node_index_of)?;
@@ -495,14 +480,24 @@ impl GltfScene {
         }
 
         buffers.fill_missing();
-        Some(buffers.build_mesh(bones))
+        match node_bones {
+            None => {
+                let res = buffers.build_mesh();
+                Some((MeshLoadResult::Unskinned(res.0), res.1))
+            }
+            Some(bones) => {
+                let res = buffers.build_skinned_mesh(bones);
+                Some((MeshLoadResult::Skinned(res.0), res.1))
+            }
+        }
     }
 
     /// Searches the node hierarchy recursively for the first available mesh
-    fn load_first_mesh_from_node(&self, node: Node) -> Option<(Mesh, Vec<u32>)> {
+    fn load_first_mesh_from_node(&self, node: Node) -> Option<(MeshLoadResult, Vec<u32>)> {
         if let Some(mesh) = self.load_mesh(node.clone()) {
             return Some(mesh);
         }
+
         for child in node.children() {
             if let Some(mesh) = self.load_first_mesh_from_node(child) {
                 return Some(mesh);

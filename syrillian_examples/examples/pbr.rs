@@ -1,7 +1,7 @@
 use itertools::iproduct;
 use std::error::Error;
 use syrillian::SyrillianApp;
-use syrillian::assets::MaterialInstance;
+use syrillian::assets::{HMesh, MaterialInstance};
 use syrillian::assets::store::StoreType;
 use syrillian::math::Vec3;
 use syrillian::{AppState, World};
@@ -33,7 +33,7 @@ impl AppState for PBR {
 
             let mut sphere = world.new_object("Sphere");
             let mut mesh_renderer = sphere.add_component::<MeshRenderer>();
-            mesh_renderer.set_material_slot(0, material);
+            mesh_renderer.change_mesh(HMesh::SPHERE, Some(vec![material]));
 
             sphere.transform.set_position(x * 3, y * 3, z * 3);
 
