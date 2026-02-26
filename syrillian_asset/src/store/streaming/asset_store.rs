@@ -98,54 +98,48 @@ impl AssetType {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, strum::FromRepr)]
 #[repr(u8)]
 pub enum StreamingAssetBlobKind {
     TextureData = 0,
-    MeshVertices = 1,
-    MeshIndices = 2,
-    BonesInverseBind = 3,
-    BonesBindGlobal = 4,
-    BonesBindLocal = 5,
-    AnimationTranslationTimes = 6,
-    AnimationTranslationValues = 7,
-    AnimationRotationTimes = 8,
-    AnimationRotationValues = 9,
-    AnimationScaleTimes = 10,
-    AnimationScaleValues = 11,
+
+    MeshPositions = 1,
+    MeshUVs = 2,
+    MeshNormals = 3,
+    MeshTangents = 4,
+    MeshBoneIndices = 5,
+    MeshBoneWeights = 6,
+    MeshIndices = 7,
+
+    BonesInverseBind = 8,
+    BonesBindGlobal = 9,
+    BonesBindLocal = 10,
+
+    AnimationTranslationTimes = 11,
+    AnimationTranslationValues = 12,
+    AnimationRotationTimes = 13,
+    AnimationRotationValues = 14,
+    AnimationScaleTimes = 15,
+    AnimationScaleValues = 16,
 }
 
 impl StreamingAssetBlobKind {
-    pub const fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    pub const fn from_u8(value: u8) -> Option<Self> {
-        match value {
-            0 => Some(Self::TextureData),
-            1 => Some(Self::MeshVertices),
-            2 => Some(Self::MeshIndices),
-            3 => Some(Self::BonesInverseBind),
-            4 => Some(Self::BonesBindGlobal),
-            5 => Some(Self::BonesBindLocal),
-            6 => Some(Self::AnimationTranslationTimes),
-            7 => Some(Self::AnimationTranslationValues),
-            8 => Some(Self::AnimationRotationTimes),
-            9 => Some(Self::AnimationRotationValues),
-            10 => Some(Self::AnimationScaleTimes),
-            11 => Some(Self::AnimationScaleValues),
-            _ => None,
-        }
-    }
-
     pub const fn name(self) -> &'static str {
         match self {
             Self::TextureData => "TextureData",
-            Self::MeshVertices => "MeshVertices",
+
+            Self::MeshPositions => "MeshPositions",
+            Self::MeshUVs => "MeshUVs",
+            Self::MeshNormals => "MeshNormals",
+            Self::MeshTangents => "MeshTangents",
+            Self::MeshBoneIndices => "MeshBoneIndices",
+            Self::MeshBoneWeights => "MeshBoneWeights",
             Self::MeshIndices => "MeshIndices",
+
             Self::BonesInverseBind => "BonesInverseBind",
             Self::BonesBindGlobal => "BonesBindGlobal",
             Self::BonesBindLocal => "BonesBindLocal",
+
             Self::AnimationTranslationTimes => "AnimationTranslationTimes",
             Self::AnimationTranslationValues => "AnimationTranslationValues",
             Self::AnimationRotationTimes => "AnimationRotationTimes",
@@ -462,7 +456,7 @@ impl StreamingAssetBlobIndex {
         for _ in 0..blob_count {
             let (entry, suffix) = StreamingAssetBlobIndexEntryRaw::try_read_from_prefix(remaining)
                 .map_err(|_| AssetStreamingError::InvalidBlobIndexEntry)?;
-            let kind = StreamingAssetBlobKind::from_u8(entry.kind)
+            let kind = StreamingAssetBlobKind::from_repr(entry.kind)
                 .ok_or(AssetStreamingError::InvalidBlobIndexEntry)?;
 
             data.entry(entry.owner_hash.get())

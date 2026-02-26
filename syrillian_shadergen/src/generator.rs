@@ -1,7 +1,3 @@
-use wgpu::TextureFormat;
-
-pub const PICKING_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
-
 const POST_PROCESS_VERTEX: &str = include_str!("functions/vertex_postprocess_quad.wgsl");
 const MESH3D_GROUP: &str = include_str!("groups/mesh3d.wgsl");
 const MESH3D_VERTEX: &str = include_str!("functions/vertex_mesh3d.wgsl");

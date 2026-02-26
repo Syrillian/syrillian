@@ -1,6 +1,6 @@
 use crate::cache::AssetCache;
 use crate::model_uniform::ModelUniform;
-use crate::proxies::mesh_proxy::{MeshUniformIndex, RuntimeMeshData};
+use crate::proxies::mesh_proxy::{MeshUniformIndex, RenderMeshData};
 use crate::proxies::{PROXY_PRIORITY_SOLID, SceneProxy, SceneProxyBinding};
 use crate::rendering::GPUDrawCtx;
 use crate::rendering::renderer::Renderer;
@@ -8,7 +8,6 @@ use crate::rendering::uniform::ShaderUniform;
 use crate::{must_pipeline, proxy_data, proxy_data_mut, try_activate_shader};
 use glamx::{Affine3A, Vec3, Vec4};
 use std::any::Any;
-use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::{HMesh, HShader};
 use syrillian_utils::debug_panic;
 use tracing::warn;
@@ -18,7 +17,7 @@ use wgpu::{Buffer, BufferUsages, Device, Queue};
 #[derive(Debug)]
 pub struct GPUDebugProxyData {
     line_data: Option<Buffer>,
-    model_uniform: Option<RuntimeMeshData>,
+    model_uniform: Option<RenderMeshData>,
 }
 
 #[repr(C)]
@@ -144,7 +143,7 @@ impl DebugSceneProxy {
         cache: &AssetCache,
         device: &Device,
         model_mat: &Affine3A,
-    ) -> Option<RuntimeMeshData> {
+    ) -> Option<RenderMeshData> {
         if self.meshes.is_empty() {
             return None;
         }
@@ -154,10 +153,9 @@ impl DebugSceneProxy {
         let mesh_data = ModelUniform::from_matrix(&model_mat);
         let uniform = ShaderUniform::builder(bgl)
             .with_buffer_data(&mesh_data)
-            .with_buffer_data(&BoneData::DUMMY)
             .build(device);
 
-        Some(RuntimeMeshData { mesh_data, uniform })
+        Some(RenderMeshData { mesh_data, uniform })
     }
 
     fn update_mesh_buffer(

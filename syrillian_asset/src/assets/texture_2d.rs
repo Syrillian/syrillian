@@ -10,11 +10,9 @@ use crate::store::{
 };
 use crate::{HTexture2D, store_add_checked};
 use crossbeam_channel::Sender;
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs;
 use syrillian_reflect::serializer::JsonSerializer;
-use syrillian_reflect::{ReflectSerialize, Value};
 use wgpu::{AddressMode, FilterMode, MipmapFilterMode, TextureFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,62 +220,20 @@ impl StoreTypeFallback for Texture2D {
     }
 }
 
-struct TextureMeta<'a> {
-    texture: &'a Texture2D,
-}
-
-impl ReflectSerialize for TextureMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        let data_len = this.texture.data.as_ref().map_or(0, |data| data.len()) as u64;
-
-        Value::Object(BTreeMap::from([
-            ("width".to_string(), Value::UInt(this.texture.width)),
-            ("height".to_string(), Value::UInt(this.texture.height)),
-            (
-                "format".to_string(),
-                Value::String(format!("{:?}", this.texture.format)),
-            ),
-            (
-                "repeat_mode".to_string(),
-                Value::String(format!("{:?}", this.texture.repeat_mode)),
-            ),
-            (
-                "filter_mode".to_string(),
-                Value::String(format!("{:?}", this.texture.filter_mode)),
-            ),
-            (
-                "mip_filter_mode".to_string(),
-                Value::String(format!("{:?}", this.texture.mip_filter_mode)),
-            ),
-            (
-                "has_transparency".to_string(),
-                Value::Bool(this.texture.has_transparency),
-            ),
-            (
-                "has_data".to_string(),
-                Value::Bool(this.texture.data.is_some()),
-            ),
-            ("data_len".to_string(), Value::BigUInt(data_len)),
-            ("data".to_string(), Value::None),
-        ]))
-    }
-}
-
 impl StreamableAsset for Texture2D {
     fn encode(&self) -> BuiltPayload {
         let mut blobs = Vec::new();
-        if let Some(data) = self.data.as_deref()
-            && !data.is_empty()
-        {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::TextureData,
-                element_count: data.len() as u64,
-                data: data.to_vec(),
-            });
+
+        if let Some(data) = self.data.as_deref() {
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::TextureData,
+                &data,
+                &mut blobs,
+            );
         }
 
         BuiltPayload {
-            payload: JsonSerializer::serialize_to_string(&TextureMeta { texture: self }),
+            payload: JsonSerializer::serialize_to_string(self),
             blobs,
         }
     }
@@ -309,27 +265,13 @@ impl StreamableAsset for Texture2D {
         let has_transparency = root
             .required_field("has_transparency")?
             .expect_parse("texture has_transparency")?;
-        let has_data = root
-            .required_field("has_data")?
-            .expect_parse("texture has_data")?;
-        let data_len: usize = root
-            .optional_field("data_len")
-            .expect_parse("texture data_len")?
-            .unwrap_or(0usize);
 
-        let data = if has_data {
-            let blob = payload
-                .blob_infos
-                .find(StreamingAssetBlobKind::TextureData)?;
-            let data_len = if data_len == 0 {
-                blob.element_count
-            } else {
-                data_len
-            };
-            Some(blob.decode_from_io("texture data", data_len, package)?)
-        } else {
-            None
-        };
+        let data = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::TextureData)
+            .ok()
+            .map(|b| b.decode_all_from_io(package))
+            .transpose()?;
 
         Ok(Texture2D {
             width,

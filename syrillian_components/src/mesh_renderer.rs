@@ -3,7 +3,6 @@ use syrillian::components::Component;
 use syrillian::math::Vec3;
 use syrillian::tracing::warn;
 use syrillian::{Reflect, World};
-use syrillian_render::proxies::skinned_mesh_proxy::SkinnedMeshSceneProxy;
 use syrillian_render::proxies::{MeshSceneProxy, SceneProxy};
 use syrillian_render::proxy_data_mut;
 use syrillian_render::rendering::CPUDrawCtx;
@@ -77,7 +76,7 @@ impl Component for MeshRenderer {
             let materials = self.materials.clone();
             let material_ranges = mesh.material_ranges.clone();
             ctx.send_proxy_update(move |sc| {
-                let data: &mut SkinnedMeshSceneProxy = proxy_data_mut!(sc);
+                let data: &mut MeshSceneProxy = proxy_data_mut!(sc);
                 data.materials = materials;
                 data.material_ranges = material_ranges;
             });

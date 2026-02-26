@@ -33,6 +33,7 @@ obj = "0.10"
 serde_json = "1.0"
 zerocopy.workspace = true
 crossbeam-channel.workspace = true
+strum = { version = "0.28", features = ["derive"] }
 
 [features]
 default = ["audio"]

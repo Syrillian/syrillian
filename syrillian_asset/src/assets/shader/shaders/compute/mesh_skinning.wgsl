@@ -1,5 +1,5 @@
 const MAX_BONES: u32 = 256u;
-const WORDS_PER_VERTEX: u32 = 19u;
+const WORDS_PER_VERTEX: u32 = 17u;
 
 struct BoneData {
     mats: array<mat4x4<f32>, MAX_BONES>,
@@ -15,7 +15,9 @@ struct SkinningParams {
 @group(0) @binding(0) var<uniform> bones: BoneData;
 @group(0) @binding(1) var<uniform> params: SkinningParams;
 @group(0) @binding(2) var<storage, read> src_words: array<u32>;
-@group(0) @binding(3) var<storage, read_write> dst_words: array<u32>;
+@group(0) @binding(3) var<storage, read_write> dst_position_words: array<u32>;
+@group(0) @binding(4) var<storage, read_write> dst_normal_words: array<u32>;
+@group(0) @binding(5) var<storage, read_write> dst_tangent_words: array<u32>;
 
 fn normalize_weights(w_in: vec4<f32>) -> vec4<f32> {
     let w = max(w_in, vec4<f32>(0.0));
@@ -122,14 +124,18 @@ fn load_uvec4(base: u32) -> vec4<u32> {
     );
 }
 
-fn store_f32(word_index: u32, value: f32) {
-    dst_words[word_index] = bitcast<u32>(value);
+fn load_packed_u16x2(word_index: u32) -> vec2<u32> {
+    let word = src_words[word_index];
+    return vec2<u32>(
+        word & 0xFFFFu,
+        (word >> 16u) & 0xFFFFu
+    );
 }
 
-fn store_vec3(base: u32, value: vec3<f32>) {
-    store_f32(base, value.x);
-    store_f32(base + 1u, value.y);
-    store_f32(base + 2u, value.z);
+fn load_u16x4(base: u32) -> vec4<u32> {
+    let lo = load_packed_u16x2(base);
+    let hi = load_packed_u16x2(base + 1u);
+    return vec4<u32>(lo.x, lo.y, hi.x, hi.y);
 }
 
 @compute @workgroup_size(64, 1, 1)
@@ -141,21 +147,27 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let base = idx * WORDS_PER_VERTEX;
 
-    for (var i = 0u; i < WORDS_PER_VERTEX; i = i + 1u) {
-        dst_words[base + i] = src_words[base + i];
-    }
-
     let p_obj = vec4<f32>(load_vec3(base + 0u), 1.0);
     let n_obj = load_vec3(base + 5u);
     let t_obj = load_vec3(base + 8u);
-    let bone_idx = load_uvec4(base + 11u);
-    let bone_w = load_vec4(base + 15u);
+    let bone_idx = load_u16x4(base + 11u);
+    let bone_w = load_vec4(base + 13u);
 
     let p_sk = skin_pos(p_obj, bone_idx, bone_w);
     let n_sk = skin_dir(n_obj, bone_idx, bone_w);
     let t_sk = skin_dir(t_obj, bone_idx, bone_w);
 
-    store_vec3(base + 0u, p_sk.xyz);
-    store_vec3(base + 5u, n_sk);
-    store_vec3(base + 8u, t_sk);
+    let out_base = idx * 3u;
+
+    dst_position_words[out_base] = bitcast<u32>(p_sk.x);
+    dst_position_words[out_base + 1u] = bitcast<u32>(p_sk.y);
+    dst_position_words[out_base + 2u] = bitcast<u32>(p_sk.z);
+
+    dst_normal_words[out_base] = bitcast<u32>(n_sk.x);
+    dst_normal_words[out_base + 1u] = bitcast<u32>(n_sk.y);
+    dst_normal_words[out_base + 2u] = bitcast<u32>(n_sk.z);
+
+    dst_tangent_words[out_base] = bitcast<u32>(t_sk.x);
+    dst_tangent_words[out_base + 1u] = bitcast<u32>(t_sk.y);
+    dst_tangent_words[out_base + 2u] = bitcast<u32>(t_sk.z);
 }

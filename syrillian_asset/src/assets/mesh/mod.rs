@@ -16,8 +16,8 @@ pub use simple_vertex::SimpleVertex3D;
 pub use skinned_vertex::SkinnedVertex3D;
 pub use unskinned_vertex::UnskinnedVertex3D;
 
-use crate::mesh::generic_vertex::{Vertex, Vertex3D};
-use bytemuck::NoUninit;
+use crate::mesh::static_mesh_data::{RawVertexBuffers, VertexBufferExt};
+use glam::Vec3;
 use obj::ObjError;
 use snafu::Snafu;
 use std::fmt::Debug;
@@ -40,23 +40,29 @@ pub enum MeshError {
 }
 
 pub trait PartialMesh {
-    type VertexType: Vertex3D + NoUninit;
+    fn buffers(&self) -> &RawVertexBuffers;
 
-    fn vertices(&self) -> &[Self::VertexType];
-    fn indices(&self) -> Option<&[u32]>;
+    fn positions(&self) -> &[Vec3] {
+        self.buffers().positions()
+    }
 
-    #[inline]
-    fn triangle_count(&self) -> usize {
-        if self.has_indices() {
-            self.indices_count() / 3
-        } else {
-            self.vertex_count() / 3
-        }
+    fn indices(&self) -> Option<&[u32]> {
+        self.buffers().indices()
     }
 
     #[inline]
-    fn vertex_count(&self) -> usize {
-        self.vertices().len()
+    fn len(&self) -> usize {
+        self.buffers().len()
+    }
+
+    #[inline]
+    fn triangle_count(&self) -> usize {
+        self.len() / 3
+    }
+
+    #[inline]
+    fn position_count(&self) -> usize {
+        self.positions().len()
     }
 
     #[inline]
@@ -70,6 +76,6 @@ pub trait PartialMesh {
     }
 
     fn calculate_bounding_box(&self) -> BoundingBox {
-        BoundingBox::from_positions(self.vertices().iter().map(Self::VertexType::position))
+        BoundingBox::from_positions(self.positions().iter().copied())
     }
 }

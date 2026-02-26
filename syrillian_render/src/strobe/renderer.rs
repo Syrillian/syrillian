@@ -1,7 +1,7 @@
 use super::StrobeFrame;
 use crate::cache::AssetCache;
 use crate::model_uniform::ModelUniform;
-use crate::proxies::mesh_proxy::{MeshUniformIndex, RuntimeMeshData};
+use crate::proxies::mesh_proxy::{MeshUniformIndex, RenderMeshData};
 use crate::proxies::text_proxy::TextRenderData;
 use crate::rendering::RenderPassType;
 use crate::rendering::state::State;
@@ -22,7 +22,7 @@ use winit::dpi::PhysicalSize;
 #[derive(Default)]
 pub struct StrobeRenderer {
     strobe_roots: HashMap<ViewportId, Vec<StrobeRoot>>,
-    image_cache: HashMap<(CacheId, u64), RuntimeMeshData>,
+    image_cache: HashMap<(CacheId, u64), RenderMeshData>,
     text_cache: HashMap<(CacheId, u64), TextRenderData>,
 }
 
@@ -33,7 +33,7 @@ pub struct UiGPUContext<'a> {
 }
 
 pub struct UiDrawContext<'a, 'b, 'c, 'd, 'e> {
-    image_cache: &'a mut HashMap<(CacheId, u64), RuntimeMeshData>,
+    image_cache: &'a mut HashMap<(CacheId, u64), RenderMeshData>,
     text_cache: &'a mut HashMap<(CacheId, u64), TextRenderData>,
     gpu_ctx: &'b UiGPUContext<'e>,
     cache: &'c AssetCache,
@@ -105,7 +105,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
         })
     }
 
-    pub fn ui_image_data(&mut self, model_mat: &Mat4) -> &mut RuntimeMeshData {
+    pub fn ui_image_data(&mut self, model_mat: &Mat4) -> &mut RenderMeshData {
         let key = (self.cache_id, self.render_id as u64);
         self.image_cache.entry(key).or_insert_with(|| {
             let model_bgl = self.cache.bgl_model();
@@ -116,7 +116,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
                 .with_buffer_data(&BoneData::DUMMY)
                 .build(&self.state.device);
 
-            RuntimeMeshData { mesh_data, uniform }
+            RenderMeshData { mesh_data, uniform }
         })
     }
 }

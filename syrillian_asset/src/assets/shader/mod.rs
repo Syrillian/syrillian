@@ -11,7 +11,7 @@ use self::defaults::{
     ONLY_COLOR_TARGET, ONLY_COLOR_TARGET_SRGB, SURFACE_PP_COLOR_TARGETS,
 };
 use crate::HShader;
-use crate::defaults::PARTICLE_VERTEX_LAYOUT;
+use crate::defaults::{PARTICLE_VERTEX_LAYOUT, PICKING_COLOR_TARGET};
 use crate::material_inputs::{MaterialInputLayout, MaterialTextureDef};
 use crate::shader::immediates::{TextImmediate, UiLineImmediate};
 use crate::store::streaming::asset_store::{StreamingAssetFile, StreamingAssetPayload};
@@ -30,13 +30,13 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 use syrillian_shadergen::function::{PbrShader, PostProcessPassthroughMaterial};
+use syrillian_shadergen::generator::MeshPass;
 use syrillian_shadergen::generator::{MaterialGroupOverrides, ShaderKind, assemble_shader};
-use syrillian_shadergen::generator::{MeshPass, PICKING_TEXTURE_FORMAT};
 use syrillian_shadergen::{MaterialCompiler, PostProcessCompiler};
 use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE, WGPU_VEC4_ALIGN};
 use wgpu::{
-    ColorTargetState, ColorWrites, PolygonMode, PrimitiveTopology, VertexAttribute,
-    VertexBufferLayout, VertexFormat, VertexStepMode,
+    ColorTargetState, PolygonMode, PrimitiveTopology, VertexAttribute, VertexBufferLayout,
+    VertexFormat, VertexStepMode,
 };
 
 #[derive(Debug, Clone)]
@@ -124,28 +124,27 @@ impl BindGroupMap {
 impl H<Shader> {
     pub const FALLBACK_ID: u32 = 0;
     pub const DIM2_ID: u32 = 1;
-    pub const DIM3_ID: u32 = 2;
-    pub const POST_PROCESS_ID: u32 = 3;
-    pub const DIM2_PICKER_ID: u32 = 4;
-    pub const DIM3_PICKER_ID: u32 = 5;
-    pub const TEXT_2D_ID: u32 = 6;
-    pub const TEXT_2D_PICKER_ID: u32 = 7;
-    pub const TEXT_3D_ID: u32 = 8;
-    pub const TEXT_3D_PICKER_ID: u32 = 9;
-    pub const LINE_2D_ID: u32 = 10;
-    pub const DEBUG_EDGES_ID: u32 = 11;
-    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 12;
-    pub const DEBUG_LINES_ID: u32 = 13;
-    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 14;
-    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 15;
-    pub const DEBUG_LIGHT_ID: u32 = 16;
-    pub const DIM3_SHADOW_ID: u32 = 17;
-    pub const POST_PROCESS_FXAA_ID: u32 = 18;
-    pub const SKYBOX_ID: u32 = 19;
-    pub const SKYBOX_PROCEDURAL_ID: u32 = 20;
-    pub const DIM3_GEN_LIT_ID: u32 = 21;
-    pub const PARTICLE_SYSTEM_ID: u32 = 22;
-    pub const MAX_BUILTIN_ID: u32 = 22;
+    pub const DIM2_PICKER_ID: u32 = 2;
+    pub const DIM3_ID: u32 = 3;
+    pub const DIM3_PICKER_ID: u32 = 4;
+    pub const DIM3_SHADOW_ID: u32 = 5;
+    pub const POST_PROCESS_FXAA_ID: u32 = 6;
+    pub const POST_PROCESS_ID: u32 = 7;
+    pub const SKYBOX_ID: u32 = 8;
+    pub const SKYBOX_PROCEDURAL_ID: u32 = 9;
+    pub const PARTICLE_SYSTEM_ID: u32 = 10;
+    pub const TEXT_2D_ID: u32 = 11;
+    pub const TEXT_2D_PICKER_ID: u32 = 12;
+    pub const TEXT_3D_ID: u32 = 13;
+    pub const TEXT_3D_PICKER_ID: u32 = 14;
+    pub const LINE_2D_ID: u32 = 15;
+    pub const DEBUG_EDGES_ID: u32 = 16;
+    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 17;
+    pub const DEBUG_LINES_ID: u32 = 18;
+    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 19;
+    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 20;
+    pub const DEBUG_LIGHT_ID: u32 = 21;
+    pub const MAX_BUILTIN_ID: u32 = 21;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -197,7 +196,6 @@ impl H<Shader> {
     pub const DEBUG_LIGHT: H<Shader> = H::new(Self::DEBUG_LIGHT_ID);
     pub const SKYBOX: H<Shader> = H::new(Self::SKYBOX_ID);
     pub const SKYBOX_PROCEDURAL: H<Shader> = H::new(Self::SKYBOX_PROCEDURAL_ID);
-    pub const DIM3_GEN_LIT: H<Shader> = H::new(Self::DIM3_GEN_LIT_ID);
     pub const PARTICLE_SYSTEM: H<Shader> = H::new(Self::PARTICLE_SYSTEM_ID);
 }
 
@@ -227,7 +225,6 @@ impl StoreDefaults for Shader {
             PostProcessCompiler::compile_post_process_fragment(&PostProcessPassthroughMaterial, 0);
         let mut pbr = PbrShader::default();
         let mesh3d = MaterialCompiler::compile_mesh(&mut pbr, 0, MeshPass::Base);
-        let mesh3d_gen_lit = mesh3d.clone();
         let mesh3d_picking = MaterialCompiler::compile_mesh_picking();
         let mesh3d_shadow = MaterialCompiler::compile_mesh(&mut pbr, 0, MeshPass::Shadow);
 
@@ -273,6 +270,19 @@ impl StoreDefaults for Shader {
 
         store_add_checked!(
             store,
+            HShader::DIM2_PICKER_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Default 2D Picking Shader")
+                .code(ShaderCode::Full(SHADER_DIM2_PICKER.to_string()))
+                .immediate_size(VEC4_SIZE as u32)
+                .depth_enabled(false)
+                .color_target(PICKING_COLOR_TARGET)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
             HShader::DIM3_ID,
             Shader::builder()
                 .shader_type(ShaderType::Custom)
@@ -286,8 +296,78 @@ impl StoreDefaults for Shader {
 
         store_add_checked!(
             store,
+            HShader::DIM3_PICKER_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Default 3D Picking Shader")
+                .code(ShaderCode::Full(mesh3d_picking))
+                .immediate_size(VEC4_SIZE as u32)
+                .color_target(PICKING_COLOR_TARGET)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::DIM3_SHADOW_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Default 3D Shadow Shader")
+                .code(ShaderCode::Full(mesh3d_shadow))
+                .immediate_size(material_immediates)
+                .material_layout(default_layout.clone())
+                .material_groups(material_groups.clone())
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::POST_PROCESS_FXAA_ID,
+            Shader::new_post_process_fragment_linear("Post Process FXAA", SHADER_POST_PROCESS_FXAA)
+        );
+
+        store_add_checked!(
+            store,
             HShader::POST_PROCESS_ID,
             Shader::new_post_process_fragment("Passthrough", post_process_fs)
+        );
+
+        store_add_checked!(
+            store,
+            HShader::SKYBOX_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Skybox Background Shader")
+                .code(ShaderCode::Full(SHADER_SKYBOX.to_string()))
+                .vertex_buffers(&[])
+                .color_target(ONLY_COLOR_TARGET)
+                .depth_enabled(false)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::SKYBOX_PROCEDURAL_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Skybox Procedural Shader")
+                .code(ShaderCode::Full(SHADER_SKYBOX_PROCEDURAL.to_string()))
+                .vertex_buffers(&[])
+                .color_target(ONLY_COLOR_TARGET)
+                .depth_enabled(false)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::PARTICLE_SYSTEM_ID,
+            Shader::builder()
+                .name("Particle System")
+                .color_target(DEFAULT_COLOR_TARGETS)
+                .shader_type(ShaderType::Custom)
+                .vertex_buffers(PARTICLE_VERTEX_LAYOUT)
+                .topology(PrimitiveTopology::PointList)
+                .code(ShaderCode::Full(SHADER_PARTICLE_SYSTEM.to_string(),))
+                .build()
         );
 
         const TEXT_VBL: &[VertexBufferLayout] = &[VertexBufferLayout {
@@ -306,37 +386,6 @@ impl StoreDefaults for Shader {
                 },
             ],
         }];
-
-        const PICKING_COLOR_TARGET: &[Option<ColorTargetState>] = &[Some(ColorTargetState {
-            format: PICKING_TEXTURE_FORMAT,
-            blend: None,
-            write_mask: ColorWrites::all(),
-        })];
-
-        store_add_checked!(
-            store,
-            HShader::DIM2_PICKER_ID,
-            Shader::builder()
-                .shader_type(ShaderType::Custom)
-                .name("Default 2D Picking Shader")
-                .code(ShaderCode::Full(SHADER_DIM2_PICKER.to_string()))
-                .immediate_size(VEC4_SIZE as u32)
-                .depth_enabled(false)
-                .color_target(PICKING_COLOR_TARGET)
-                .build()
-        );
-
-        store_add_checked!(
-            store,
-            HShader::DIM3_PICKER_ID,
-            Shader::builder()
-                .shader_type(ShaderType::Custom)
-                .name("Default 3D Picking Shader")
-                .code(ShaderCode::Full(mesh3d_picking))
-                .immediate_size(VEC4_SIZE as u32)
-                .color_target(PICKING_COLOR_TARGET)
-                .build()
-        );
 
         store_add_checked!(
             store,
@@ -518,77 +567,6 @@ impl StoreDefaults for Shader {
                 .immediate_size(4)
                 .build()
         );
-
-        store_add_checked!(
-            store,
-            HShader::DIM3_SHADOW_ID,
-            Shader::builder()
-                .shader_type(ShaderType::Custom)
-                .name("Default 3D Shadow Shader")
-                .code(ShaderCode::Full(mesh3d_shadow))
-                .immediate_size(material_immediates)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
-                .build()
-        );
-
-        store_add_checked!(
-            store,
-            HShader::POST_PROCESS_FXAA_ID,
-            Shader::new_post_process_fragment_linear("Post Process FXAA", SHADER_POST_PROCESS_FXAA)
-        );
-
-        store_add_checked!(
-            store,
-            HShader::SKYBOX_ID,
-            Shader::builder()
-                .shader_type(ShaderType::Custom)
-                .name("Skybox Background Shader")
-                .code(ShaderCode::Full(SHADER_SKYBOX.to_string()))
-                .vertex_buffers(&[])
-                .color_target(ONLY_COLOR_TARGET)
-                .depth_enabled(false)
-                .build()
-        );
-
-        store_add_checked!(
-            store,
-            HShader::SKYBOX_PROCEDURAL_ID,
-            Shader::builder()
-                .shader_type(ShaderType::Custom)
-                .name("Skybox Procedural Shader")
-                .code(ShaderCode::Full(SHADER_SKYBOX_PROCEDURAL.to_string()))
-                .vertex_buffers(&[])
-                .color_target(ONLY_COLOR_TARGET)
-                .depth_enabled(false)
-                .build()
-        );
-
-        store_add_checked!(
-            store,
-            HShader::DIM3_GEN_LIT_ID,
-            Shader::builder()
-                .shader_type(ShaderType::Custom)
-                .name("mesh3d_gen_lit")
-                .code(ShaderCode::Full(mesh3d_gen_lit))
-                .immediate_size(material_immediates)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
-                .build()
-        );
-
-        store_add_checked!(
-            store,
-            HShader::PARTICLE_SYSTEM_ID,
-            Shader::builder()
-                .name("Particle System")
-                .color_target(DEFAULT_COLOR_TARGETS)
-                .shader_type(ShaderType::Custom)
-                .vertex_buffers(PARTICLE_VERTEX_LAYOUT)
-                .topology(PrimitiveTopology::PointList)
-                .code(ShaderCode::Full(SHADER_PARTICLE_SYSTEM.to_string(),))
-                .build()
-        );
     }
 }
 
@@ -615,7 +593,6 @@ impl StoreType for Shader {
             HShader::POST_PROCESS_FXAA_ID => "Post Process FXAA Shader",
             HShader::SKYBOX_ID => "Skybox Background Shader",
             HShader::SKYBOX_PROCEDURAL_ID => "Skybox Procedural Shader",
-            HShader::DIM3_GEN_LIT_ID => "mesh3d_gen_lit",
 
             HShader::DEBUG_EDGES_ID => "Debug Edges Shader",
             HShader::DEBUG_VERTEX_NORMALS_ID => "Debug Vertex Normals Shader",

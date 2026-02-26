@@ -3,9 +3,8 @@
 //! For more information please see module level documentation.
 
 use crate::cache::generic_cache::Cache;
-use crate::cache::{
-    FontAtlas, GpuTexture, RuntimeComputeShader, RuntimeMaterial, RuntimeMesh, RuntimeShader,
-};
+use crate::cache::{FontAtlas, GpuTexture, RuntimeComputeShader, RuntimeMaterial, RuntimeShader};
+use crate::rendering::mesh::RenderMesh;
 use crate::rendering::state::State;
 use crossbeam_channel::Receiver;
 use dashmap::DashMap;
@@ -62,17 +61,17 @@ impl AssetCache {
         }
     }
 
-    pub fn mesh(&self, handle: HMesh) -> Option<Arc<RuntimeMesh>> {
+    pub fn mesh(&self, handle: HMesh) -> Option<Arc<RenderMesh>> {
         self.meshes.try_get(handle)
     }
 
-    pub fn mesh_unit_square(&self) -> Arc<RuntimeMesh> {
+    pub fn mesh_unit_square(&self) -> Arc<RenderMesh> {
         self.meshes
             .try_get(HMesh::UNIT_SQUARE)
             .expect("Unit square is a default mesh")
     }
 
-    pub fn skinned_mesh(&self, handle: HSkinnedMesh) -> Option<Arc<RuntimeMesh>> {
+    pub fn skinned_mesh(&self, handle: HSkinnedMesh) -> Option<Arc<RenderMesh>> {
         self.skinned_meshes.try_get(handle)
     }
 

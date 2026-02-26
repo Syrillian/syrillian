@@ -2,8 +2,8 @@ use crate::assets::mesh::{Bones, Mesh};
 use crate::assets::prefab::{PrefabAsset, PrefabMaterial, PrefabMeshBinding, PrefabNode};
 use crate::assets::shader::{Shader, ShaderCode, ShaderType};
 use crate::assets::texture_2d::Texture2D;
-use crate::mesh::{PartialMesh, SkinnedVertex3D, UnskinnedVertex3D};
-use crate::{AnimationChannel, AnimationClip, TransformKeys};
+use crate::mesh::{SkinnedVertex3D, UnskinnedVertex3D};
+use crate::{AnimationChannel, AnimationClip, SkinnedMesh, TransformKeys};
 use std::collections::BTreeMap;
 use syrillian_reflect::{ReflectSerialize, Value};
 
@@ -75,18 +75,6 @@ impl ReflectSerialize for Bones {
                 ReflectSerialize::serialize(&this.roots),
             ),
             (
-                "inverse_bind".to_string(),
-                ReflectSerialize::serialize(&this.inverse_bind),
-            ),
-            (
-                "bind_global".to_string(),
-                ReflectSerialize::serialize(&this.bind_global),
-            ),
-            (
-                "bind_local".to_string(),
-                ReflectSerialize::serialize(&this.bind_local),
-            ),
-            (
                 "index_of".to_string(),
                 ReflectSerialize::serialize(&this.index_of),
             ),
@@ -96,16 +84,35 @@ impl ReflectSerialize for Bones {
 
 impl ReflectSerialize for Mesh {
     fn serialize(this: &Self) -> Value {
-        let indices = this.indices().map(<[u32]>::to_vec);
         Value::Object(BTreeMap::from([
-            (
-                "vertices".to_string(),
-                ReflectSerialize::serialize(&this.vertices().to_vec()),
-            ),
-            ("indices".to_string(), ReflectSerialize::serialize(&indices)),
             (
                 "material_ranges".to_string(),
                 ReflectSerialize::serialize(&this.material_ranges),
+            ),
+            (
+                "bounding_sphere".to_string(),
+                match this.bounding_sphere {
+                    None => Value::None,
+                    Some(ref b) => Value::Object(BTreeMap::from([
+                        ("center".to_string(), ReflectSerialize::serialize(&b.center)),
+                        ("radius".to_string(), Value::Float(b.radius)),
+                    ])),
+                },
+            ),
+        ]))
+    }
+}
+
+impl ReflectSerialize for SkinnedMesh {
+    fn serialize(this: &Self) -> Value {
+        Value::Object(BTreeMap::from([
+            (
+                "material_ranges".to_string(),
+                ReflectSerialize::serialize(&this.material_ranges),
+            ),
+            (
+                "bones".to_string(),
+                ReflectSerialize::serialize(&this.bones),
             ),
             (
                 "bounding_sphere".to_string(),
@@ -146,7 +153,6 @@ impl ReflectSerialize for Texture2D {
                 "has_transparency".to_string(),
                 Value::Bool(this.has_transparency),
             ),
-            ("data".to_string(), ReflectSerialize::serialize(&this.data)),
         ]))
     }
 }
