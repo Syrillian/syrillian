@@ -8,9 +8,9 @@ use fdsm_ttf_parser::load_shape_from_face;
 use image::RgbImage;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use syrillian_asset::{Font, HMaterialInstance, HTexture2D};
+use syrillian_asset::Font;
 use ttf_parser::Face;
-use wgpu::{Device, Queue};
+use wgpu::{BindGroup, Device, Queue};
 
 use crate::cache::glyph::GlyphBitmap;
 use crate::cache::msdf_atlas::{FontLineMetrics, GlyphAtlasEntry, MsdfAtlas};
@@ -48,16 +48,19 @@ pub struct FontAtlas {
 
 impl CacheType for Font {
     type Hot = Arc<FontAtlas>;
+    type UpdateMessage = Self;
 
-    fn upload(self, _device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
+    fn upload(this: Self, device: &Device, queue: &Queue, cache: &AssetCache) -> Self::Hot {
         function_scope!("upload font");
 
         let msdf = MsdfAtlas::new(
-            self.font_bytes.clone(),
-            self.atlas_em_px,
+            device,
+            queue,
+            cache,
+            this.font_bytes.clone(),
+            this.atlas_em_px,
             16.0,
             4.0,
-            cache.store(),
         );
         let atlas = Arc::new(RwLock::new(msdf));
 
@@ -92,12 +95,10 @@ impl CacheType for Font {
 }
 
 impl FontAtlas {
-    pub fn atlas(&self) -> HMaterialInstance {
-        self.atlas.read().material()
+    pub fn atlas_binding(&self) -> BindGroup {
+        self.atlas.read().bind_group().clone()
     }
-    pub fn texture(&self) -> HTexture2D {
-        self.atlas.read().texture()
-    }
+
     pub fn metrics(&self) -> FontLineMetrics {
         self.atlas.read().metrics()
     }
@@ -118,7 +119,7 @@ impl FontAtlas {
         }
     }
 
-    pub fn pump(&self, cache: &AssetCache, queue: &Queue, max_glyphs: usize) -> bool {
+    pub fn pump(&self, queue: &Queue, max_glyphs: usize) -> bool {
         if self.requested.is_empty() {
             return false;
         }
@@ -130,7 +131,7 @@ impl FontAtlas {
         while processed < max_glyphs {
             match self.ready_rx.try_recv() {
                 Ok(bmp) => {
-                    updated |= self.integrate_ready_bitmap(cache, queue, bmp);
+                    updated |= self.integrate_ready_bitmap(queue, bmp);
                     processed += 1;
                 }
                 Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => break,
@@ -176,17 +177,12 @@ impl FontAtlas {
         self.pending.write().unwrap().push_back(ch);
     }
 
-    fn integrate_ready_bitmap(
-        &self,
-        cache: &AssetCache,
-        queue: &Queue,
-        bitmap: GlyphBitmap,
-    ) -> bool {
+    fn integrate_ready_bitmap(&self, queue: &Queue, bitmap: GlyphBitmap) -> bool {
         let ch = bitmap.ch;
         let integrated = self
             .atlas
             .write()
-            .integrate_ready_glyph(cache, queue, bitmap)
+            .integrate_ready_glyph(queue, bitmap)
             .is_some();
 
         self.requested.remove(&ch);

@@ -10,13 +10,9 @@ impl GltfScene {
         &self,
         skin: gltf::Skin,
         mesh_node: Node,
-        out: &mut Bones,
         joint_map: &mut HashMap<usize, usize>,
-    ) {
-        let mut names = Vec::<String>::new();
-        let mut parents = Vec::<Option<usize>>::new();
-        let mut inverse_bind = Vec::<Mat4>::new();
-        let mut index_of = HashMap::<String, usize>::new();
+    ) -> Bones {
+        let mut bones = Bones::new();
 
         let mut node_map = HashMap::<usize, (Option<usize>, Mat4)>::new();
         for scene0 in self.doc.scenes() {
@@ -34,9 +30,9 @@ impl GltfScene {
 
         for (joint_idx, joint_node) in skin.joints().enumerate() {
             let name = joint_node.name().unwrap_or("<unnamed>").to_string();
-            let my_index = names.len();
-            names.push(name.clone());
-            index_of.insert(name.clone(), my_index);
+            let my_index = bones.names.len();
+            bones.names.push(name.clone());
+            bones.index_of.insert(name.clone(), my_index);
             joint_map.insert(joint_idx, my_index);
 
             let parent = node_map
@@ -47,44 +43,38 @@ impl GltfScene {
                         .position(|jn| jn.index() == pi)
                         .and_then(|local| joint_map.get(&local).copied())
                 });
-            parents.push(parent);
+            bones.parents.push(parent);
 
             let inverse = inverse_matrices.get(joint_idx).cloned().unwrap_or_default();
-            inverse_bind.push(inverse);
+            bones.inverse_bind.push(inverse);
         }
 
         let mesh_global = global_transform_of(mesh_node.index(), &node_map);
         let mesh_global_inv = mesh_global.inverse();
 
-        let mut bind_global = vec![Mat4::IDENTITY; names.len()];
+        bones.bind_global = vec![Mat4::IDENTITY; bones.names.len()];
         for (i, joint_node) in skin.joints().enumerate() {
             let g_world = global_transform_of(joint_node.index(), &node_map);
-            bind_global[i] = mesh_global_inv * g_world;
+            bones.bind_global[i] = mesh_global_inv * g_world;
         }
 
-        let mut bind_local = vec![Mat4::IDENTITY; names.len()];
-        for (i, parent) in parents.iter().enumerate() {
-            bind_local[i] = match parent {
-                None => bind_global[i],
-                Some(p) => bind_global[*p].inverse() * bind_global[i],
+        bones.bind_local = vec![Mat4::IDENTITY; bones.names.len()];
+        for (i, parent) in bones.parents.iter().enumerate() {
+            bones.bind_local[i] = match parent {
+                None => bones.bind_global[i],
+                Some(p) => bones.bind_global[*p].inverse() * bones.bind_global[i],
             };
         }
 
-        let mut children = vec![Vec::new(); names.len()];
-        for (i, parent) in parents.iter().enumerate() {
+        bones.children = vec![Vec::new(); bones.names.len()];
+        for (i, parent) in bones.parents.iter().enumerate() {
             match parent {
-                None => out.roots.push(i),
-                Some(p) => children[*p].push(i),
+                None => bones.roots.push(i),
+                Some(p) => bones.children[*p].push(i),
             }
         }
 
-        out.names = names;
-        out.parents = parents;
-        out.children = children;
-        out.inverse_bind = inverse_bind;
-        out.bind_global = bind_global;
-        out.bind_local = bind_local;
-        out.index_of = index_of;
+        bones
     }
 }
 pub fn build_node_map_recursive(

@@ -1,7 +1,10 @@
 use crate::assets::{HMaterial, HShader, HTexture2D};
 use crate::material_inputs::{MaterialImmediateDef, MaterialInputLayout, MaterialTextureDef};
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
+use crate::store::{
+    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+};
 use crate::{MaterialShaderSet, store_add_checked};
+use crossbeam_channel::Sender;
 use glamx::Vec3;
 use syrillian_shadergen::value::{MaterialValue, MaterialValueType};
 
@@ -215,6 +218,16 @@ impl StoreType for Material {
             HMaterial::DEFAULT_ID => HandleName::Static("Default Material"),
             _ => HandleName::Id(handle),
         }
+    }
+
+    fn refresh_dirty(
+        &self,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateMaterial(self.clone())))
+            .is_ok()
     }
 
     fn is_builtin(handle: H<Self>) -> bool {

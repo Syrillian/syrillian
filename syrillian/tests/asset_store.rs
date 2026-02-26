@@ -1,8 +1,8 @@
-use syrillian::core::Vertex3D;
 use syrillian::math::{Vec2, Vec3};
+use syrillian_asset::mesh::{Bones, PartialMesh, SkinnedVertex3D, UnskinnedVertex3D};
 use syrillian_asset::{
     AssetStore, Font, HMaterial, HMaterialInstance, HMesh, HShader, HTexture2D, MaterialInstance,
-    Mesh, Shader, Sound, Texture2D,
+    Mesh, Shader, SkinnedMesh, Sound, Texture2D,
 };
 
 #[test]
@@ -20,33 +20,27 @@ fn test_mesh_store() {
     let store = AssetStore::new();
 
     let vertices = vec![
-        Vertex3D::new(
+        UnskinnedVertex3D::new(
             Vec3::new(0.0, 0.0, 0.0),
             Vec2::new(0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
-            &[0u32],
-            &[0.0f32],
         ),
-        Vertex3D::new(
+        UnskinnedVertex3D::new(
             Vec3::new(1.0, 0.0, 0.0),
             Vec2::new(1.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
-            &[0u32],
-            &[0.0f32],
         ),
-        Vertex3D::new(
+        UnskinnedVertex3D::new(
             Vec3::new(0.0, 0.0, 1.0),
             Vec2::new(0.0, 1.0),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
-            &[0u32],
-            &[0.0f32],
         ),
     ];
 
-    let mesh = Mesh::builder(vertices).build();
+    let mesh = Mesh::builder().data(vertices, None).build();
     let handle = store.meshes.add(mesh);
     let retrieved_mesh = store.meshes.try_get(handle);
     assert!(retrieved_mesh.is_some());
@@ -174,7 +168,7 @@ fn test_predefined_textures() {
 fn test_remove_asset() {
     let store = AssetStore::new();
 
-    let vertices = vec![Vertex3D::new(
+    let vertices = vec![SkinnedVertex3D::new(
         Vec3::new(0.0, 0.0, 0.0),
         Vec2::new(0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
@@ -183,37 +177,38 @@ fn test_remove_asset() {
         &[0.0f32],
     )];
 
-    let mesh = Mesh::builder(vertices).build();
+    let mesh = SkinnedMesh::builder()
+        .bones(Bones::new())
+        .data(vertices, None)
+        .build();
     let mesh2 = mesh.clone();
 
-    let handle = store.meshes.add(mesh);
-    let handle2 = store.meshes.add(mesh2);
+    let handle = store.skinned_meshes.add(mesh);
+    let handle2 = store.skinned_meshes.add(mesh2);
 
-    assert!(store.meshes.try_get(handle).is_some());
+    assert!(store.skinned_meshes.try_get(handle).is_some());
 
-    let removed_mesh = store.meshes.remove(handle);
+    let removed_mesh = store.skinned_meshes.remove(handle);
 
     assert!(removed_mesh.is_some());
-    assert!(store.meshes.try_get(handle).is_none());
-    assert!(store.meshes.try_get(handle2).is_some());
+    assert!(store.skinned_meshes.try_get(handle).is_none());
+    assert!(store.skinned_meshes.try_get(handle2).is_some());
 }
 
 #[test]
 fn test_iterate_assets() {
     let store = AssetStore::new();
 
-    let vertices = vec![Vertex3D::new(
+    let vertices = vec![UnskinnedVertex3D::new(
         Vec3::new(0.0, 0.0, 0.0),
         Vec2::new(0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
-        &[0u32],
-        &[0.0f32],
     )];
 
-    let mesh1 = Mesh::builder(vertices.clone()).build();
-    let mesh2 = Mesh::builder(vertices.clone()).build();
-    let mesh3 = Mesh::builder(vertices.clone()).build();
+    let mesh1 = Mesh::builder().data(vertices.clone(), None).build();
+    let mesh2 = Mesh::builder().data(vertices.clone(), None).build();
+    let mesh3 = Mesh::builder().data(vertices.clone(), None).build();
 
     store.meshes.add(mesh1);
     store.meshes.add(mesh2);

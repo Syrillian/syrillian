@@ -13,7 +13,7 @@ pub mod transform;
 pub use object::*;
 pub use object_extensions::*;
 pub use syrillian_asset::mesh::bone::*;
-pub use syrillian_asset::mesh::vertex::*;
+pub use syrillian_asset::mesh::skinned_vertex::*;
 pub use syrillian_utils::BoundingSphere;
 pub use syrillian_utils::Frustum;
 pub use transform::*;

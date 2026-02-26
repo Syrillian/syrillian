@@ -1,12 +1,13 @@
-use crate::assets::mesh::{Bones, Mesh, Vertex3D};
+use crate::assets::mesh::{Bones, Mesh};
 use crate::assets::prefab::{PrefabAsset, PrefabMaterial, PrefabMeshBinding, PrefabNode};
 use crate::assets::shader::{Shader, ShaderCode, ShaderType};
 use crate::assets::texture_2d::Texture2D;
+use crate::mesh::{PartialMesh, SkinnedVertex3D, UnskinnedVertex3D};
 use crate::{AnimationChannel, AnimationClip, TransformKeys};
 use std::collections::BTreeMap;
 use syrillian_reflect::{ReflectSerialize, Value};
 
-impl ReflectSerialize for Vertex3D {
+impl ReflectSerialize for SkinnedVertex3D {
     fn serialize(this: &Self) -> Value {
         Value::Object(BTreeMap::from([
             (
@@ -29,6 +30,26 @@ impl ReflectSerialize for Vertex3D {
             (
                 "bone_weights".to_string(),
                 ReflectSerialize::serialize(&this.bone_weights.to_vec()),
+            ),
+        ]))
+    }
+}
+
+impl ReflectSerialize for UnskinnedVertex3D {
+    fn serialize(this: &Self) -> Value {
+        Value::Object(BTreeMap::from([
+            (
+                "position".to_string(),
+                ReflectSerialize::serialize(&this.position),
+            ),
+            ("uv".to_string(), ReflectSerialize::serialize(&this.uv)),
+            (
+                "normal".to_string(),
+                ReflectSerialize::serialize(&this.normal),
+            ),
+            (
+                "tangent".to_string(),
+                ReflectSerialize::serialize(&this.tangent),
             ),
         ]))
     }
@@ -87,21 +108,14 @@ impl ReflectSerialize for Mesh {
                 ReflectSerialize::serialize(&this.material_ranges),
             ),
             (
-                "bones".to_string(),
-                ReflectSerialize::serialize(&this.bones),
-            ),
-            (
                 "bounding_sphere".to_string(),
-                Value::Object(BTreeMap::from([
-                    (
-                        "center".to_string(),
-                        ReflectSerialize::serialize(&this.bounding_sphere.center),
-                    ),
-                    (
-                        "radius".to_string(),
-                        Value::Float(this.bounding_sphere.radius),
-                    ),
-                ])),
+                match this.bounding_sphere {
+                    None => Value::None,
+                    Some(ref b) => Value::Object(BTreeMap::from([
+                        ("center".to_string(), ReflectSerialize::serialize(&b.center)),
+                        ("radius".to_string(), Value::Float(b.radius)),
+                    ])),
+                },
             ),
         ]))
     }
@@ -366,7 +380,12 @@ impl ReflectSerialize for PrefabAsset {
 
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets::mesh,
-    Vertex3D,
+    SkinnedVertex3D,
+    &[]
+));
+syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
+    syrillian_asset::assets::mesh,
+    UnskinnedVertex3D,
     &[]
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(

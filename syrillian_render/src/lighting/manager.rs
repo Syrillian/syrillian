@@ -1,4 +1,4 @@
-use crate::cache::AssetCache;
+use crate::cache::{AssetCache, TextureAsset};
 use crate::lighting::proxy::{LightProxy, LightType, LightUniformIndex, ShadowUniformIndex};
 use crate::rendering::message::LightProxyCommand;
 use crate::rendering::render_data::RenderUniformData;
@@ -9,13 +9,14 @@ use crate::rendering::uniform::ShaderUniform;
 use crate::try_activate_shader;
 use glamx::Mat4;
 use itertools::Itertools;
-use syrillian_asset::store::{Ref, Store, StoreType};
-use syrillian_asset::{HRenderTexture2DArray, RenderTexture2DArray};
+use std::sync::Arc;
+use syrillian_asset::RenderTexture2DArray;
+use syrillian_render::cache::GpuTexture;
 use syrillian_utils::{TypedComponentId, debug_panic};
 use tracing::{trace, warn};
 use wgpu::{
     AddressMode, Device, FilterMode, MipmapFilterMode, Queue, Sampler, SamplerDescriptor,
-    TextureUsages, TextureView, TextureViewDescriptor,
+    TextureView,
 };
 
 const DUMMY_POINT_LIGHT: LightProxy = LightProxy::dummy();
@@ -29,7 +30,7 @@ pub struct LightManager {
     uniform: ShaderUniform<LightUniformIndex>,
     shadow_uniform: ShaderUniform<ShadowUniformIndex>,
     empty_shadow_uniform: ShaderUniform<ShadowUniformIndex>,
-    pub shadow_texture: HRenderTexture2DArray,
+    pub shadow_texture: Arc<GpuTexture>,
     pub _shadow_sampler: Sampler,
     shadow_matrices: Vec<Mat4>,
 }
@@ -91,8 +92,8 @@ impl LightManager {
                 self.render_data.push(RenderUniformData::empty(
                     device,
                     &render_bgl,
-                    fallback_skybox.view.clone(),
-                    fallback_skybox.sampler.clone(),
+                    fallback_skybox.view().clone(),
+                    fallback_skybox.sampler().clone(),
                 ));
             }
 
@@ -152,26 +153,12 @@ impl LightManager {
         cmd(proxy);
     }
 
-    pub fn shadow_array<'a>(
-        &self,
-        assets: &'a Store<RenderTexture2DArray>,
-    ) -> Option<Ref<'a, RenderTexture2DArray>> {
-        assets.try_get(self.shadow_texture)
+    pub fn shadow_array<'a>(&self) -> &GpuTexture {
+        &self.shadow_texture
     }
 
-    pub fn shadow_layer(&self, cache: &AssetCache, layer: u32) -> Option<TextureView> {
-        let texture = &cache.render_texture_array(self.shadow_texture)?.texture;
-        Some(texture.create_view(&TextureViewDescriptor {
-            label: Some("Shadow Map Layer"),
-            format: Some(wgpu::TextureFormat::Depth32Float),
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            aspect: wgpu::TextureAspect::All,
-            base_mip_level: 0,
-            mip_level_count: None,
-            base_array_layer: layer,
-            array_layer_count: Some(1),
-            usage: Some(TextureUsages::RENDER_ATTACHMENT),
-        }))
+    pub fn shadow_layer(&self, layer: u32) -> Option<&TextureView> {
+        self.shadow_texture.layer_view(layer)
     }
 
     pub fn uniform(&self) -> &ShaderUniform<LightUniformIndex> {
@@ -207,28 +194,23 @@ impl LightManager {
     }
 
     #[profiling::function]
-    pub fn new(cache: &AssetCache, device: &Device) -> Self {
+    pub fn new(cache: &AssetCache, device: &Device, queue: &Queue) -> Self {
         const DUMMY_POINT_LIGHT: LightProxy = LightProxy::dummy();
 
-        let shadow_texture = RenderTexture2DArray::new_shadow_map(48, 1024, 1024).store(&cache);
-        let empty_shadow_texture = RenderTexture2DArray::new_shadow_map(2, 1, 1).store(&cache);
-        let texture = cache
-            .render_texture_arrays
-            .try_get(shadow_texture, cache)
-            .unwrap();
-        let empty_texture = cache
-            .render_texture_arrays
-            .try_get(empty_shadow_texture, cache)
-            .unwrap();
+        let shadow_texture =
+            RenderTexture2DArray::new_shadow_map(48, 1024, 1024).upload(device, queue);
+        let empty_shadow_texture =
+            RenderTexture2DArray::new_shadow_map(2, 1, 1).upload(device, queue);
+
         let shadow_matrices =
-            vec![Mat4::IDENTITY; texture.size.depth_or_array_layers.max(1) as usize];
+            vec![Mat4::IDENTITY; shadow_texture.size().depth_or_array_layers.max(1) as usize];
         let shadow_texel = [
-            1.0 / texture.size.width.max(1) as f32,
-            1.0 / texture.size.height.max(1) as f32,
+            1.0 / shadow_texture.size().width.max(1) as f32,
+            1.0 / shadow_texture.size().height.max(1) as f32,
         ];
         let empty_shadow_texel = [
-            1.0 / empty_texture.size.width.max(1) as f32,
-            1.0 / empty_texture.size.height.max(1) as f32,
+            1.0 / empty_shadow_texture.size().width.max(1) as f32,
+            1.0 / empty_shadow_texture.size().height.max(1) as f32,
         ];
 
         let bgl = cache.bgl_light();
@@ -255,14 +237,14 @@ impl LightManager {
 
         let bgl = cache.bgl_shadow();
         let shadow_uniform = ShaderUniform::builder(bgl.clone())
-            .with_texture(texture.view.clone())
+            .with_texture(shadow_texture.view().clone())
             .with_sampler(shadow_sampler.clone())
             .with_storage_buffer_data(shadow_matrices.as_slice())
             .with_buffer_data(&shadow_texel)
             .build(device);
 
         let empty_shadow_uniform = ShaderUniform::builder(bgl)
-            .with_texture(empty_texture.view.clone())
+            .with_texture(empty_shadow_texture.view().clone())
             .with_sampler(shadow_sampler.clone())
             .with_storage_buffer_data(shadow_matrices.as_slice())
             .with_buffer_data(&empty_shadow_texel)

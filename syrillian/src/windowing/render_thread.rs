@@ -1,6 +1,6 @@
 use crossbeam_channel::{Receiver, Sender, bounded, select, unbounded};
 use std::sync::Arc;
-use syrillian_asset::AssetStore;
+use syrillian_asset::store::{AssetKey, UpdateAssetMessage};
 use syrillian_render::rendering::message::RenderMsg;
 use syrillian_render::rendering::picking::PickResult;
 use syrillian_render::rendering::renderer::{RenderedFrame, Renderer};
@@ -30,14 +30,14 @@ struct RenderThreadInner {
 impl RenderThreadInner {
     fn new(
         state: Arc<State>,
-        store: Arc<AssetStore>,
         render_rx: Receiver<RenderMsg>,
         control_rx: Receiver<RenderControlMsg>,
         frame_tx: Sender<RenderBatch>,
         pick_result_tx: Sender<PickResult>,
+        assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self, syrillian_render::error::RenderError> {
-        let renderer = Renderer::new(state, store, pick_result_tx, primary_config)?;
+        let renderer = Renderer::new(state, assets_rx, pick_result_tx, primary_config)?;
         Ok(Self {
             renderer,
             render_rx,
@@ -117,6 +117,7 @@ impl RenderThreadInner {
                 profiling::finish_frame!();
             }
             msg => {
+                self.renderer.cache.refresh_dirty();
                 self.renderer.handle_message(msg);
             }
         }
@@ -136,7 +137,7 @@ pub struct RenderThread {
 impl RenderThread {
     pub fn new(
         state: Arc<State>,
-        store: Arc<AssetStore>,
+        assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
@@ -145,11 +146,11 @@ impl RenderThread {
         let (frame_tx, frame_rx) = bounded(1);
         let inner = RenderThreadInner::new(
             state,
-            store,
             render_rx,
             control_rx,
             frame_tx,
             pick_result_tx,
+            assets_rx,
             primary_config,
         )?;
 
@@ -206,7 +207,6 @@ pub struct RenderThread {
 impl RenderThread {
     pub fn new(
         state: Arc<State>,
-        store: Arc<AssetStore>,
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
@@ -215,7 +215,6 @@ impl RenderThread {
         let (frame_tx, frame_rx) = unbounded();
         let inner = RenderThreadInner::new(
             state,
-            store,
             render_rx,
             control_rx,
             frame_tx,

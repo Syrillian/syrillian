@@ -1,4 +1,4 @@
-use crate::MeshRenderer;
+use crate::SkinnedMeshRenderer;
 use itertools::izip;
 use syrillian::Reflect;
 use syrillian::World;
@@ -25,7 +25,7 @@ pub struct SkeletalComponent {
 impl Default for SkeletalComponent {
     fn default() -> Self {
         Self {
-            bones_static: Bones::none(),
+            bones_static: Bones::new(),
             skin_transform: Vec::new(),
             skin_rotation: Vec::new(),
             skin_scale: Vec::new(),
@@ -39,11 +39,11 @@ impl Default for SkeletalComponent {
 
 impl Component for SkeletalComponent {
     fn init(&mut self, world: &mut World) {
-        let Some(renderer) = self.parent().get_component::<MeshRenderer>() else {
+        let Some(renderer) = self.parent().get_component::<SkinnedMeshRenderer>() else {
             warn!("No Mesh Renderer found on Skeletal Object");
             return;
         };
-        let Some(mesh) = world.assets.meshes.try_get(renderer.mesh()) else {
+        let Some(mesh) = world.assets.skinned_meshes.try_get(renderer.mesh()) else {
             warn!("No Mesh found for the Mesh linked in a Mesh Renderer");
             return;
         };

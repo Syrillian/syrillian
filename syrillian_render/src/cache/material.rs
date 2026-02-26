@@ -1,9 +1,9 @@
 use crate::cache::{AssetCache, CacheType, GpuTexture};
 use std::collections::HashMap;
 use std::sync::Arc;
-use syrillian_asset::MaterialInstance;
 use syrillian_asset::MaterialShaderSet;
 use syrillian_asset::material_inputs::MaterialInputLayout;
+use syrillian_asset::{Material, MaterialInstance};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, Device, Queue, TextureFormat,
 };
@@ -46,39 +46,55 @@ fn material_textures(
     (ordered, by_name)
 }
 
-impl CacheType for MaterialInstance {
-    type Hot = Arc<RuntimeMaterial>;
+impl CacheType for Material {
+    type Hot = Arc<Material>;
+    type UpdateMessage = Self;
 
     #[profiling::function]
-    fn upload(mut self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
-        let material_def = cache.store().materials.get(self.material).clone();
+    fn upload(
+        this: Self::UpdateMessage,
+        _device: &Device,
+        _queue: &Queue,
+        _cache: &AssetCache,
+    ) -> Self::Hot {
+        Arc::new(this)
+    }
+}
+
+impl CacheType for MaterialInstance {
+    type Hot = Arc<RuntimeMaterial>;
+    type UpdateMessage = Self;
+
+    #[profiling::function]
+    fn upload(mut this: Self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
+        let material_def = cache.materials.get(this.material).clone();
 
         let layout = material_def.layout().clone();
         let shader_set = material_def.shader_set();
 
-        let (textures, texture_map) = material_textures(&self, &layout, cache);
+        let (textures, texture_map) = material_textures(&this, &layout, cache);
 
         for tex in &layout.textures {
             let flag = format!("use_{}_texture", tex.name);
-            let use_tex = self.textures.get(&tex.name).and_then(|v| *v).is_some();
-            self.set_bool(&flag, use_tex, &layout);
+            let use_tex = this.textures.get(&tex.name).and_then(|v| *v).is_some();
+            this.set_bool(&flag, use_tex, &layout);
         }
 
         if let Some(tex) = texture_map.get("diffuse") {
-            let grayscale = tex.format == TextureFormat::Rg8Unorm;
-            self.set_bool("grayscale_diffuse", grayscale, &layout);
+            let grayscale = tex.format() == TextureFormat::Rg8Unorm;
+            this.set_bool("grayscale_diffuse", grayscale, &layout);
         }
 
-        let cast_shadows = self.value_bool("cast_shadows").unwrap_or(true);
+        let cast_shadows = this.value_bool("cast_shadows").unwrap_or(true);
 
-        let alpha = self.value_f32("alpha").unwrap_or(1.0);
-        let has_transparency_flag = self.value_bool("has_transparency").unwrap_or(false);
+        let alpha = this.value_f32("alpha").unwrap_or(1.0);
+        let has_transparency_flag = this.value_bool("has_transparency").unwrap_or(false);
         let diffuse_has_transparency = texture_map
             .get("diffuse")
             .is_some_and(|t| t.has_transparency);
         let transparent = alpha < 1.0 || has_transparency_flag || diffuse_has_transparency;
 
-        let immediates = layout.pack_immediates(&self.values);
+        let immediates = layout.pack_immediates(&this.values);
 
         let bgl = cache.material_layout(&layout);
         let mut entries: Vec<BindGroupEntry> = Vec::new();
@@ -86,12 +102,12 @@ impl CacheType for MaterialInstance {
         for tex in &textures {
             entries.push(BindGroupEntry {
                 binding,
-                resource: BindingResource::TextureView(&tex.view),
+                resource: BindingResource::TextureView(&tex.view()),
             });
             binding += 1;
             entries.push(BindGroupEntry {
                 binding,
-                resource: BindingResource::Sampler(&tex.sampler),
+                resource: BindingResource::Sampler(tex.sampler()),
             });
             binding += 1;
         }

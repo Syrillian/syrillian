@@ -1,10 +1,9 @@
-use crate::SkeletalComponent;
 use syrillian::assets::{HMaterialInstance, HMesh};
 use syrillian::components::Component;
-use syrillian::core::{BoneData, Vertex3D};
 use syrillian::math::Vec3;
 use syrillian::tracing::warn;
 use syrillian::{Reflect, World};
+use syrillian_render::proxies::skinned_mesh_proxy::SkinnedMeshSceneProxy;
 use syrillian_render::proxies::{MeshSceneProxy, SceneProxy};
 use syrillian_render::proxy_data_mut;
 use syrillian_render::rendering::CPUDrawCtx;
@@ -26,9 +25,8 @@ pub struct MeshRenderer {
 
 impl Default for MeshRenderer {
     fn default() -> Self {
-        // TODO: Null Asset Handles
         MeshRenderer {
-            mesh: HMesh::UNIT_CUBE,
+            mesh: HMesh::invalid(),
             materials: vec![],
             dirty_mesh: false,
             dirty_materials: false,
@@ -49,27 +47,11 @@ impl Component for MeshRenderer {
             mesh: self.mesh,
             materials: self.materials.clone(),
             material_ranges: mesh.material_ranges.clone(),
-            bone_data: BoneData::new_full_identity(),
-            bones_dirty: false,
-            skinned: !mesh.bones.is_empty(),
-            bounding: mesh.bones.is_empty().then_some(mesh.bounding_sphere),
+            bounding: None,
         }))
     }
 
     fn update_proxy(&mut self, world: &World, mut ctx: CPUDrawCtx) {
-        if let Some(mut skel) = self.parent().get_component::<SkeletalComponent>()
-            && skel.update_palette()
-        {
-            let palette = skel.palette().to_vec();
-            ctx.send_proxy_update(move |sc| {
-                let data: &mut MeshSceneProxy = proxy_data_mut!(sc);
-
-                // TODO: The copy is expensive, but it only happens if the skeleton actually got updated
-                data.bone_data.set_first_n(&palette);
-                data.bones_dirty = true;
-            });
-        }
-
         if !self.dirty_mesh && !self.dirty_materials {
             return;
         }
@@ -84,13 +66,10 @@ impl Component for MeshRenderer {
         if self.dirty_mesh {
             let h_mesh = self.mesh;
             let bounds = mesh.bounding_sphere;
-            let skinned = !mesh.bones.is_empty();
             ctx.send_proxy_update(move |sc| {
                 let data: &mut MeshSceneProxy = proxy_data_mut!(sc);
                 data.mesh = h_mesh;
-                data.bounding = (!skinned).then_some(bounds);
-                data.skinned = skinned;
-                data.bones_dirty = skinned;
+                data.bounding = bounds;
             })
         }
 
@@ -98,7 +77,7 @@ impl Component for MeshRenderer {
             let materials = self.materials.clone();
             let material_ranges = mesh.material_ranges.clone();
             ctx.send_proxy_update(move |sc| {
-                let data: &mut MeshSceneProxy = proxy_data_mut!(sc);
+                let data: &mut SkinnedMeshSceneProxy = proxy_data_mut!(sc);
                 data.materials = materials;
                 data.material_ranges = material_ranges;
             });
@@ -134,14 +113,5 @@ impl MeshRenderer {
 
     pub fn mesh(&self) -> HMesh {
         self.mesh
-    }
-}
-
-impl From<&Vertex3D> for DebugVertexNormal {
-    fn from(value: &Vertex3D) -> Self {
-        DebugVertexNormal {
-            position: value.position,
-            normal: value.normal,
-        }
     }
 }

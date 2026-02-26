@@ -7,7 +7,7 @@ use clap::{ArgAction, Parser, Subcommand, ValueHint};
 use serde_json::Value as JsonValue;
 use std::path::{Path, PathBuf};
 use std::process::exit;
-use syrillian_asset::store::streaming_asset_store::StreamingAssetFile;
+use syrillian_asset::store::streaming::asset_store::StreamingAssetFile;
 
 #[derive(Debug, Parser)]
 #[command(

@@ -1,5 +1,6 @@
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType};
+use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, UpdateAssetMessage};
 use crate::{HBGL, store_add_checked};
+use crossbeam_channel::Sender;
 use wgpu::{
     BindGroupLayoutEntry, BindingType, BufferBindingType, SamplerBindingType, ShaderStages,
     StorageTextureAccess, TextureFormat, TextureSampleType, TextureViewDimension,
@@ -25,8 +26,9 @@ impl HBGL {
     pub const BLOOM_COMPUTE_ID: u32 = 10;
     pub const SSAO_COMPUTE_ID: u32 = 11;
     pub const SSAO_APPLY_COMPUTE_ID: u32 = 12;
+    pub const FONT_ATLAS_ID: u32 = 13;
 
-    const MAX_BUILTIN_ID: u32 = 12;
+    const MAX_BUILTIN_ID: u32 = 13;
 
     pub const RENDER: HBGL = HBGL::new(Self::RENDER_ID);
     pub const MODEL: HBGL = HBGL::new(Self::MODEL_ID);
@@ -41,6 +43,7 @@ impl HBGL {
     pub const BLOOM_COMPUTE: HBGL = HBGL::new(Self::BLOOM_COMPUTE_ID);
     pub const SSAO_COMPUTE: HBGL = HBGL::new(Self::SSAO_COMPUTE_ID);
     pub const SSAO_APPLY_COMPUTE: HBGL = HBGL::new(Self::SSAO_APPLY_COMPUTE_ID);
+    pub const FONT_ATLAS: HBGL = HBGL::new(Self::FONT_ATLAS_ID);
 }
 
 impl StoreType for BGL {
@@ -66,8 +69,19 @@ impl StoreType for BGL {
             HBGL::SSAO_APPLY_COMPUTE_ID => {
                 HandleName::Static("SSAO Apply Compute Bind Group Layout")
             }
+            HBGL::FONT_ATLAS_ID => HandleName::Static("Font Atlas Bind Group Layout"),
             _ => HandleName::Id(handle),
         }
+    }
+
+    fn refresh_dirty(
+        &self,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateBGL(self.clone())))
+            .is_ok()
     }
 
     fn is_builtin(handle: H<Self>) -> bool {
@@ -589,6 +603,25 @@ const SSAO_APPLY_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 3] = [
     },
 ];
 
+const FONT_ATLAS_ENTRIES: [BindGroupLayoutEntry; 2] = [
+    BindGroupLayoutEntry {
+        binding: 0,
+        visibility: ShaderStages::FRAGMENT,
+        ty: BindingType::Texture {
+            sample_type: TextureSampleType::Float { filterable: true },
+            view_dimension: TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 1,
+        visibility: ShaderStages::FRAGMENT,
+        ty: BindingType::Sampler(SamplerBindingType::Filtering),
+        count: None,
+    },
+];
+
 impl StoreDefaults for BGL {
     fn populate(store: &mut Store<Self>) {
         store_add_checked!(
@@ -705,6 +738,15 @@ impl StoreDefaults for BGL {
             BGL {
                 label: HBGL::SSAO_APPLY_COMPUTE.ident(),
                 entries: SSAO_APPLY_COMPUTE_ENTRIES.to_vec()
+            }
+        );
+
+        store_add_checked!(
+            store,
+            HBGL::FONT_ATLAS_ID,
+            BGL {
+                label: HBGL::FONT_ATLAS.ident(),
+                entries: FONT_ATLAS_ENTRIES.to_vec()
             }
         );
     }

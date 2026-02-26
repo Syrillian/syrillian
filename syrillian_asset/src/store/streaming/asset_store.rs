@@ -1,5 +1,5 @@
-use crate::store::streaming_error::*;
-use snafu::{ResultExt, ensure};
+use crate::store::streaming::error::*;
+use snafu::{OptionExt, ResultExt, ensure};
 use std::collections::HashMap;
 use std::fs::File;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -29,21 +29,22 @@ pub const MAGIC_SIGNATURE: i32 = i32::from_ne_bytes(MAGIC_SIGNATURE_BYTES);
 #[repr(u8)]
 pub enum AssetType {
     Mesh = 0,
-    Shader = 1,
-    ComputeShader = 2,
-    Texture2D = 3,
-    Texture2DArray = 4,
-    Cubemap = 5,
-    RenderTexture2D = 6,
-    RenderTexture2DArray = 7,
-    RenderCubemap = 8,
-    Material = 9,
-    MaterialInstance = 10,
-    BGL = 11,
-    Font = 12,
-    Sound = 13,
-    AnimationClip = 14,
-    Prefab = 15,
+    SkinnedMesh = 1,
+    Shader = 2,
+    ComputeShader = 3,
+    Texture2D = 4,
+    Texture2DArray = 5,
+    Cubemap = 6,
+    RenderTexture2D = 7,
+    RenderTexture2DArray = 8,
+    RenderCubemap = 9,
+    Material = 10,
+    MaterialInstance = 11,
+    BGL = 12,
+    Font = 13,
+    Sound = 14,
+    AnimationClip = 15,
+    Prefab = 16,
 }
 
 impl AssetType {
@@ -69,27 +70,29 @@ impl AssetType {
             AssetType::Sound => "Sound",
             AssetType::AnimationClip => "AnimationClip",
             AssetType::Prefab => "Prefab",
+            AssetType::SkinnedMesh => "SkinnedMesh",
         }
     }
 
     pub const fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(AssetType::Mesh),
-            1 => Some(AssetType::Shader),
-            2 => Some(AssetType::ComputeShader),
-            3 => Some(AssetType::Texture2D),
-            4 => Some(AssetType::Texture2DArray),
-            5 => Some(AssetType::Cubemap),
-            6 => Some(AssetType::RenderTexture2D),
-            7 => Some(AssetType::RenderTexture2DArray),
-            8 => Some(AssetType::RenderCubemap),
-            9 => Some(AssetType::Material),
-            10 => Some(AssetType::MaterialInstance),
-            11 => Some(AssetType::BGL),
-            12 => Some(AssetType::Font),
-            13 => Some(AssetType::Sound),
-            14 => Some(AssetType::AnimationClip),
-            15 => Some(AssetType::Prefab),
+            1 => Some(AssetType::SkinnedMesh),
+            2 => Some(AssetType::Shader),
+            3 => Some(AssetType::ComputeShader),
+            4 => Some(AssetType::Texture2D),
+            5 => Some(AssetType::Texture2DArray),
+            6 => Some(AssetType::Cubemap),
+            7 => Some(AssetType::RenderTexture2D),
+            8 => Some(AssetType::RenderTexture2DArray),
+            9 => Some(AssetType::RenderCubemap),
+            10 => Some(AssetType::Material),
+            11 => Some(AssetType::MaterialInstance),
+            12 => Some(AssetType::BGL),
+            13 => Some(AssetType::Font),
+            14 => Some(AssetType::Sound),
+            15 => Some(AssetType::AnimationClip),
+            16 => Some(AssetType::Prefab),
             _ => None,
         }
     }
@@ -158,7 +161,7 @@ pub struct StreamingAssetBlobInfo {
     pub kind: StreamingAssetBlobKind,
     pub offset: u64,
     pub size: u64,
-    pub element_count: u64,
+    pub element_count: usize,
 }
 
 #[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
@@ -227,6 +230,27 @@ pub struct StreamingAssetEntryInfo {
     pub relative_path: Option<String>,
     pub blob_count: usize,
     pub blob_size: u64,
+}
+
+pub struct StreamingAssetPayload {
+    pub data: serde_json::Value,
+    pub blob_infos: StreamingAssetBlobInfos,
+}
+
+pub struct StreamingAssetBlobInfos {
+    pub infos: Vec<StreamingAssetBlobInfo>,
+}
+
+impl StreamingAssetBlobInfos {
+    pub fn find(
+        &self,
+        kind: StreamingAssetBlobKind,
+    ) -> Result<&StreamingAssetBlobInfo, AssetStreamingError> {
+        self.infos
+            .iter()
+            .find(|blob| blob.kind == kind)
+            .context(BlobNotFoundErr)
+    }
 }
 
 impl StreamingAssetFile {
@@ -303,6 +327,29 @@ impl StreamingAssetFile {
         self.entries().into_iter().find(|entry| entry.hash == hash)
     }
 
+    pub fn read_payload(
+        &mut self,
+        entry: &StreamingAssetEntryInfo,
+        path: &str,
+    ) -> Result<StreamingAssetPayload, AssetStreamingError> {
+        let payload =
+            self.read_payload_bytes(entry)
+                .map_err(|source| AssetStreamingError::PackageRead {
+                    path: path.to_string(),
+                    reason: source.to_string(),
+                })?;
+
+        let payload = serde_json::from_slice(&payload).context(InvalidJsonPayloadErr)?;
+
+        let blob_infos = self.blobs_for_hash(entry.hash).to_vec();
+        let blob_infos = StreamingAssetBlobInfos { infos: blob_infos };
+
+        Ok(StreamingAssetPayload {
+            data: payload,
+            blob_infos,
+        })
+    }
+
     pub fn read_payload_bytes(&mut self, entry: &StreamingAssetEntryInfo) -> Result<Vec<u8>> {
         self.handle
             .seek(SeekFrom::Start(entry.offset))
@@ -362,7 +409,7 @@ impl StreamingAssetIndex {
 
         for _ in 0..asset_count {
             let (entry, suffix) = StreamingAssetIndexEntryRaw::try_read_from_prefix(remaining)
-                .map_err(|_| StreamingAssetError::InvalidIndexEntry)?;
+                .map_err(|_| AssetStreamingError::InvalidIndexEntry)?;
 
             let mut path_bytes = vec![0_u8; entry.path_len.get() as usize];
             handle
@@ -370,7 +417,7 @@ impl StreamingAssetIndex {
                 .context(PathReadErr)?;
             handle.read_exact(&mut path_bytes).context(PathReadErr)?;
             let relative_path =
-                String::from_utf8(path_bytes).map_err(|_| StreamingAssetError::InvalidPathData)?;
+                String::from_utf8(path_bytes).map_err(|_| AssetStreamingError::InvalidPathData)?;
 
             data.insert(
                 entry.hash.get(),
@@ -414,9 +461,9 @@ impl StreamingAssetBlobIndex {
 
         for _ in 0..blob_count {
             let (entry, suffix) = StreamingAssetBlobIndexEntryRaw::try_read_from_prefix(remaining)
-                .map_err(|_| StreamingAssetError::InvalidBlobIndexEntry)?;
+                .map_err(|_| AssetStreamingError::InvalidBlobIndexEntry)?;
             let kind = StreamingAssetBlobKind::from_u8(entry.kind)
-                .ok_or(StreamingAssetError::InvalidBlobIndexEntry)?;
+                .ok_or(AssetStreamingError::InvalidBlobIndexEntry)?;
 
             data.entry(entry.owner_hash.get())
                 .or_default()
@@ -424,7 +471,7 @@ impl StreamingAssetBlobIndex {
                     kind,
                     offset: entry.offset.get(),
                     size: entry.size.get(),
-                    element_count: entry.element_count.get(),
+                    element_count: entry.element_count.get() as usize,
                 });
             remaining = suffix;
         }

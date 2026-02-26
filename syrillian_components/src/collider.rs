@@ -2,6 +2,7 @@ use self::ColliderError::{DesyncedCollider, InvalidMesh, InvalidMeshRef, NoMeshR
 use snafu::Snafu;
 use syrillian::Reflect;
 use syrillian::World;
+use syrillian::assets::mesh::PartialMesh;
 use syrillian::assets::{HMesh, Mesh};
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
@@ -11,9 +12,9 @@ use syrillian::tracing::{trace, warn};
 
 use crate::{MeshRenderer, RigidBodyComponent};
 #[cfg(debug_assertions)]
-use syrillian::assets::store::StoreType;
+use syrillian::assets::mesh::UnskinnedVertex3D;
 #[cfg(debug_assertions)]
-use syrillian::core::Vertex3D;
+use syrillian::assets::store::StoreType;
 #[cfg(debug_assertions)]
 use syrillian::math::Affine3A;
 #[cfg(debug_assertions)]
@@ -312,11 +313,11 @@ impl Collider3D {
         let vertices: Vec<_> = vertices
             .iter()
             .copied()
-            .map(Vertex3D::position_only)
+            .map(UnskinnedVertex3D::position_only)
             .collect();
 
-        Mesh::builder(vertices)
-            .with_indices(indices.into_flattened())
+        Mesh::builder()
+            .data(vertices, Some(indices.into_flattened()))
             .build()
             .store(world)
     }

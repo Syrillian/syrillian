@@ -1,15 +1,24 @@
-use crate::cache::AssetCache;
 use crate::cache::glyph::GlyphBitmap;
+use crate::cache::{AssetCache, GpuTexture, TextureAsset};
+use crate::rendering::uniform::ShaderUniform;
 use etagere::{AtlasAllocator, size2};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use syrillian_asset::store::AssetStore;
-use syrillian_asset::{HMaterial, HMaterialInstance, HTexture2D, MaterialInstance, Texture2D};
+use syrillian_asset::Texture2D;
+use syrillian_macros::UniformIndex;
 use ttf_parser::Face;
-use wgpu::{Extent3d, Origin3d, TexelCopyBufferLayout, TextureAspect, TextureFormat};
+use wgpu::{
+    BindGroup, Device, Extent3d, Origin3d, Queue, TexelCopyBufferLayout, TextureAspect,
+    TextureFormat,
+};
 
+#[derive(Debug, Copy, Clone, UniformIndex)]
+pub(super) enum FontAtlasBG {
+    Atlas = 0,
+    Sampler = 1,
+}
 #[derive(Clone, Copy, Debug)]
 pub struct GlyphAtlasEntry {
     pub uv_min: [f32; 2],
@@ -46,17 +55,19 @@ pub struct MsdfAtlas {
 
     face_bytes: Arc<Vec<u8>>,
 
-    pub texture: HTexture2D,
-    pub material: HMaterialInstance,
+    pub texture: Arc<GpuTexture>,
+    binding: ShaderUniform<FontAtlasBG>,
 }
 
 impl MsdfAtlas {
     pub fn new(
+        device: &Device,
+        queue: &Queue,
+        cache: &AssetCache,
         face_bytes: Arc<Vec<u8>>,
         atlas_size: u32,
         shrinkage: f64,
         range: f64,
-        store: &AssetStore,
     ) -> Self {
         let face = Face::parse(&face_bytes, 0).expect("parse face");
         let units_per_em = face.units_per_em() as f32;
@@ -76,15 +87,14 @@ impl MsdfAtlas {
             width,
             height,
             TextureFormat::Rgba8Unorm, // linear
-        );
-        let texture = store.textures.add(texture);
+        )
+        .upload(device, queue);
 
-        let material = MaterialInstance::builder()
-            .name("MSDF Font Atlas")
-            .material(HMaterial::DEFAULT)
-            .diffuse_texture(texture)
-            .build();
-        let material = store.material_instances.add(material);
+        let bgl = cache.bgl_font_atlas();
+        let binding = ShaderUniform::builder(bgl)
+            .with_texture(texture.view().clone())
+            .with_sampler(texture.sampler().clone())
+            .build(device);
 
         Self {
             width,
@@ -103,7 +113,7 @@ impl MsdfAtlas {
             range,
             face_bytes,
             texture,
-            material,
+            binding,
         }
     }
 
@@ -118,14 +128,13 @@ impl MsdfAtlas {
 
     pub fn integrate_ready_glyph(
         &mut self,
-        cache: &AssetCache,
-        queue: &wgpu::Queue,
+        queue: &Queue,
         glyph: GlyphBitmap,
     ) -> Option<GlyphAtlasEntry> {
         let region = self.allocate_region(&glyph)?;
 
         self.blit_glyph(&glyph, &region);
-        self.upload_region(cache, queue, &region);
+        self.upload_region(queue, &region);
 
         let entry = self.build_entry(&glyph, &region);
         self.entries.write().unwrap().insert(glyph.ch, entry);
@@ -144,12 +153,12 @@ impl MsdfAtlas {
         self.entries.read().unwrap().contains_key(&ch)
     }
 
-    pub fn texture(&self) -> HTexture2D {
-        self.texture
+    pub fn texture(&self) -> &Arc<GpuTexture> {
+        &self.texture
     }
 
-    pub fn material(&self) -> HMaterialInstance {
-        self.material
+    pub fn bind_group(&self) -> &BindGroup {
+        self.binding.bind_group()
     }
 }
 
@@ -205,10 +214,9 @@ impl MsdfAtlas {
         }
     }
 
-    fn upload_region(&self, cache: &AssetCache, queue: &wgpu::Queue, region: &AtlasRegion) {
-        let gpu_texture = cache.textures.try_get(self.texture, cache).unwrap();
+    fn upload_region(&self, queue: &Queue, region: &AtlasRegion) {
         let copy = wgpu::TexelCopyTextureInfo {
-            texture: &gpu_texture.texture,
+            texture: &self.texture.texture,
             mip_level: 0,
             origin: region.origin,
             aspect: TextureAspect::All,

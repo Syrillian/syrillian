@@ -101,7 +101,7 @@ impl Frustum {
     }
 
     pub fn bounding_sphere(&self) -> BoundingSphere {
-        BoundingSphere::from_corners(&self.corners())
+        BoundingSphere::from_positions(self.corners())
     }
 
     fn intersect_planes(p1: &FrustumPlane, p2: &FrustumPlane, p3: &FrustumPlane) -> Vec3 {

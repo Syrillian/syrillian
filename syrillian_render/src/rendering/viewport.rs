@@ -67,8 +67,8 @@ impl RenderViewport {
         let render_data = RenderUniformData::empty(
             device,
             &render_bgl,
-            fallback_skybox.view.clone(),
-            fallback_skybox.sampler.clone(),
+            fallback_skybox.view().clone(),
+            fallback_skybox.sampler().clone(),
         );
         let post_pipeline = RenderPipeline::new(device, cache, &config);
 
@@ -207,8 +207,8 @@ impl RenderViewport {
         self.render_data.rebuild_bind_group(
             device,
             &render_bgl,
-            skybox.view.clone(),
-            skybox.sampler.clone(),
+            skybox.view().clone(),
+            skybox.sampler().clone(),
         );
         self.resolved_skybox = resolved;
     }

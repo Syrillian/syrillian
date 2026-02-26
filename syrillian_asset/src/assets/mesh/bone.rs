@@ -47,10 +47,6 @@ impl Bones {
     pub fn as_slice(&self) -> &[Mat4] {
         self.inverse_bind.as_slice()
     }
-
-    pub fn none() -> Bones {
-        Bones::default()
-    }
 }
 
 #[derive(Debug, Default, Clone)]

@@ -7,13 +7,16 @@ use syrillian::assets::{HMaterialInstance, HMesh, HTexture2D, Mesh, Texture2D};
 use syrillian::core::GameObjectId;
 use syrillian::tracing::{trace, warn};
 use syrillian_asset::store::H;
-use syrillian_asset::store::packaged_scene::PackagedScene;
-use syrillian_asset::store::streaming_asset_store::{hash_relative_path, normalize_asset_path};
+use syrillian_asset::store::streaming::AssetStreamingError;
+use syrillian_asset::store::streaming::asset_store::{hash_relative_path, normalize_asset_path};
+use syrillian_asset::store::streaming::packaged_scene::PackagedScene;
 use syrillian_asset::{
-    AnimationClip, AssetStore, AssetStreamingError, PrefabAsset, PrefabMaterial, PrefabMeshBinding,
-    StreamingLoadableAsset,
+    AnimationClip, AssetStore, HSkinnedMesh, PrefabAsset, PrefabMaterial, PrefabMeshBinding,
+    SkinnedMesh, StreamingLoadableAsset,
 };
-use syrillian_components::{AnimationComponent, MeshRenderer, SkeletalComponent};
+use syrillian_components::{
+    AnimationComponent, MeshRenderer, SkeletalComponent, SkinnedMeshRenderer,
+};
 
 #[derive(Debug, Snafu)]
 #[snafu(context(suffix(Err)), visibility(pub(crate)))]
@@ -28,7 +31,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct SceneLoader;
 
 impl SceneLoader {
-    /// Loads a prefab from mounted streaming packages and instantiates it in the world.
+    /// Loads a prefab from mounted decoding packages and instantiates it in the world.
     pub fn load_prefab_by_path(world: &mut World, prefab_path: &str) -> Result<GameObjectId> {
         let prefab_handle = world
             .assets
@@ -66,6 +69,7 @@ impl SceneLoader {
 struct PrefabInstantiationContext<'a> {
     world: &'a mut World,
     mesh_handles_by_path: HashMap<String, HMesh>,
+    skinned_mesh_handles_by_path: HashMap<String, HSkinnedMesh>,
     texture_handles_by_path: HashMap<String, HTexture2D>,
     material_handles_by_hash: HashMap<u64, HMaterialInstance>,
     animation_clips_by_path: HashMap<String, AnimationClip>,
@@ -76,6 +80,7 @@ impl<'a> PrefabInstantiationContext<'a> {
         Self {
             world,
             mesh_handles_by_path: HashMap::new(),
+            skinned_mesh_handles_by_path: HashMap::new(),
             texture_handles_by_path: HashMap::new(),
             material_handles_by_hash: HashMap::new(),
             animation_clips_by_path: HashMap::new(),
@@ -85,19 +90,29 @@ impl<'a> PrefabInstantiationContext<'a> {
     fn register_packaged_scene(&mut self, scene: PackagedScene) -> PrefabAsset {
         for mesh_asset in scene.meshes {
             let path = normalize_asset_path(&mesh_asset.virtual_path);
-            let handle = self.world.assets.meshes.add(mesh_asset.mesh);
+            let handle = self.world.assets.meshes.add(mesh_asset.asset);
             self.mesh_handles_by_path.insert(path, handle);
+        }
+
+        for skinned_mesh_asset in scene.skinned_meshes {
+            let path = normalize_asset_path(&skinned_mesh_asset.virtual_path);
+            let handle = self
+                .world
+                .assets
+                .skinned_meshes
+                .add(skinned_mesh_asset.asset);
+            self.skinned_mesh_handles_by_path.insert(path, handle);
         }
 
         for texture_asset in scene.textures {
             let path = normalize_asset_path(&texture_asset.virtual_path);
-            let handle = self.world.assets.textures.add(texture_asset.texture);
+            let handle = self.world.assets.textures.add(texture_asset.asset);
             self.texture_handles_by_path.insert(path, handle);
         }
 
         for material_asset in scene.materials {
             let hash = hash_relative_path(&material_asset.virtual_path);
-            let prefab_material = material_asset.material;
+            let prefab_material = material_asset.asset;
             let material_instance =
                 PrefabMaterialInstantiation::instantiate(&prefab_material, |path| {
                     self.resolve_texture(path)
@@ -110,10 +125,10 @@ impl<'a> PrefabInstantiationContext<'a> {
         for animation_asset in scene.animations {
             let path = normalize_asset_path(&animation_asset.virtual_path);
             self.animation_clips_by_path
-                .insert(path, animation_asset.clip);
+                .insert(path, animation_asset.asset);
         }
 
-        let prefab = scene.prefab.prefab;
+        let prefab = scene.prefab.asset;
         self.world.assets.prefabs.add(prefab.clone());
         prefab
     }
@@ -173,16 +188,15 @@ impl<'a> PrefabInstantiationContext<'a> {
     }
 
     fn attach_mesh_binding(&mut self, object: &mut GameObjectId, mesh_binding: &PrefabMeshBinding) {
-        let Some(mesh_handle) = self.resolve_mesh(&mesh_binding.mesh_asset) else {
+        let skinned_handle = self.resolve_skinned_mesh(&mesh_binding.mesh_asset);
+        let unskinned_handle = self.resolve_mesh(&mesh_binding.mesh_asset);
+        if skinned_handle.is_none() && unskinned_handle.is_none() {
+            warn!(
+                "Mesh binding '{}' was unresolvable",
+                mesh_binding.mesh_asset
+            );
             return;
-        };
-
-        let has_bones = self
-            .world
-            .assets
-            .meshes
-            .try_get(mesh_handle)
-            .is_some_and(|mesh| !mesh.bones.is_empty());
+        }
 
         let material_handles = if mesh_binding.material_hashes.is_empty() {
             None
@@ -196,12 +210,15 @@ impl<'a> PrefabInstantiationContext<'a> {
             )
         };
 
-        object
-            .add_component::<MeshRenderer>()
-            .change_mesh(mesh_handle, material_handles);
-
-        if has_bones {
+        if let Some(skinned_handle) = skinned_handle {
+            object
+                .add_component::<SkinnedMeshRenderer>()
+                .change_mesh(skinned_handle, material_handles);
             object.add_component::<SkeletalComponent>();
+        } else if let Some(unskinned_handle) = unskinned_handle {
+            object
+                .add_component::<MeshRenderer>()
+                .change_mesh(unskinned_handle, material_handles);
         }
     }
 
@@ -227,6 +244,14 @@ impl<'a> PrefabInstantiationContext<'a> {
         resolve_cached_by_path::<Mesh>(
             self.world.assets.as_ref(),
             &mut self.mesh_handles_by_path,
+            mesh_asset_path,
+        )
+    }
+
+    fn resolve_skinned_mesh(&mut self, mesh_asset_path: &str) -> Option<HSkinnedMesh> {
+        resolve_cached_by_path::<SkinnedMesh>(
+            self.world.assets.as_ref(),
+            &mut self.skinned_mesh_handles_by_path,
             mesh_asset_path,
         )
     }

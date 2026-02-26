@@ -88,10 +88,10 @@ impl<S: AppState> App<S> {
     fn init(&mut self, event_loop: &ActiveEventLoop) {
         info!("Initializing render state");
 
-        let asset_store = AssetStore::new();
+        let (asset_store, assets_rx) = AssetStore::new();
         match asset_store.hook_default_packages() {
             Ok(count) if count > 0 => {
-                info!("Mounted {count} packaged asset file(s) for streaming");
+                info!("Mounted {count} packaged asset file(s) for decoding");
             }
             Ok(_) => {}
             Err(err) => {
@@ -140,7 +140,7 @@ impl<S: AppState> App<S> {
 
         let render_thread = match RenderThread::new(
             state.clone(),
-            asset_store.clone(),
+            assets_rx,
             render_state_rx,
             pick_result_tx,
             config.clone(),

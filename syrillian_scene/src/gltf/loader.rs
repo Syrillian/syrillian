@@ -1,5 +1,5 @@
 use crate::GltfScene;
-use crate::gltf::meshes::MeshData;
+use crate::gltf::meshes::{MeshData, MeshLoadResult};
 use crate::gltf::prefabs::build_prefab_node;
 use crate::gltf::textures::{TextureUsageInfo, collect_material_texture_usage};
 use crate::scene_loader::SceneLoader;
@@ -11,11 +11,11 @@ use std::path::Path;
 use syrillian::World;
 use syrillian::core::GameObjectId;
 use syrillian_asset::PrefabAsset;
-use syrillian_asset::store::packaged_scene::{
+use syrillian_asset::store::streaming::asset_store::hash_relative_path;
+use syrillian_asset::store::streaming::packaged_scene::{
     PackagedAnimationAsset, PackagedMaterialAsset, PackagedMeshAsset, PackagedPrefabAsset,
-    PackagedScene, PackagedTextureAsset,
+    PackagedScene, PackagedSkinnedMeshAsset, PackagedTextureAsset,
 };
-use syrillian_asset::store::streaming_asset_store::hash_relative_path;
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
@@ -161,6 +161,7 @@ impl GltfLoader {
         }
 
         let mut meshes_out = Vec::new();
+        let mut skinned_meshes_out = Vec::new();
         let mut mesh_path_of = HashMap::new();
         let mut mesh_materials_of: HashMap<usize, Vec<u32>> = HashMap::new();
         let mut used_mesh_names = HashSet::new();
@@ -192,7 +193,19 @@ impl GltfLoader {
 
             mesh_path_of.insert(node_index, virtual_path.clone());
             mesh_materials_of.insert(node_index, material_indices);
-            meshes_out.push(PackagedMeshAsset { virtual_path, mesh });
+            match mesh {
+                MeshLoadResult::Unskinned(mesh) => meshes_out.push(PackagedMeshAsset {
+                    virtual_path,
+                    asset: mesh,
+                }),
+
+                MeshLoadResult::Skinned(mesh) => {
+                    skinned_meshes_out.push(PackagedSkinnedMeshAsset {
+                        virtual_path,
+                        asset: mesh,
+                    })
+                }
+            }
         }
 
         let mut texture_usage = HashMap::new();
@@ -237,7 +250,7 @@ impl GltfLoader {
             texture_path_of.insert(texture_index, virtual_path.clone());
             textures_out.push(PackagedTextureAsset {
                 virtual_path,
-                texture: decoded,
+                asset: decoded,
             });
         }
 
@@ -269,7 +282,7 @@ impl GltfLoader {
             let material_hash = hash_relative_path(&material_virtual_path);
             materials_out.push(PackagedMaterialAsset {
                 virtual_path: material_virtual_path,
-                material: prefab_material,
+                asset: prefab_material,
             });
 
             material_hash_of.insert(material_index, material_hash);
@@ -287,7 +300,10 @@ impl GltfLoader {
             );
             let virtual_path = format!("{virtual_root}/Animations/{name}");
             animation_assets.push(virtual_path.clone());
-            animations_out.push(PackagedAnimationAsset { virtual_path, clip });
+            animations_out.push(PackagedAnimationAsset {
+                virtual_path,
+                asset: clip,
+            });
         }
 
         let mut prefab_nodes = Vec::new();
@@ -313,12 +329,13 @@ impl GltfLoader {
         Ok(PackagedScene {
             virtual_root: virtual_root.clone(),
             meshes: meshes_out,
+            skinned_meshes: skinned_meshes_out,
             textures: textures_out,
             materials: materials_out,
             animations: animations_out,
             prefab: PackagedPrefabAsset {
                 virtual_path: format!("{virtual_root}/Prefab/scene_prefab"),
-                prefab,
+                asset: prefab,
             },
         })
     }

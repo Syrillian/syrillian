@@ -146,7 +146,7 @@ impl UiText {
 
         let font = ctx.cache().font(self.font);
         font.request_glyphs(self.text.chars());
-        let _ = font.pump(ctx.cache(), &ctx.state().queue, 10);
+        let _ = font.pump(&ctx.state().queue, 10);
 
         let glyphs: Vec<GlyphRenderData> = generate_glyph_geometry_stream(
             &self.text,
@@ -217,10 +217,8 @@ impl UiText {
         if let Some(idx) = groups.model {
             pass.set_bind_group(idx, cached_text.uniform.bind_group(), &[]);
         }
-        if let Some(idx) = groups.material {
-            let material = ctx.cache().material_instance(font.atlas());
-            pass.set_bind_group(idx, &material.bind_group, &[]);
-        }
+        let atlas_binding = font.atlas_binding();
+        pass.set_bind_group(2, &atlas_binding, &[]);
 
         pass.set_immediates(0, bytemuck::bytes_of(&pc));
         pass.set_vertex_buffer(0, cached_text.glyph_vbo.slice(..));

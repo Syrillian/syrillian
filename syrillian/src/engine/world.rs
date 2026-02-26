@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::mem::{swap, take};
 use std::path::PathBuf;
 use std::sync::Arc;
-use syrillian_asset::store::Store;
+use syrillian_asset::store::{AssetKey, Store, UpdateAssetMessage};
 use syrillian_asset::{AssetStore, ComputeShader};
 use syrillian_asset::{
     BGL, Cubemap, HCubemap, Material, MaterialInstance, Mesh, RenderCubemap, RenderTexture2D,
@@ -264,14 +264,15 @@ impl World {
         Box<World>,
         Receiver<RenderMsg>,
         Receiver<GameAppEvent>,
+        Receiver<(AssetKey, UpdateAssetMessage)>,
         Sender<PickResult>,
     ) {
         let (tx1, rx1) = unbounded();
         let (tx2, rx2) = unbounded();
         let (pick_tx, pick_rx) = unbounded();
-        let store = AssetStore::new();
+        let (store, assets_rx) = AssetStore::new();
         let world = World::new(store, tx1, tx2, pick_rx);
-        (world, rx1, rx2, pick_tx)
+        (world, rx1, rx2, assets_rx, pick_tx)
     }
 
     /// Returns a mutable reference to the global [`World`] instance.

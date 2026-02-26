@@ -23,7 +23,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::shader::immediates::TextImmediate;
-use syrillian_asset::store::AssetStore;
 use syrillian_asset::{HFont, HShader, ensure_aligned};
 use syrillian_utils::color::hsv_to_rgb;
 use syrillian_utils::debug_panic;
@@ -200,7 +199,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         _local_to_world: &Affine3A,
     ) {
         let hot_font = renderer.cache.font(self.font);
-        let glyphs_ready = hot_font.pump(&renderer.cache, &renderer.state.queue, 10);
+        let glyphs_ready = hot_font.pump(&renderer.state.queue, 10);
 
         if glyphs_ready {
             self.text_dirty = true;
@@ -252,7 +251,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         let font = cache.font(self.font);
 
         let shader = cache.shader(DIM::shader());
-        let material = cache.material_instance(font.atlas());
+        let atlas_binding = font.atlas_binding();
         let groups = shader.bind_groups();
 
         let mut pass = pass.write();
@@ -265,9 +264,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         if let Some(idx) = groups.model {
             pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
         }
-        if let Some(idx) = groups.material {
-            pass.set_bind_group(idx, &material.bind_group, &[]);
-        }
+        pass.set_bind_group(2, &atlas_binding, &[]);
 
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
 
@@ -467,14 +464,12 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         try_activate_shader!(shader, &mut pass, ctx => return);
 
         let font = renderer.cache.font(self.font);
-        let material = renderer.cache.material_instance(font.atlas());
+        let atlas_binding = font.atlas_binding();
 
         if let Some(model) = shader.bind_groups().model {
             pass.set_bind_group(model, data.uniform.bind_group(), &[]);
         }
-        if let Some(material_id) = shader.bind_groups().material {
-            pass.set_bind_group(material_id, &material.bind_group, &[]);
-        }
+        pass.set_bind_group(2, &atlas_binding, &[]);
 
         let color = hash_to_rgba(binding.object_hash);
         let mut pc = self.pc;
@@ -485,7 +480,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
     }
 
-    fn priority(&self, _store: &AssetStore) -> u32 {
+    fn priority(&self, _cache: Option<&AssetCache>) -> u32 {
         match D {
             2 => self.draw_order,
             _ => PROXY_PRIORITY_TRANSPARENT,

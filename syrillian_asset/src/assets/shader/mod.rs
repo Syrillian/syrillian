@@ -11,12 +11,21 @@ use self::defaults::{
     ONLY_COLOR_TARGET, ONLY_COLOR_TARGET_SRGB, SURFACE_PP_COLOR_TARGETS,
 };
 use crate::HShader;
-use crate::material_inputs::MaterialInputLayout;
+use crate::defaults::PARTICLE_VERTEX_LAYOUT;
+use crate::material_inputs::{MaterialInputLayout, MaterialTextureDef};
 use crate::shader::immediates::{TextImmediate, UiLineImmediate};
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback};
+use crate::store::streaming::asset_store::{StreamingAssetFile, StreamingAssetPayload};
+use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
+use crate::store::streaming::packaged_scene::BuiltPayload;
+use crate::store::streaming::payload::StreamableAsset;
+use crate::store::{
+    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+};
 use crate::store_add_checked;
 use crate::{HBGL, Material};
 use bon::Builder;
+use crossbeam_channel::Sender;
+use snafu::whatever;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -135,7 +144,8 @@ impl H<Shader> {
     pub const SKYBOX_ID: u32 = 19;
     pub const SKYBOX_PROCEDURAL_ID: u32 = 20;
     pub const DIM3_GEN_LIT_ID: u32 = 21;
-    pub const MAX_BUILTIN_ID: u32 = 21;
+    pub const PARTICLE_SYSTEM_ID: u32 = 22;
+    pub const MAX_BUILTIN_ID: u32 = 22;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -186,8 +196,9 @@ impl H<Shader> {
     pub const DEBUG_TEXT3D_GEOMETRY: H<Shader> = H::new(Self::DEBUG_TEXT3D_GEOMETRY_ID);
     pub const DEBUG_LIGHT: H<Shader> = H::new(Self::DEBUG_LIGHT_ID);
     pub const SKYBOX: H<Shader> = H::new(Self::SKYBOX_ID);
-    pub const DIM3_GEN_LIT: H<Shader> = H::new(Self::DIM3_GEN_LIT_ID);
     pub const SKYBOX_PROCEDURAL: H<Shader> = H::new(Self::SKYBOX_PROCEDURAL_ID);
+    pub const DIM3_GEN_LIT: H<Shader> = H::new(Self::DIM3_GEN_LIT_ID);
+    pub const PARTICLE_SYSTEM: H<Shader> = H::new(Self::PARTICLE_SYSTEM_ID);
 }
 
 const SHADER_FALLBACK3D: &str = include_str!("shaders/fallback_shader3d.wgsl");
@@ -201,6 +212,7 @@ const SHADER_LINE2D: &str = include_str!("shaders/line.wgsl");
 const SHADER_POST_PROCESS_FXAA: &str = include_str!("shaders/post_process_fxaa.wgsl");
 const SHADER_SKYBOX: &str = include_str!("shaders/skybox.wgsl");
 const SHADER_SKYBOX_PROCEDURAL: &str = include_str!("shaders/skybox_procedural.wgsl");
+const SHADER_PARTICLE_SYSTEM: &str = include_str!("shaders/particle_system_render.wgsl");
 
 const DEBUG_EDGES_SHADER: &str = include_str!("shaders/debug/edges.wgsl");
 const DEBUG_VERTEX_NORMAL_SHADER: &str = include_str!("shaders/debug/vertex_normals.wgsl");
@@ -225,6 +237,14 @@ impl StoreDefaults for Shader {
             material_textures: default_layout.wgsl_material_textures_group(),
         };
         let material_immediates = default_layout.immediate_size();
+
+        let text_atlas_layout = MaterialInputLayout {
+            immediates: vec![],
+            textures: vec![MaterialTextureDef {
+                name: "atlas".to_string(),
+                default: H::FALLBACK_DIFFUSE,
+            }],
+        };
 
         store_add_checked!(
             store,
@@ -328,8 +348,7 @@ impl StoreDefaults for Shader {
                 .color_target(ONLY_COLOR_TARGET_SRGB)
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediate>() as u32)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
+                .material_layout(text_atlas_layout.clone())
                 .depth_enabled(false)
                 .build()
         );
@@ -343,8 +362,7 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(SHADER_TEXT2D_PICKER.to_string()))
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediate>() as u32)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
+                .material_layout(text_atlas_layout.clone())
                 .depth_enabled(false)
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
@@ -360,8 +378,7 @@ impl StoreDefaults for Shader {
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediate>() as u32)
                 .shadow_transparency(true)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
+                .material_layout(text_atlas_layout.clone())
                 .build()
         );
 
@@ -375,8 +392,7 @@ impl StoreDefaults for Shader {
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediate>() as u32)
                 .shadow_transparency(true)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
+                .material_layout(text_atlas_layout)
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
         );
@@ -560,6 +576,19 @@ impl StoreDefaults for Shader {
                 .material_groups(material_groups.clone())
                 .build()
         );
+
+        store_add_checked!(
+            store,
+            HShader::PARTICLE_SYSTEM_ID,
+            Shader::builder()
+                .name("Particle System")
+                .color_target(DEFAULT_COLOR_TARGETS)
+                .shader_type(ShaderType::Custom)
+                .vertex_buffers(PARTICLE_VERTEX_LAYOUT)
+                .topology(PrimitiveTopology::PointList)
+                .code(ShaderCode::Full(SHADER_PARTICLE_SYSTEM.to_string(),))
+                .build()
+        );
     }
 }
 
@@ -599,6 +628,16 @@ impl StoreType for Shader {
         };
 
         HandleName::Static(name)
+    }
+
+    fn refresh_dirty(
+        &self,
+        key: crate::store::AssetKey,
+        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
+    ) -> bool {
+        assets_tx
+            .send((key, UpdateAssetMessage::UpdateShader(self.clone())))
+            .is_ok()
     }
 
     fn is_builtin(handle: H<Self>) -> bool {
@@ -927,6 +966,71 @@ impl Shader {
 
     pub fn material_groups(&self) -> Option<&MaterialShaderGroups> {
         self.material_groups.as_ref()
+    }
+}
+
+impl StreamableAsset for Shader {
+    fn encode(&self) -> BuiltPayload {
+        todo!()
+    }
+
+    fn decode(
+        payload: &StreamingAssetPayload,
+        _package: &mut StreamingAssetFile,
+    ) -> crate::store::streaming::error::Result<Self> {
+        let root = payload.data.expect_object("shader metadata")?;
+
+        let name: String = root.required_field("name")?.expect_parse("shader name")?;
+        let code_obj = root
+            .required_field("code")?
+            .expect_object("shader code block")?;
+        let code_kind = code_obj
+            .required_field("kind")?
+            .expect_str("shader code kind")?;
+        let source = code_obj
+            .required_field("source")?
+            .expect_parse("shader source")?;
+        let code = match code_kind {
+            "Full" => ShaderCode::Full(source),
+            "Fragment" => ShaderCode::Fragment(source),
+            other => whatever!("unsupported shader code kind '{other}'"),
+        };
+
+        let shader_type = root
+            .optional_field("shader_type")
+            .expect_parse("shader_type")?
+            .unwrap_or(ShaderType::Default);
+        let polygon_mode = root
+            .optional_field("polygon_mode")
+            .expect_parse("shader polygon mode")?
+            .unwrap_or(PolygonMode::Fill);
+        let topology = root
+            .optional_field("topology")
+            .expect_parse("shader topology")?
+            .unwrap_or(PrimitiveTopology::TriangleList);
+        let immediate_size = root
+            .optional_field("immediate_size")
+            .expect_parse("shader immediate_size")?
+            .unwrap_or(0);
+        let depth_enabled = root
+            .optional_field("depth_enabled")
+            .expect_parse("shader depth_enabled")?
+            .unwrap_or(true);
+        let shadow_transparency = root
+            .optional_field("shadow_transparency")
+            .expect_parse("shader shadow_transparency")?
+            .unwrap_or(false);
+
+        Ok(Shader::builder()
+            .name(name)
+            .code(code)
+            .shader_type(shader_type)
+            .polygon_mode(polygon_mode)
+            .topology(topology)
+            .immediate_size(immediate_size)
+            .depth_enabled(depth_enabled)
+            .shadow_transparency(shadow_transparency)
+            .build())
     }
 }
 

@@ -50,6 +50,7 @@ pub mod particle_system;
 pub mod rigid_body;
 pub mod rotate;
 pub mod skeletal;
+pub mod skinned_mesh_renderer;
 pub mod text;
 pub mod third_person_controller;
 
@@ -77,5 +78,6 @@ pub use profiler::Profiler;
 pub use rigid_body::RigidBodyComponent;
 pub use rotate::RotateComponent;
 pub use skeletal::SkeletalComponent;
+pub use skinned_mesh_renderer::SkinnedMeshRenderer;
 pub use text::Text3D;
 pub use third_person_controller::ThirdPersonCharacterController;

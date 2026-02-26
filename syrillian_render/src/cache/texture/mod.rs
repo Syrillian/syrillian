@@ -1,7 +1,10 @@
+use itertools::Itertools;
+use std::sync::Arc;
 use syrillian_asset::store::StoreType;
+use wgpu::util::{DeviceExt, TextureDataOrder};
 use wgpu::{
-    AddressMode, Extent3d, FilterMode, MipmapFilterMode, TextureAspect, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, TextureViewDimension,
+    AddressMode, Device, Extent3d, FilterMode, MipmapFilterMode, Queue, TextureAspect,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDimension,
 };
 
 mod cached;
@@ -49,6 +52,23 @@ pub trait TextureAsset: StoreType {
         }
     }
 
+    fn view_layer_desc(&self, base_layer: u32, count: u32) -> wgpu::TextureViewDescriptor<'_> {
+        let capacity = self.layer_count();
+        let requested_base_layer = base_layer.min(capacity - 1);
+        let requested_count = count.min(capacity - requested_base_layer);
+        debug_assert!(base_layer == requested_base_layer);
+
+        let mut view_desc = self.view_desc();
+        view_desc.dimension = Some(TextureViewDimension::D2);
+        view_desc.base_array_layer = requested_base_layer;
+        view_desc.array_layer_count = Some(requested_count);
+        view_desc
+    }
+
+    fn iter_single_layer_views(&self) -> impl Iterator<Item = wgpu::TextureViewDescriptor<'_>> {
+        (0..self.layer_count()).map(|layer| self.view_layer_desc(layer, 1))
+    }
+
     fn sampler_desc(&self) -> wgpu::SamplerDescriptor<'_> {
         wgpu::SamplerDescriptor {
             address_mode_u: self.repeat_mode(),
@@ -76,4 +96,33 @@ pub trait TextureAsset: StoreType {
     fn mip_filter_mode(&self) -> MipmapFilterMode;
     fn data(&self) -> Option<&[u8]>;
     fn has_transparency(&self) -> bool;
+
+    fn upload(self, device: &Device, queue: &Queue) -> Arc<GpuTexture> {
+        profiling::function_scope!("upload texture");
+        let desc = self.desc();
+
+        let texture = match self.data() {
+            None => device.create_texture(&self.desc()),
+            Some(data) => {
+                device.create_texture_with_data(queue, &desc, TextureDataOrder::LayerMajor, data)
+            }
+        };
+
+        let full_view = texture.create_view(&self.view_desc());
+        let views = self
+            .iter_single_layer_views()
+            .map(|d| texture.create_view(&d))
+            .collect_vec();
+        let sampler = device.create_sampler(&self.sampler_desc());
+
+        debug_assert!(!views.is_empty(), "Textures without any layers are invalid");
+
+        Arc::new(GpuTexture {
+            texture,
+            full_view,
+            views,
+            sampler,
+            has_transparency: self.has_transparency(),
+        })
+    }
 }

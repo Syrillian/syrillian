@@ -18,16 +18,17 @@ pub struct RuntimeComputeShader {
 
 impl CacheType for ComputeShader {
     type Hot = Arc<RuntimeComputeShader>;
+    type UpdateMessage = Self;
 
     #[profiling::function]
-    fn upload(self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
-        let code = assemble_compute_shader(self.code());
+    fn upload(this: Self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
+        let code = assemble_compute_shader(this.code());
         let module = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some(self.name()),
+            label: Some(this.name()),
             source: ShaderSource::Wgsl(Cow::Owned(code)),
         });
 
-        let bgls = self
+        let bgls = this
             .bind_group_layouts()
             .iter()
             .map(|h| {
@@ -39,22 +40,22 @@ impl CacheType for ComputeShader {
         let bgl_refs = bgls.iter().collect::<Vec<_>>();
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some(&format!("{} Pipeline Layout", self.name())),
+            label: Some(&format!("{} Pipeline Layout", this.name())),
             bind_group_layouts: &bgl_refs,
             immediate_size: 0,
         });
 
         let pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some(&format!("{} Pipeline", self.name())),
+            label: Some(&format!("{} Pipeline", this.name())),
             layout: Some(&layout),
             module: &module,
-            entry_point: Some(self.entry_point()),
+            entry_point: Some(this.entry_point()),
             compilation_options: PipelineCompilationOptions::default(),
             cache: None,
         });
 
         Arc::new(RuntimeComputeShader {
-            name: self.name().to_string(),
+            name: this.name().to_string(),
             module,
             pipeline,
         })

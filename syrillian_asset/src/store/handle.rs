@@ -71,6 +71,10 @@ impl<T: StoreType> H<T> {
     pub fn exists<R: AsRef<Store<T>>>(&self, store: R) -> bool {
         store.as_ref().contains(*self)
     }
+
+    pub fn invalid() -> Self {
+        Self::new(u32::MAX)
+    }
 }
 
 impl<T: StoreType> Display for H<T> {
