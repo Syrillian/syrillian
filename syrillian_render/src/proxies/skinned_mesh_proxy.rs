@@ -1,6 +1,7 @@
 // TODO: refactor
 
-use crate::cache::{AssetCache, RuntimeMesh, RuntimeShader};
+use crate::cache::mesh::{RenderMesh, RenderVertexBuffers};
+use crate::cache::{AssetCache, RuntimeShader};
 use crate::model_uniform::ModelUniform;
 use crate::proxies::{
     PROXY_PRIORITY_SOLID, PROXY_PRIORITY_TRANSPARENT, SceneProxy, SceneProxyBinding,
@@ -15,15 +16,13 @@ use crate::{proxy_data, proxy_data_mut, try_activate_shader};
 use glamx::Affine3A;
 use parking_lot::RwLockWriteGuard;
 use std::any::Any;
-use std::mem::size_of;
 use std::ops::Range;
-use syrillian_asset::mesh::SkinnedVertex3D;
 use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::store::H;
 use syrillian_asset::{HComputeShader, HMaterialInstance, HSkinnedMesh, Shader};
 use syrillian_macros::UniformIndex;
 use syrillian_utils::BoundingSphere;
-use wgpu::{Buffer, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, RenderPass};
+use wgpu::{CommandEncoderDescriptor, ComputePassDescriptor, RenderPass};
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, UniformIndex)]
@@ -33,12 +32,12 @@ pub enum SkinnedMeshUniformIndex {
 }
 
 #[derive(Debug, Clone)]
-pub struct RuntimeSkinnedMeshData {
+pub struct RenderSkinnedMeshData {
     pub mesh_data: ModelUniform,
     // TODO: Consider having a uniform like that, for every Transform by default in some way, or
     //       lazy-make / provide one by default.
     pub uniform: ShaderUniform<SkinnedMeshUniformIndex>,
-    pub skinned_buffers: Vec<Buffer>,
+    pub skinned_meshlets: Vec<RenderVertexBuffers>,
     pub skinning_uniforms: Vec<ShaderUniform<MeshSkinningComputeUniformIndex>>,
     pub skinning_vertex_counts: Vec<u32>,
     pub skinning_mesh: Option<HSkinnedMesh>,
@@ -48,9 +47,6 @@ pub struct RuntimeSkinnedMeshData {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct MeshSkinningParams {
     vertex_count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
 }
 
 #[repr(u8)]
@@ -58,8 +54,10 @@ struct MeshSkinningParams {
 pub enum MeshSkinningComputeUniformIndex {
     Bones = 0,
     Params = 1,
-    Source = 2,
-    Dest = 3,
+    SourcePacked = 2,
+    DestPosition = 3,
+    DestNormal = 4,
+    DestTangent = 5,
 }
 
 #[derive(Debug, Clone)]
@@ -72,7 +70,7 @@ pub struct SkinnedMeshSceneProxy {
     pub bounding: Option<BoundingSphere>,
 }
 
-impl RuntimeSkinnedMeshData {
+impl RenderSkinnedMeshData {
     pub fn activate_shader(
         &self,
         shader: &RuntimeShader,
@@ -90,14 +88,14 @@ impl RuntimeSkinnedMeshData {
 
     fn ensure_skinning_runtime(&mut self, renderer: &Renderer, mesh_handle: HSkinnedMesh) -> bool {
         let valid_existing = self.skinning_mesh == Some(mesh_handle)
-            && self.skinned_buffers.len() == self.skinning_uniforms.len()
-            && self.skinned_buffers.len() == self.skinning_vertex_counts.len()
-            && !self.skinned_buffers.is_empty();
+            && self.skinned_meshlets.len() == self.skinning_uniforms.len()
+            && self.skinned_meshlets.len() == self.skinning_vertex_counts.len()
+            && !self.skinned_meshlets.is_empty();
         if valid_existing {
             return false;
         }
 
-        self.skinned_buffers.clear();
+        self.skinned_meshlets.clear();
         self.skinning_uniforms.clear();
         self.skinning_vertex_counts.clear();
         self.skinning_mesh = Some(mesh_handle);
@@ -115,29 +113,32 @@ impl RuntimeSkinnedMeshData {
 
         for meshlet in mesh.meshlets() {
             let vertex_count = meshlet.vertex_count;
-            let params = MeshSkinningParams {
-                vertex_count,
-                _pad0: 0,
-                _pad1: 0,
-                _pad2: 0,
+            let Some(pre_skin) = meshlet.pre_skin_meshlet() else {
+                self.skinned_meshlets.clear();
+                self.skinning_uniforms.clear();
+                self.skinning_vertex_counts.clear();
+                self.skinning_mesh = None;
+                return false;
             };
-            let output_size = ((vertex_count as u64) * size_of::<SkinnedVertex3D>() as u64).max(4);
-            let output = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Skinned Mesh Vertex Buffer"),
-                size: output_size,
-                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+
+            let output = RenderVertexBuffers::new_for_skinning(
+                device,
+                vertex_count as u64,
+                meshlet.vertex_buffers.uv.clone(),
+            );
+            let params = MeshSkinningParams { vertex_count };
 
             let uniform =
                 ShaderUniform::<MeshSkinningComputeUniformIndex>::builder(skinning_bgl.clone())
                     .with_buffer(bone_buffer.clone())
                     .with_buffer_data(&params)
-                    .with_storage_buffer(meshlet.vertex_buffer.clone())
-                    .with_storage_buffer(output.clone())
+                    .with_storage_buffer(pre_skin.packed_input.clone())
+                    .with_storage_buffer(output.position.clone())
+                    .with_storage_buffer(output.normal.clone())
+                    .with_storage_buffer(output.tangent.clone())
                     .build(device);
 
-            self.skinned_buffers.push(output);
+            self.skinned_meshlets.push(output);
             self.skinning_uniforms.push(uniform);
             self.skinning_vertex_counts.push(vertex_count);
         }
@@ -198,10 +199,16 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
     ) {
-        let data: &mut RuntimeSkinnedMeshData = proxy_data_mut!(data);
+        let data: &mut RenderSkinnedMeshData = proxy_data_mut!(data);
 
         let model_mat: glamx::Mat4 = (*local_to_world).into();
         data.mesh_data.update(&model_mat);
+
+        renderer.state.queue.write_buffer(
+            data.uniform.buffer(SkinnedMeshUniformIndex::MeshData),
+            0,
+            bytemuck::bytes_of(&data.mesh_data),
+        );
 
         renderer.state.queue.write_buffer(
             data.uniform.buffer(SkinnedMeshUniformIndex::MeshData),
@@ -216,7 +223,7 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         data: &mut (dyn Any + Send),
         _local_to_world: &Affine3A,
     ) {
-        let data: &mut RuntimeSkinnedMeshData = proxy_data_mut!(data);
+        let data: &mut RenderSkinnedMeshData = proxy_data_mut!(data);
 
         // TODO: Consider Rigid Body render isometry interpolation for mesh local to world
 
@@ -242,7 +249,7 @@ impl SceneProxy for SkinnedMeshSceneProxy {
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
-        let data: &RuntimeSkinnedMeshData = proxy_data!(binding.proxy_data());
+        let data: &RenderSkinnedMeshData = proxy_data!(binding.proxy_data());
 
         let Some(mesh) = renderer.cache.skinned_mesh(self.mesh) else {
             return;
@@ -263,7 +270,7 @@ impl SceneProxy for SkinnedMeshSceneProxy {
     }
 
     fn render_shadows(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
-        let data: &RuntimeSkinnedMeshData = proxy_data!(binding.proxy_data());
+        let data: &RenderSkinnedMeshData = proxy_data!(binding.proxy_data());
 
         let Some(mesh) = renderer.cache.skinned_mesh(self.mesh) else {
             return;
@@ -277,7 +284,7 @@ impl SceneProxy for SkinnedMeshSceneProxy {
     fn render_picking(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
         debug_assert_ne!(ctx.pass_type, RenderPassType::Shadow);
 
-        let data: &RuntimeSkinnedMeshData = proxy_data!(binding.proxy_data());
+        let data: &RenderSkinnedMeshData = proxy_data!(binding.proxy_data());
 
         let Some(mesh) = renderer.cache.skinned_mesh(self.mesh) else {
             return;
@@ -319,8 +326,8 @@ impl SkinnedMeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeSkinnedMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderSkinnedMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
         self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Color);
@@ -330,8 +337,8 @@ impl SkinnedMeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeSkinnedMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderSkinnedMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
         self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Shadow);
@@ -341,8 +348,8 @@ impl SkinnedMeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeSkinnedMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderSkinnedMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
         self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Picking);
@@ -352,8 +359,8 @@ impl SkinnedMeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeSkinnedMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderSkinnedMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
         pass_type: RenderPassType,
     ) {
@@ -418,9 +425,9 @@ impl SkinnedMeshSceneProxy {
                 pass.set_immediates(0, &material.immediates);
             }
 
-            debug_assert_eq!(runtime.skinned_buffers.len(), mesh.meshlets().len());
+            debug_assert_eq!(runtime.skinned_meshlets.len(), mesh.meshlets().len());
 
-            mesh.draw_with_vertex_buffers(range.clone(), &runtime.skinned_buffers, pass);
+            mesh.draw_with_vertex_buffers(range.clone(), &runtime.skinned_meshlets, pass);
         }
     }
 
@@ -428,7 +435,7 @@ impl SkinnedMeshSceneProxy {
         &mut self,
         renderer: &Renderer,
         local_to_world: &Affine3A,
-    ) -> RuntimeSkinnedMeshData {
+    ) -> RenderSkinnedMeshData {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
@@ -438,10 +445,10 @@ impl SkinnedMeshSceneProxy {
             .with_buffer_data_slice(self.bone_data.bones.as_slice())
             .build(device);
 
-        let mut data = RuntimeSkinnedMeshData {
+        let mut data = RenderSkinnedMeshData {
             mesh_data,
             uniform,
-            skinned_buffers: Vec::new(),
+            skinned_meshlets: Vec::new(),
             skinning_uniforms: Vec::new(),
             skinning_vertex_counts: Vec::new(),
             skinning_mesh: None,
@@ -457,8 +464,8 @@ impl SkinnedMeshSceneProxy {
 fn draw_edges(
     ctx: &GPUDrawCtx,
     cache: &AssetCache,
-    mesh: &RuntimeMesh,
-    runtime: &RuntimeSkinnedMeshData,
+    mesh: &RenderMesh,
+    runtime: &RenderSkinnedMeshData,
     pass: &mut RenderPass,
 ) {
     use glamx::Vec4;
@@ -480,8 +487,8 @@ fn draw_edges(
 fn draw_vertex_normals(
     ctx: &GPUDrawCtx,
     cache: &AssetCache,
-    mesh: &RuntimeMesh,
-    runtime: &RuntimeSkinnedMeshData,
+    mesh: &RenderMesh,
+    runtime: &RenderSkinnedMeshData,
     pass: &mut RenderPass,
 ) {
     use syrillian_asset::HShader;

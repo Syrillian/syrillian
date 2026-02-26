@@ -1,5 +1,6 @@
 use crate::store::streaming::asset_store::{AssetType, StreamingAssetBlobKind};
 use crate::{AnimationClip, Mesh, PrefabAsset, PrefabMaterial, SkinnedMesh, Texture2D};
+use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Debug, Clone)]
 pub struct PackagedScene {
@@ -41,4 +42,30 @@ pub struct PackedBlob {
 pub struct BuiltPayload {
     pub payload: String,
     pub blobs: Vec<PackedBlob>,
+}
+
+impl PackedBlob {
+    pub fn pack_data<T: IntoBytes + Immutable>(
+        kind: StreamingAssetBlobKind,
+        data: &[T],
+    ) -> Option<PackedBlob> {
+        if data.is_empty() {
+            return None;
+        }
+        Some(PackedBlob {
+            kind,
+            element_count: data.len() as u64,
+            data: data.as_bytes().to_vec(),
+        })
+    }
+
+    pub fn maybe_pack_data_into<T: IntoBytes + Immutable>(
+        kind: StreamingAssetBlobKind,
+        data: &[T],
+        container: &mut Vec<PackedBlob>,
+    ) {
+        if let Some(blob) = Self::pack_data(kind, data) {
+            container.push(blob);
+        }
+    }
 }

@@ -1,8 +1,5 @@
 use crate::mesh::generic_vertex::{Vertex, Vertex3D};
 use glam::{Vec2, Vec3};
-use static_assertions::const_assert_eq;
-use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE, vertex_layout_size};
-use wgpu::{BufferAddress, VertexAttribute, VertexFormat};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// An unskinned vertex used for 3D rendering.
@@ -34,40 +31,6 @@ impl UnskinnedVertex3D {
             normal,
             tangent,
         }
-    }
-
-    /// Returns a [`wgpu::VertexBufferLayout`] describing the layout of this vertex.
-    pub const fn continuous_descriptor<'a>() -> wgpu::VertexBufferLayout<'a> {
-        const LAYOUT: wgpu::VertexBufferLayout = wgpu::VertexBufferLayout {
-            array_stride: size_of::<UnskinnedVertex3D>() as BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                VertexAttribute {
-                    format: VertexFormat::Float32x3,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                VertexAttribute {
-                    format: VertexFormat::Float32x2,
-                    offset: VEC3_SIZE,
-                    shader_location: 1,
-                },
-                VertexAttribute {
-                    format: VertexFormat::Float32x3,
-                    offset: (VEC3_SIZE + VEC2_SIZE) as BufferAddress,
-                    shader_location: 2,
-                },
-                VertexAttribute {
-                    format: VertexFormat::Float32x3,
-                    offset: (VEC3_SIZE * 2 + VEC2_SIZE) as BufferAddress,
-                    shader_location: 3,
-                },
-            ],
-        };
-
-        const_assert_eq!(size_of::<UnskinnedVertex3D>(), vertex_layout_size(&LAYOUT));
-
-        LAYOUT
     }
 
     pub const fn basic(position: Vec3, uv: Vec2, normal: Vec3) -> Self {

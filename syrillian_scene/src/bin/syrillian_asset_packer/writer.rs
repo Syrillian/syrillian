@@ -115,7 +115,7 @@ impl StreamingAssetFileWriter for StreamingAssetFile {
                 let blob_size = blob.data.len() as u64;
                 blob_entries.push(StreamingAssetBlobIndexEntryRaw {
                     owner_hash: U64::new(owner_hash),
-                    kind: blob.kind.as_u8(),
+                    kind: blob.kind as u8,
                     reserved: [0; 7],
                     offset: U64::new(blob_offset),
                     size: U64::new(blob_size),

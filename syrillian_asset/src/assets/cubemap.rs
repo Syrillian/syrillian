@@ -180,8 +180,6 @@ struct CubemapMeta<'a> {
 
 impl<'a> ReflectSerialize for CubemapMeta<'a> {
     fn serialize(this: &Self) -> Value {
-        let data_len = this.cubemap.data.as_ref().map_or(0, |data| data.len()) as u64;
-
         Value::Object(BTreeMap::from([
             ("width".to_string(), Value::UInt(this.cubemap.width)),
             ("height".to_string(), Value::UInt(this.cubemap.height)),
@@ -209,12 +207,6 @@ impl<'a> ReflectSerialize for CubemapMeta<'a> {
                 "has_transparency".to_string(),
                 Value::Bool(this.cubemap.has_transparency),
             ),
-            (
-                "has_data".to_string(),
-                Value::Bool(this.cubemap.data.is_some()),
-            ),
-            ("data_len".to_string(), Value::BigUInt(data_len)),
-            ("data".to_string(), Value::None),
         ]))
     }
 }
@@ -222,14 +214,13 @@ impl<'a> ReflectSerialize for CubemapMeta<'a> {
 impl StreamableAsset for Cubemap {
     fn encode(&self) -> BuiltPayload {
         let mut blobs = Vec::new();
-        if let Some(data) = self.data.as_deref()
-            && !data.is_empty()
-        {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::TextureData,
-                element_count: data.len() as u64,
-                data: data.to_vec(),
-            });
+
+        if let Some(data) = self.data.as_deref() {
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::TextureData,
+                &data,
+                &mut blobs,
+            );
         }
 
         BuiltPayload {
@@ -268,27 +259,13 @@ impl StreamableAsset for Cubemap {
         let has_transparency = root
             .required_field("has_transparency")?
             .expect_parse("texture has_transparency")?;
-        let has_data = root
-            .required_field("has_data")?
-            .expect_parse("texture has_data")?;
-        let data_len: usize = root
-            .optional_field("data_len")
-            .expect_parse("texture data_len")?
-            .unwrap_or(0usize);
 
-        let data = if has_data {
-            let blob = payload
-                .blob_infos
-                .find(StreamingAssetBlobKind::TextureData)?;
-            let data_len = if data_len == 0 {
-                blob.element_count
-            } else {
-                data_len
-            };
-            Some(blob.decode_from_io("texture data", data_len, package)?)
-        } else {
-            None
-        };
+        let data = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::TextureData)
+            .ok()
+            .map(|b| b.decode_all_from_io(package))
+            .transpose()?;
 
         Ok(Cubemap {
             width,

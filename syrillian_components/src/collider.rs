@@ -1,8 +1,10 @@
 use self::ColliderError::{DesyncedCollider, InvalidMesh, InvalidMeshRef, NoMeshRenderer};
 use snafu::Snafu;
+use std::sync::Arc;
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::assets::mesh::PartialMesh;
+use syrillian::assets::mesh::static_mesh_data::{RawVertexBuffers, VertexBufferExt};
 use syrillian::assets::{HMesh, Mesh};
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
@@ -11,8 +13,6 @@ use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::{trace, warn};
 
 use crate::{MeshRenderer, RigidBodyComponent};
-#[cfg(debug_assertions)]
-use syrillian::assets::mesh::UnskinnedVertex3D;
 #[cfg(debug_assertions)]
 use syrillian::assets::store::StoreType;
 #[cfg(debug_assertions)]
@@ -310,14 +310,11 @@ impl Collider3D {
         };
 
         let (vertices, indices) = collider.shared_shape().to_trimesh();
-        let vertices: Vec<_> = vertices
-            .iter()
-            .copied()
-            .map(UnskinnedVertex3D::position_only)
-            .collect();
+
+        let vertices = RawVertexBuffers::from_positions(vertices, Some(indices.into_flattened()));
 
         Mesh::builder()
-            .data(vertices, Some(indices.into_flattened()))
+            .data(Arc::new(vertices))
             .build()
             .store(world)
     }
@@ -350,14 +347,14 @@ impl MeshShapeExtra<SharedShape> for SharedShape {
     fn mesh(mesh: &Mesh) -> Option<SharedShape> {
         trace!(
             "Loading collider mesh with {} vertices",
-            mesh.vertex_count()
+            mesh.position_count()
         );
 
         if mesh.triangle_count() == 0 {
             return None;
         }
 
-        let vertices = mesh.data.make_point_cloud();
+        let vertices = mesh.data.positions.clone();
         let indices = mesh.data.make_triangle_indices();
         match SharedShape::trimesh(vertices, indices) {
             Ok(shape) => Some(shape),
@@ -371,14 +368,14 @@ impl MeshShapeExtra<SharedShape> for SharedShape {
     fn mesh_with_scale(mesh: &Mesh, scale: Vec3) -> Option<SharedShape> {
         trace!(
             "Loading scaled collider mesh with {} vertices",
-            mesh.vertex_count()
+            mesh.position_count(),
         );
 
         if mesh.triangle_count() == 0 {
             return None;
         }
 
-        let mut vertices: Vec<Vec3> = mesh.data.make_point_cloud();
+        let mut vertices: Vec<Vec3> = mesh.data.positions.clone();
         for v in &mut vertices {
             *v *= scale;
         }
@@ -393,9 +390,7 @@ impl MeshShapeExtra<SharedShape> for SharedShape {
     }
 
     fn mesh_convex_hull(mesh: &Mesh) -> Option<SharedShape> {
-        let vertices: Vec<Vec3> = mesh.data.make_point_cloud();
-
-        SharedShape::convex_hull(&vertices)
+        SharedShape::convex_hull(mesh.data.positions())
     }
 
     fn local_aabb_mesh(&self) -> (Vec<Vec3>, Vec<[u32; 3]>) {

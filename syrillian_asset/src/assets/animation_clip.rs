@@ -3,19 +3,17 @@ use crate::store::streaming::asset_store::{
     StreamingAssetPayload,
 };
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
-use crate::store::streaming::error::BlobNotFoundErr;
 use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
 use crate::store::{H, HandleName, StoreType, UpdateAssetMessage, streaming};
 use crossbeam_channel::Sender;
 use glamx::{EulerRot, Quat, Vec3};
 use serde_json::Value as JsonValue;
-use snafu::{OptionExt, ensure_whatever, whatever};
+use snafu::{ensure_whatever, whatever};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use syrillian_reflect::serializer::JsonSerializer;
 use syrillian_reflect::{ReflectSerialize, Value};
-use zerocopy::IntoBytes;
 
 pub type HAnimationClipAsset = H<AnimationClip>;
 
@@ -263,59 +261,36 @@ impl StreamableAsset for AnimationClip {
         for channel in &self.channels {
             let keys = &channel.keys;
 
-            let t_times_blob = keys.t_times.as_bytes();
-            if !t_times_blob.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::AnimationTranslationTimes,
-                    element_count: keys.t_times.len() as u64,
-                    data: t_times_blob.to_vec(),
-                });
-            }
-
-            let t_values_blob = keys.t_values.as_bytes();
-            if !t_values_blob.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::AnimationTranslationValues,
-                    element_count: keys.t_values.len() as u64,
-                    data: t_values_blob.to_vec(),
-                });
-            }
-
-            let r_times_blob = keys.r_times.as_bytes();
-            if !r_times_blob.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::AnimationRotationTimes,
-                    element_count: keys.r_times.len() as u64,
-                    data: r_times_blob.to_vec(),
-                });
-            }
-
-            let r_values_blob = keys.r_values.as_bytes();
-            if !r_values_blob.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::AnimationRotationValues,
-                    element_count: keys.r_values.len() as u64,
-                    data: r_values_blob.to_vec(),
-                });
-            }
-
-            let s_times_blob = keys.s_times.as_bytes();
-            if !s_times_blob.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::AnimationScaleTimes,
-                    element_count: keys.s_times.len() as u64,
-                    data: s_times_blob.to_vec(),
-                });
-            }
-
-            let s_values_blob = keys.s_values.as_bytes();
-            if !s_values_blob.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::AnimationScaleValues,
-                    element_count: keys.s_values.len() as u64,
-                    data: s_values_blob.to_vec(),
-                });
-            }
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::AnimationTranslationTimes,
+                &keys.t_times,
+                &mut blobs,
+            );
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::AnimationTranslationValues,
+                &keys.t_values,
+                &mut blobs,
+            );
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::AnimationRotationTimes,
+                &keys.r_times,
+                &mut blobs,
+            );
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::AnimationRotationValues,
+                &keys.r_values,
+                &mut blobs,
+            );
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::AnimationScaleTimes,
+                &keys.s_times,
+                &mut blobs,
+            );
+            PackedBlob::maybe_pack_data_into(
+                StreamingAssetBlobKind::AnimationScaleValues,
+                &keys.s_values,
+                &mut blobs,
+            );
         }
 
         BuiltPayload {
@@ -375,28 +350,17 @@ impl<'a> AnimationBlobCursor<'a> {
         for blob in &blobs.infos {
             by_kind.entry(blob.kind).or_default().push(blob);
         }
+
+        // reverse all so we can pop later
+        by_kind.values_mut().for_each(|v| v.reverse());
+
         Self { by_kind }
     }
 
-    fn take(
-        &mut self,
-        kind: StreamingAssetBlobKind,
-        expected_count: usize,
-        label: &str,
-    ) -> streaming::error::Result<Option<&'a StreamingAssetBlobInfo>> {
-        if expected_count == 0 {
-            return Ok(None);
-        }
+    fn take(&mut self, kind: StreamingAssetBlobKind) -> Option<&'a StreamingAssetBlobInfo> {
+        let kind_blobs = self.by_kind.get_mut(&kind)?;
 
-        let Some(blobs) = self.by_kind.get_mut(&kind) else {
-            whatever!("missing {label} blob for {expected_count} entries");
-        };
-
-        if blobs.is_empty() {
-            whatever!("missing {label} blob for {expected_count} entries");
-        }
-
-        Ok(Some(blobs.remove(0)))
+        kind_blobs.pop()
     }
 
     fn ensure_exhausted(&self) -> streaming::error::Result<()> {
@@ -420,82 +384,55 @@ impl AnimationChannel {
         package: &mut StreamingAssetFile,
     ) -> streaming::error::Result<AnimationChannel> {
         let channel = value.expect_object("animation channel")?;
-        let keys = channel
-            .required_field("keys")?
-            .expect_object("animation keys")?;
+        let target_name = channel
+            .required_field("target_name")?
+            .expect_parse("animation target_name")?;
 
-        let t_times_count: usize = keys
-            .required_field("t_times_count")?
-            .expect_parse("animation t_times_count")?;
-        let t_values_count: usize = keys
-            .required_field("t_values_count")?
-            .expect_parse("animation t_values_count")?;
-        let r_times_count: usize = keys
-            .required_field("r_times_count")?
-            .expect_parse("animation r_times_count")?;
-        let r_values_count: usize = keys
-            .required_field("r_values_count")?
-            .expect_parse("animation r_values_count")?;
-        let s_times_count: usize = keys
-            .required_field("s_times_count")?
-            .expect_parse("animation s_times_count")?;
-        let s_values_count: usize = keys
-            .required_field("s_values_count")?
-            .expect_parse("animation s_values_count")?;
+        let t_times = cursor
+            .take(StreamingAssetBlobKind::AnimationTranslationTimes)
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?
+            .unwrap_or_default();
+
+        let t_values = cursor
+            .take(StreamingAssetBlobKind::AnimationTranslationValues)
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?
+            .unwrap_or_default();
+
+        let r_times = cursor
+            .take(StreamingAssetBlobKind::AnimationRotationTimes)
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?
+            .unwrap_or_default();
+
+        let r_values = cursor
+            .take(StreamingAssetBlobKind::AnimationRotationValues)
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?
+            .unwrap_or_default();
+
+        let s_times = cursor
+            .take(StreamingAssetBlobKind::AnimationScaleTimes)
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?
+            .unwrap_or_default();
+
+        let s_values = cursor
+            .take(StreamingAssetBlobKind::AnimationScaleValues)
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?
+            .unwrap_or_default();
 
         Ok(AnimationChannel {
-            target_name: channel
-                .required_field("target_name")?
-                .expect_parse("animation target_name")?,
+            target_name,
             keys: TransformKeys {
-                t_times: cursor
-                    .take(
-                        StreamingAssetBlobKind::AnimationTranslationTimes,
-                        t_times_count,
-                        "animation translation times",
-                    )?
-                    .context(BlobNotFoundErr)?
-                    .decode_from_io("animation translation times", t_times_count, package)?,
-                t_values: cursor
-                    .take(
-                        StreamingAssetBlobKind::AnimationTranslationValues,
-                        t_values_count,
-                        "animation translation values",
-                    )?
-                    .context(BlobNotFoundErr)?
-                    .decode_from_io("animation translation values", t_values_count, package)?,
-                r_times: cursor
-                    .take(
-                        StreamingAssetBlobKind::AnimationRotationTimes,
-                        r_times_count,
-                        "animation rotation times",
-                    )?
-                    .context(BlobNotFoundErr)?
-                    .decode_from_io("animation rotation times", r_times_count, package)?,
-                r_values: cursor
-                    .take(
-                        StreamingAssetBlobKind::AnimationRotationValues,
-                        r_values_count,
-                        "animation rotation values",
-                    )?
-                    .context(BlobNotFoundErr)?
-                    .decode_from_io("animation rotation values", r_values_count, package)?,
-                s_times: cursor
-                    .take(
-                        StreamingAssetBlobKind::AnimationScaleTimes,
-                        s_times_count,
-                        "animation scale times",
-                    )?
-                    .context(BlobNotFoundErr)?
-                    .decode_from_io("animation scale times", s_times_count, package)?,
-                s_values: cursor
-                    .take(
-                        StreamingAssetBlobKind::AnimationScaleValues,
-                        s_values_count,
-                        "animation scale values",
-                    )?
-                    .context(BlobNotFoundErr)?
-                    .decode_from_io("animation scale values", s_values_count, package)?,
+                t_times,
+                t_values,
+                r_times,
+                r_values,
+                s_times,
+                s_values,
             },
         })
     }

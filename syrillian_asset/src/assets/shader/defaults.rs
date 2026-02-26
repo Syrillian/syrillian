@@ -1,15 +1,88 @@
-use crate::mesh::UnskinnedVertex3D;
+use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE};
 use wgpu::{
     BlendState, ColorTargetState, ColorWrites, TextureFormat, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexStepMode,
 };
 
-pub const DEFAULT_VBL: [VertexBufferLayout; 1] = [UnskinnedVertex3D::continuous_descriptor()];
-pub const DEFAULT_VBL_STEP_INSTANCE: [VertexBufferLayout; 1] = {
-    let mut continuous = UnskinnedVertex3D::continuous_descriptor();
-    continuous.step_mode = VertexStepMode::Instance;
-    [continuous]
-};
+pub const PICKING_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
+
+pub const DEFAULT_VBL: [VertexBufferLayout; 4] = [
+    VertexBufferLayout {
+        array_stride: VEC3_SIZE,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 0,
+        }],
+    },
+    VertexBufferLayout {
+        array_stride: VEC2_SIZE,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x2,
+            offset: 0,
+            shader_location: 1,
+        }],
+    },
+    VertexBufferLayout {
+        array_stride: VEC3_SIZE,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 2,
+        }],
+    },
+    VertexBufferLayout {
+        array_stride: VEC3_SIZE,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 3,
+        }],
+    },
+];
+
+pub const DEFAULT_VBL_STEP_INSTANCE: [VertexBufferLayout; 4] = [
+    VertexBufferLayout {
+        array_stride: VEC3_SIZE,
+        step_mode: VertexStepMode::Instance,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 0,
+        }],
+    },
+    VertexBufferLayout {
+        array_stride: VEC2_SIZE,
+        step_mode: VertexStepMode::Instance,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x2,
+            offset: 0,
+            shader_location: 1,
+        }],
+    },
+    VertexBufferLayout {
+        array_stride: VEC3_SIZE,
+        step_mode: VertexStepMode::Instance,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 2,
+        }],
+    },
+    VertexBufferLayout {
+        array_stride: VEC3_SIZE,
+        step_mode: VertexStepMode::Instance,
+        attributes: &[VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 3,
+        }],
+    },
+];
 
 pub const DEFAULT_COLOR_TARGETS: &[Option<ColorTargetState>] = &[
     Some(ColorTargetState {
@@ -43,6 +116,12 @@ pub const ONLY_COLOR_TARGET_SRGB: &[Option<ColorTargetState>] = &[Some(ColorTarg
 
 pub const DEFAULT_PP_COLOR_TARGETS: &[Option<ColorTargetState>] = &[Some(ColorTargetState {
     format: TextureFormat::Rgba8Unorm,
+    blend: None,
+    write_mask: ColorWrites::all(),
+})];
+
+pub const PICKING_COLOR_TARGET: &[Option<ColorTargetState>] = &[Some(ColorTargetState {
+    format: PICKING_TEXTURE_FORMAT,
     blend: None,
     write_mask: ColorWrites::all(),
 })];

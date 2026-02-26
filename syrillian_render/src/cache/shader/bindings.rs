@@ -27,6 +27,7 @@ impl ShaderBindings for Shader {
         if self.needs_bgl(HBGL::MODEL) {
             out.push(cache.bgl_model().clone());
         }
+
         if self.needs_bgl(HBGL::MATERIAL) {
             if let Some(layout) = self.material_layout() {
                 out.push(cache.material_layout(layout));
@@ -34,9 +35,11 @@ impl ShaderBindings for Shader {
                 out.push(cache.bgl_material().clone());
             }
         }
+
         if self.needs_bgl(HBGL::LIGHT) {
             out.push(cache.bgl_light());
         }
+
         if self.needs_bgl(HBGL::SHADOW) {
             out.push(cache.bgl_shadow());
         }

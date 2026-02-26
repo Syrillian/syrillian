@@ -1,8 +1,8 @@
 use itertools::iproduct;
 use std::error::Error;
 use syrillian::SyrillianApp;
-use syrillian::assets::{HMesh, MaterialInstance};
 use syrillian::assets::store::StoreType;
+use syrillian::assets::{HMesh, MaterialInstance};
 use syrillian::math::Vec3;
 use syrillian::{AppState, World};
 use syrillian_components::prefabs::SunPrefab;

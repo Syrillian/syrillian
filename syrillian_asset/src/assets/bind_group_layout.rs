@@ -138,28 +138,16 @@ const RENDER_ENTRIES: [BindGroupLayoutEntry; 5] = [
     },
 ];
 
-const MODEL_ENTRIES: [BindGroupLayoutEntry; 2] = [
-    BindGroupLayoutEntry {
-        binding: 0,
-        visibility: ShaderStages::all(),
-        ty: BindingType::Buffer {
-            ty: BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
+const MODEL_ENTRIES: [BindGroupLayoutEntry; 1] = [BindGroupLayoutEntry {
+    binding: 0,
+    visibility: ShaderStages::all(),
+    ty: BindingType::Buffer {
+        ty: BufferBindingType::Uniform,
+        has_dynamic_offset: false,
+        min_binding_size: None,
     },
-    BindGroupLayoutEntry {
-        binding: 1,
-        visibility: ShaderStages::all(),
-        ty: BindingType::Buffer {
-            ty: BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    },
-];
+    count: None,
+}];
 
 const MATERIAL_ENTRIES: [BindGroupLayoutEntry; 6] = [
     BindGroupLayoutEntry {
@@ -382,7 +370,7 @@ const PP_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 6] = [
     },
 ];
 
-const MESH_SKINNING_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 4] = [
+const MESH_SKINNING_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 6] = [
     BindGroupLayoutEntry {
         binding: 0,
         visibility: ShaderStages::COMPUTE,
@@ -415,6 +403,26 @@ const MESH_SKINNING_COMPUTE_ENTRIES: [BindGroupLayoutEntry; 4] = [
     },
     BindGroupLayoutEntry {
         binding: 3,
+        visibility: ShaderStages::COMPUTE,
+        ty: BindingType::Buffer {
+            ty: BufferBindingType::Storage { read_only: false },
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 4,
+        visibility: ShaderStages::COMPUTE,
+        ty: BindingType::Buffer {
+            ty: BufferBindingType::Storage { read_only: false },
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 5,
         visibility: ShaderStages::COMPUTE,
         ty: BindingType::Buffer {
             ty: BufferBindingType::Storage { read_only: false },

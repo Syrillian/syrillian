@@ -1,14 +1,14 @@
 use crate::GltfScene;
 use gltf::{Node, mesh};
-use itertools::izip;
 use std::collections::HashMap;
+use std::sync::Arc;
 use syrillian::assets::Mesh;
 use syrillian::core::Bones;
 use syrillian::math::{Vec2, Vec3};
 use syrillian::tracing::warn;
 use syrillian::utils::iter::interpolate_zeros;
 use syrillian_asset::SkinnedMesh;
-use syrillian_asset::mesh::{SkinnedVertex3D, UnskinnedVertex3D};
+use syrillian_asset::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVertexBuffers};
 
 /// Mesh and associated material indices for each sub-mesh range
 pub type MeshData = Option<(MeshLoadResult, Vec<u32>)>;
@@ -30,7 +30,7 @@ pub struct SkinSlices<'a> {
 #[derive(Default)]
 pub struct PrimitiveBuffers {
     positions: Vec<Vec3>,
-    tex_coords: Vec<Vec2>,
+    uvs: Vec<Vec2>,
     normals: Vec<Vec3>,
     tangents: Vec<Vec3>,
     bone_indices: Vec<[u16; 4]>,
@@ -211,7 +211,7 @@ impl PrimitiveBuffers {
     pub fn extend(&mut self, data: PrimitiveResult, start: u32) {
         let PrimitiveResult {
             positions,
-            tex_coords,
+            uvs,
             normals,
             tangents,
             bone_indices,
@@ -221,7 +221,7 @@ impl PrimitiveBuffers {
 
         let vertex_count = positions.len() as u32;
         self.positions.extend(positions);
-        self.tex_coords.extend(tex_coords);
+        self.uvs.extend(uvs);
         self.normals.extend(normals);
         self.tangents.extend(tangents);
         self.bone_indices.extend(bone_indices);
@@ -241,7 +241,7 @@ impl PrimitiveBuffers {
     pub fn fill_missing(&mut self) {
         interpolate_zeros(
             self.positions.len(),
-            &mut [&mut self.tex_coords, &mut self.normals, &mut self.tangents],
+            &mut [&mut self.uvs, &mut self.normals, &mut self.tangents],
         );
     }
 
@@ -249,7 +249,7 @@ impl PrimitiveBuffers {
     pub fn build_skinned_mesh(self, bones: Bones) -> (SkinnedMesh, Vec<u32>) {
         let PrimitiveBuffers {
             positions,
-            tex_coords,
+            uvs,
             normals,
             tangents,
             bone_indices,
@@ -258,19 +258,22 @@ impl PrimitiveBuffers {
             materials,
         } = self;
 
-        let vertices = izip!(
+        let buffers = RawVertexBuffers {
             positions,
-            tex_coords,
+            uvs,
             normals,
             tangents,
+            indices: None,
+        };
+
+        let skinning_buffers = RawSkinningVertexBuffers {
             bone_indices,
-            bone_weights
-        )
-        .map(|(p, uv, n, t, i, w)| SkinnedVertex3D::new(p, uv, n, t, i, w))
-        .collect();
+            bone_weights,
+        };
 
         let mesh = SkinnedMesh::builder()
-            .data(vertices, None)
+            .data(Arc::new(buffers))
+            .skinning_data(Arc::new(skinning_buffers))
             .material_ranges(ranges)
             .bones(bones)
             .build();
@@ -280,7 +283,7 @@ impl PrimitiveBuffers {
     pub fn build_mesh(self) -> (Mesh, Vec<u32>) {
         let PrimitiveBuffers {
             positions,
-            tex_coords,
+            uvs,
             normals,
             tangents,
             ranges,
@@ -288,12 +291,16 @@ impl PrimitiveBuffers {
             ..
         } = self;
 
-        let vertices = izip!(positions, tex_coords, normals, tangents)
-            .map(|(p, uv, n, t)| UnskinnedVertex3D::new(p, uv, n, t))
-            .collect();
+        let buffers = RawVertexBuffers {
+            positions,
+            uvs,
+            normals,
+            tangents,
+            indices: None,
+        };
 
         let mesh = Mesh::builder()
-            .data(vertices, None)
+            .data(Arc::new(buffers))
             .material_ranges(ranges)
             .build();
         (mesh, materials)
@@ -302,7 +309,7 @@ impl PrimitiveBuffers {
 
 pub struct PrimitiveResult {
     positions: Vec<Vec3>,
-    tex_coords: Vec<Vec2>,
+    uvs: Vec<Vec2>,
     normals: Vec<Vec3>,
     tangents: Vec<Vec3>,
     bone_indices: Vec<[u16; 4]>,
@@ -315,7 +322,7 @@ impl PrimitiveResult {
     pub fn new(material_index: u32) -> Self {
         Self {
             positions: Vec::new(),
-            tex_coords: Vec::new(),
+            uvs: Vec::new(),
             normals: Vec::new(),
             tangents: Vec::new(),
             bone_indices: Vec::new(),
@@ -376,7 +383,7 @@ impl PrimitiveResult {
         self.tangents.push(tangent);
 
         let uv = sources.vertex_tex_coord(index);
-        self.tex_coords.push(uv);
+        self.uvs.push(uv);
 
         if let Some(skin) = sources.skin {
             let joint = skin.joints[index];

@@ -1,6 +1,7 @@
 // TODO: refactor
 
-use crate::cache::{AssetCache, RuntimeMesh, RuntimeShader};
+use crate::cache::mesh::RenderMesh;
+use crate::cache::{AssetCache, RuntimeShader};
 use crate::model_uniform::ModelUniform;
 use crate::proxies::{
     PROXY_PRIORITY_SOLID, PROXY_PRIORITY_TRANSPARENT, SceneProxy, SceneProxyBinding,
@@ -29,7 +30,7 @@ pub enum MeshUniformIndex {
 }
 
 #[derive(Debug, Clone)]
-pub struct RuntimeMeshData {
+pub struct RenderMeshData {
     pub mesh_data: ModelUniform,
     // TODO: Consider having a uniform like that, for every Transform by default in some way, or
     //       lazy-make / provide one by default.
@@ -44,7 +45,7 @@ pub struct MeshSceneProxy {
     pub bounding: Option<BoundingSphere>,
 }
 
-impl RuntimeMeshData {
+impl RenderMeshData {
     pub fn activate_shader(
         &self,
         shader: &RuntimeShader,
@@ -76,7 +77,7 @@ impl SceneProxy for MeshSceneProxy {
         data: &mut (dyn Any + Send),
         local_to_world: &Affine3A,
     ) {
-        let data: &mut RuntimeMeshData = proxy_data_mut!(data);
+        let data: &mut RenderMeshData = proxy_data_mut!(data);
 
         let model_mat: glamx::Mat4 = (*local_to_world).into();
         data.mesh_data.update(&model_mat);
@@ -89,7 +90,7 @@ impl SceneProxy for MeshSceneProxy {
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
-        let data: &RuntimeMeshData = proxy_data!(binding.proxy_data());
+        let data: &RenderMeshData = proxy_data!(binding.proxy_data());
 
         let Some(mesh) = renderer.cache.mesh(self.mesh) else {
             return;
@@ -110,7 +111,7 @@ impl SceneProxy for MeshSceneProxy {
     }
 
     fn render_shadows(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
-        let data: &RuntimeMeshData = proxy_data!(binding.proxy_data());
+        let data: &RenderMeshData = proxy_data!(binding.proxy_data());
 
         let Some(mesh) = renderer.cache.mesh(self.mesh) else {
             return;
@@ -124,7 +125,7 @@ impl SceneProxy for MeshSceneProxy {
     fn render_picking(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
         debug_assert_ne!(ctx.pass_type, RenderPassType::Shadow);
 
-        let data: &RuntimeMeshData = proxy_data!(binding.proxy_data());
+        let data: &RenderMeshData = proxy_data!(binding.proxy_data());
 
         let Some(mesh) = renderer.cache.mesh(self.mesh) else {
             return;
@@ -167,8 +168,8 @@ impl MeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
         self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Color);
@@ -179,8 +180,8 @@ impl MeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
         self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Shadow);
@@ -191,8 +192,8 @@ impl MeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
     ) {
         self.draw_materials(ctx, cache, mesh, runtime, pass, RenderPassType::Picking);
@@ -202,8 +203,8 @@ impl MeshSceneProxy {
         &self,
         ctx: &GPUDrawCtx,
         cache: &AssetCache,
-        mesh: &RuntimeMesh,
-        runtime: &RuntimeMeshData,
+        mesh: &RenderMesh,
+        runtime: &RenderMeshData,
         pass: &mut RwLockWriteGuard<RenderPass>,
         pass_type: RenderPassType,
     ) {
@@ -276,7 +277,7 @@ impl MeshSceneProxy {
         &mut self,
         renderer: &Renderer,
         local_to_world: &Affine3A,
-    ) -> RuntimeMeshData {
+    ) -> RenderMeshData {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
@@ -285,7 +286,7 @@ impl MeshSceneProxy {
             .with_buffer_data(&mesh_data)
             .build(device);
 
-        RuntimeMeshData { mesh_data, uniform }
+        RenderMeshData { mesh_data, uniform }
     }
 }
 
@@ -293,8 +294,8 @@ impl MeshSceneProxy {
 fn draw_edges(
     ctx: &GPUDrawCtx,
     cache: &AssetCache,
-    mesh: &RuntimeMesh,
-    runtime: &RuntimeMeshData,
+    mesh: &RenderMesh,
+    runtime: &RenderMeshData,
     pass: &mut RenderPass,
 ) {
     use glamx::Vec4;
@@ -316,8 +317,8 @@ fn draw_edges(
 fn draw_vertex_normals(
     ctx: &GPUDrawCtx,
     cache: &AssetCache,
-    mesh: &RuntimeMesh,
-    runtime: &RuntimeMeshData,
+    mesh: &RenderMesh,
+    runtime: &RenderMeshData,
     pass: &mut RenderPass,
 ) {
     use syrillian_asset::HShader;

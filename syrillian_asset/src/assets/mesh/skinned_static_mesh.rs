@@ -1,5 +1,5 @@
-use crate::mesh::static_mesh_data::{SkinnedStaticMeshData, StaticMeshData};
-use crate::mesh::{Bones, PartialMesh, SkinnedVertex3D};
+use crate::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVertexBuffers};
+use crate::mesh::{Bones, PartialMesh};
 use crate::store::streaming::asset_store::{
     StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
@@ -10,19 +10,15 @@ use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
 use crate::store::{H, HandleName, StoreType, UpdateAssetMessage, streaming};
 use crossbeam_channel::Sender;
-use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 use syrillian_reflect::serializer::JsonSerializer;
-use syrillian_reflect::{ReflectSerialize, Value};
 use syrillian_utils::BoundingSphere;
-use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, bon::Builder)]
 pub struct SkinnedMesh {
-    #[builder(with = |vertices: Vec<SkinnedVertex3D>, indices: Option<Vec<u32>>| Arc::new(SkinnedStaticMeshData::new(vertices, indices))
-    )]
-    pub data: Arc<SkinnedStaticMeshData>,
+    pub data: Arc<RawVertexBuffers>,
+    pub skinning_data: Arc<RawSkinningVertexBuffers>,
     #[builder(default)]
     pub material_ranges: Vec<Range<u32>>,
     pub bones: Bones,
@@ -30,13 +26,8 @@ pub struct SkinnedMesh {
 }
 
 impl PartialMesh for SkinnedMesh {
-    type VertexType = SkinnedVertex3D;
-    fn vertices(&self) -> &[Self::VertexType] {
-        &self.data.vertices
-    }
-
-    fn indices(&self) -> Option<&[u32]> {
-        self.data.indices.as_deref()
+    fn buffers(&self) -> &RawVertexBuffers {
+        &self.data
     }
 }
 
@@ -62,144 +53,76 @@ impl StoreType for SkinnedMesh {
     }
 }
 
-struct SkinnedMeshMeta<'a>(&'a SkinnedMesh);
-
-struct MeshBonesMeta<'a>(&'a Bones);
-
-impl ReflectSerialize for MeshBonesMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        Value::Object(BTreeMap::from([
-            (
-                "names".to_string(),
-                ReflectSerialize::serialize(&this.0.names),
-            ),
-            (
-                "parents".to_string(),
-                ReflectSerialize::serialize(&this.0.parents),
-            ),
-            (
-                "children".to_string(),
-                ReflectSerialize::serialize(&this.0.children),
-            ),
-            (
-                "roots".to_string(),
-                ReflectSerialize::serialize(&this.0.roots),
-            ),
-            (
-                "index_of".to_string(),
-                ReflectSerialize::serialize(&this.0.index_of),
-            ),
-            (
-                "inverse_bind_count".to_string(),
-                Value::BigUInt(this.0.inverse_bind.len() as u64),
-            ),
-            (
-                "bind_global_count".to_string(),
-                Value::BigUInt(this.0.bind_global.len() as u64),
-            ),
-            (
-                "bind_local_count".to_string(),
-                Value::BigUInt(this.0.bind_local.len() as u64),
-            ),
-        ]))
-    }
-}
-
-impl ReflectSerialize for SkinnedMeshMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        let indices = this.0.indices();
-
-        Value::Object(BTreeMap::from([
-            (
-                "vertex_count".to_string(),
-                Value::BigUInt(this.0.vertices().len() as u64),
-            ),
-            (
-                "vertex_stride".to_string(),
-                Value::UInt(size_of::<SkinnedVertex3D>() as u32),
-            ),
-            ("has_indices".to_string(), Value::Bool(this.0.has_indices())),
-            (
-                "index_count".to_string(),
-                Value::BigUInt(indices.map_or(0, <[u32]>::len) as u64),
-            ),
-            (
-                "index_element_size".to_string(),
-                Value::UInt(size_of::<u32>() as u32),
-            ),
-            (
-                "material_ranges".to_string(),
-                ReflectSerialize::serialize(&this.0.material_ranges),
-            ),
-            (
-                "bones".to_string(),
-                ReflectSerialize::serialize(&MeshBonesMeta(&this.0.bones)),
-            ),
-            (
-                "bounding_sphere".to_string(),
-                match this.0.bounding_sphere {
-                    None => Value::None,
-                    Some(ref b) => Value::Object(BTreeMap::from([
-                        ("center".to_string(), ReflectSerialize::serialize(&b.center)),
-                        ("radius".to_string(), Value::Float(b.radius)),
-                    ])),
-                },
-            ),
-        ]))
-    }
-}
-
 impl StreamableAsset for SkinnedMesh {
     fn encode(&self) -> BuiltPayload {
         let mut blobs = Vec::new();
 
-        if !self.vertices().is_empty() {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::MeshVertices,
-                element_count: self.vertices().len() as u64,
-                data: self.vertices().as_bytes().to_vec(),
-            });
+        if let Some(positions) =
+            PackedBlob::pack_data(StreamingAssetBlobKind::MeshPositions, &self.data.positions)
+        {
+            blobs.push(positions);
         }
 
-        if let Some(indices) = self.indices() {
-            if !indices.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::MeshIndices,
-                    element_count: indices.len() as u64,
-                    data: indices.as_bytes().to_vec(),
-                });
-            }
+        if let Some(uvs) = PackedBlob::pack_data(StreamingAssetBlobKind::MeshUVs, &self.data.uvs) {
+            blobs.push(uvs);
         }
 
-        let inverse_bind_blob = self.bones.inverse_bind.as_bytes();
-        if !inverse_bind_blob.is_empty() {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::BonesInverseBind,
-                element_count: self.bones.inverse_bind.len() as u64,
-                data: inverse_bind_blob.to_vec(),
-            });
+        if let Some(normals) =
+            PackedBlob::pack_data(StreamingAssetBlobKind::MeshNormals, &self.data.normals)
+        {
+            blobs.push(normals);
         }
 
-        let bind_global_blob = self.bones.bind_global.as_bytes();
-        if !bind_global_blob.is_empty() {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::BonesBindGlobal,
-                element_count: self.bones.bind_global.len() as u64,
-                data: bind_global_blob.to_vec(),
-            });
+        if let Some(tangents) =
+            PackedBlob::pack_data(StreamingAssetBlobKind::MeshTangents, &self.data.tangents)
+        {
+            blobs.push(tangents);
         }
 
-        let bind_local_blob = self.bones.bind_local.as_bytes();
-        if !bind_local_blob.is_empty() {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::BonesBindLocal,
-                element_count: self.bones.bind_local.len() as u64,
-                data: bind_local_blob.to_vec(),
-            });
+        if let Some(bone_indices) = PackedBlob::pack_data(
+            StreamingAssetBlobKind::MeshBoneIndices,
+            &self.skinning_data.bone_indices,
+        ) {
+            blobs.push(bone_indices);
+        }
+
+        if let Some(bone_weights) = PackedBlob::pack_data(
+            StreamingAssetBlobKind::MeshBoneWeights,
+            &self.skinning_data.bone_weights,
+        ) {
+            blobs.push(bone_weights);
+        }
+
+        if let Some(raw_indices) = &self.data.indices
+            && let Some(indices) =
+                PackedBlob::pack_data(StreamingAssetBlobKind::MeshIndices, raw_indices)
+        {
+            blobs.push(indices);
+        }
+
+        if let Some(inverse_binds) = PackedBlob::pack_data(
+            StreamingAssetBlobKind::BonesInverseBind,
+            &self.bones.inverse_bind,
+        ) {
+            blobs.push(inverse_binds);
+        }
+
+        if let Some(bind_globals) = PackedBlob::pack_data(
+            StreamingAssetBlobKind::BonesBindGlobal,
+            &self.bones.bind_global,
+        ) {
+            blobs.push(bind_globals);
+        }
+
+        if let Some(bind_locals) = PackedBlob::pack_data(
+            StreamingAssetBlobKind::BonesBindLocal,
+            &self.bones.bind_local,
+        ) {
+            blobs.push(bind_locals);
         }
 
         BuiltPayload {
-            payload: JsonSerializer::serialize_to_string(&SkinnedMeshMeta(self)),
+            payload: JsonSerializer::serialize_to_string(self),
             blobs,
         }
     }
@@ -209,13 +132,6 @@ impl StreamableAsset for SkinnedMesh {
         package: &mut StreamingAssetFile,
     ) -> streaming::error::Result<Self> {
         let root = payload.data.expect_object("mesh data")?;
-
-        let vertex_count = root
-            .required_field("vertex_count")?
-            .expect_usize("mesh vertex count")?;
-        let index_count = root
-            .required_field("index_count")?
-            .expect_usize("mesh index count")?;
 
         let material_ranges = root
             .required_field("material_ranges")?
@@ -229,23 +145,54 @@ impl StreamableAsset for SkinnedMesh {
             .optional_field("bounding_sphere")
             .expect_parse("mesh bounding sphere")?;
 
-        let indices = if index_count != 0 {
-            let index_blob = payload
-                .blob_infos
-                .find(StreamingAssetBlobKind::MeshIndices)?;
-            Some(index_blob.decode_from_io("mesh indices", index_count, package)?)
-        } else {
-            None
+        let indices = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshIndices)
+            .ok()
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?;
+
+        let positions = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshPositions)?
+            .decode_all_from_io(package)?;
+        let uvs = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshUVs)?
+            .decode_all_from_io(package)?;
+        let normals = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshNormals)?
+            .decode_all_from_io(package)?;
+        let tangents = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshTangents)?
+            .decode_all_from_io(package)?;
+        let bone_indices = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshBoneIndices)?
+            .decode_all_from_io(package)?;
+        let bone_weights = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshBoneWeights)?
+            .decode_all_from_io(package)?;
+
+        let buffers = RawVertexBuffers {
+            positions,
+            uvs,
+            normals,
+            tangents,
+            indices,
         };
 
-        let vertex_blob = payload
-            .blob_infos
-            .find(StreamingAssetBlobKind::MeshVertices)?;
+        let skinning_buffers = RawSkinningVertexBuffers {
+            bone_indices,
+            bone_weights,
+        };
 
-        let vertices =
-            vertex_blob.decode_from_io("skinned mesh vertices", vertex_count, package)?;
         Ok(SkinnedMesh {
-            data: Arc::new(StaticMeshData::new(vertices, indices)),
+            data: Arc::new(buffers),
+            skinning_data: Arc::new(skinning_buffers),
             material_ranges,
             bones,
             bounding_sphere,

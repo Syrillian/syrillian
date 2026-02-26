@@ -652,7 +652,22 @@ fn notify_waiters(waiters: Vec<Completion>, result: Result<ErasedHandle>) {
 }
 
 impl StreamingAssetBlobInfo {
-    pub fn decode_from_io<T>(
+    fn decode_from_io<T>(&self, count: usize, package: &mut StreamingAssetFile) -> Result<Vec<T>>
+    where
+        T: Immutable + FromBytes + KnownLayout + Clone,
+    {
+        let bytes = package.read_blob_bytes(self)?;
+        let bytes_section = &bytes[0..count * size_of::<T>()];
+
+        let elems = <[T]>::try_ref_from_bytes_with_elems(&bytes_section, count).map_err(|e| {
+            AssetStreamingError::Decode {
+                source: None,
+                message: e.to_string(),
+            }
+        })?;
+        Ok(elems.to_vec())
+    }
+    pub fn decode_exact_from_io<T>(
         &self,
         label: &str,
         expected_count: usize,
@@ -663,15 +678,14 @@ impl StreamingAssetBlobInfo {
     {
         self.validate_count(expected_count, label)?;
 
-        let bytes = package.read_blob_bytes(self)?;
+        self.decode_from_io(expected_count, package)
+    }
 
-        let elems = <[T]>::try_ref_from_bytes_with_elems(&bytes, expected_count).map_err(|e| {
-            AssetStreamingError::Decode {
-                source: None,
-                message: e.to_string(),
-            }
-        })?;
-        Ok(elems.to_vec())
+    pub fn decode_all_from_io<T>(&self, package: &mut StreamingAssetFile) -> Result<Vec<T>>
+    where
+        T: Immutable + FromBytes + KnownLayout + Clone,
+    {
+        self.decode_from_io(self.element_count, package)
     }
 }
 

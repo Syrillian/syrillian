@@ -382,27 +382,17 @@ impl ParseDecodeWithBlobs<Bones> for Value {
             .required_field("index_of")?
             .expect_parse("mesh bone index map")?;
 
-        let inverse_bind_count = bones
-            .required_field("inverse_bind_count")?
-            .expect_parse("mesh inverse bind count")?;
-        let bind_global_count = bones
-            .required_field("bind_global_count")?
-            .expect_parse("mesh bind global count")?;
-        let bind_local_count = bones
-            .required_field("bind_local_count")?
-            .expect_parse("mesh bind local count")?;
-
         let inverse_bind = blobs
             .find(StreamingAssetBlobKind::BonesInverseBind)?
-            .decode_from_io("mesh inverse bind matrices", inverse_bind_count, package)?;
+            .decode_all_from_io(package)?;
 
         let bind_global = blobs
             .find(StreamingAssetBlobKind::BonesBindGlobal)?
-            .decode_from_io("mesh global bind matrices", bind_global_count, package)?;
+            .decode_all_from_io(package)?;
 
         let bind_local = blobs
             .find(StreamingAssetBlobKind::BonesBindLocal)?
-            .decode_from_io("mesh local bind matrices", bind_local_count, package)?;
+            .decode_all_from_io(package)?;
 
         Ok(Bones {
             names,

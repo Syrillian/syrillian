@@ -1,8 +1,6 @@
 use crate::mesh::buffer::UNIT_SQUARE_VERT;
-use crate::mesh::static_mesh_data::StaticMeshData;
-use crate::mesh::{
-    CUBE_OBJ, DEBUG_ARROW, MeshError, PartialMesh, SPHERE, SkinnedVertex3D, UnskinnedVertex3D,
-};
+use crate::mesh::static_mesh_data::{RawVertexBuffers, VertexBufferExt};
+use crate::mesh::{CUBE_OBJ, DEBUG_ARROW, MeshError, PartialMesh, SPHERE};
 use crate::store::streaming::asset_store::{
     StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
@@ -12,24 +10,15 @@ use crate::store::streaming::payload::StreamableAsset;
 use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, UpdateAssetMessage, streaming};
 use crate::{HMesh, store_add_checked};
 use crossbeam_channel::Sender;
-use glamx::{Vec2, Vec3};
-use itertools::izip;
 use obj::IndexTuple;
-use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 use syrillian_reflect::serializer::JsonSerializer;
-use syrillian_reflect::{ReflectSerialize, Value};
 use syrillian_utils::BoundingSphere;
-use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, bon::Builder)]
 pub struct Mesh {
-    #[builder(
-        with = |vertices: Vec<UnskinnedVertex3D>, indices: Option<Vec<u32>>|
-            Arc::new(StaticMeshData::new(vertices, indices))
-    )]
-    pub data: Arc<StaticMeshData>,
+    pub data: Arc<RawVertexBuffers>,
     #[builder(default)]
     pub material_ranges: Vec<Range<u32>>,
     pub bounding_sphere: Option<BoundingSphere>,
@@ -38,15 +27,13 @@ pub struct Mesh {
 impl Mesh {
     pub fn load_from_obj_slice(data: &[u8]) -> Result<Mesh, MeshError> {
         let data = obj::ObjData::load_buf(data)?;
-        let mut vertices: Vec<Vec3> = Vec::new();
-        let mut normals: Vec<Vec3> = Vec::new();
-        let mut uvs: Vec<Vec2> = Vec::new();
+        let mut buffers = RawVertexBuffers::default();
 
         let mut material_ranges = Vec::new();
 
         for obj in data.objects {
             for group in obj.groups {
-                let mat_start = vertices.len() as u32;
+                let mat_start = buffers.len() as u32;
 
                 for poly in group.polys {
                     if poly.0.len() != 3 {
@@ -59,25 +46,23 @@ impl Mesh {
                         let Some(normal) = normal else {
                             return Err(MeshError::NormalsMissing);
                         };
-                        vertices.push(data.position[pos].into());
-                        uvs.push(data.texture[uv].into());
-                        normals.push(data.normal[normal].into());
+                        buffers.positions.push(data.position[pos].into());
+                        buffers.uvs.push(data.texture[uv].into());
+                        buffers.normals.push(data.normal[normal].into());
                     }
                 }
 
-                let mat_end = (mat_start as usize + vertices.len()) as u32;
+                let mat_end = (mat_start as usize + buffers.positions.len()) as u32;
                 material_ranges.push(mat_start..mat_end);
             }
         }
 
-        debug_assert!(vertices.len() == uvs.len() && vertices.len() == normals.len());
+        buffers.interpolate();
 
-        let vertices = izip!(vertices, uvs, normals)
-            .map(|(v, u, n)| UnskinnedVertex3D::basic(v, u, n))
-            .collect::<Vec<_>>();
+        debug_assert!(buffers.is_valid());
 
         Ok(Mesh {
-            data: Arc::new(StaticMeshData::new(vertices, None)),
+            data: Arc::new(buffers),
             material_ranges,
             bounding_sphere: None,
         })
@@ -85,13 +70,8 @@ impl Mesh {
 }
 
 impl PartialMesh for Mesh {
-    type VertexType = UnskinnedVertex3D;
-    fn vertices(&self) -> &[Self::VertexType] {
-        &self.data.vertices
-    }
-
-    fn indices(&self) -> Option<&[u32]> {
-        self.data.indices.as_deref()
+    fn buffers(&self) -> &RawVertexBuffers {
+        &self.data
     }
 }
 
@@ -111,7 +91,7 @@ impl H<Mesh> {
 impl StoreDefaults for Mesh {
     fn populate(store: &mut Store<Self>) {
         let unit_square = Mesh::builder()
-            .data(UNIT_SQUARE_VERT.to_vec(), None)
+            .data(Arc::new(UNIT_SQUARE_VERT.as_ref().into()))
             .build();
         store_add_checked!(store, HMesh::UNIT_SQUARE_ID, unit_square);
 
@@ -155,70 +135,41 @@ impl StoreType for Mesh {
     }
 }
 
-struct MeshMeta<'a>(&'a Mesh);
-
-impl ReflectSerialize for MeshMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        let indices = this.0.indices();
-
-        Value::Object(BTreeMap::from([
-            (
-                "vertex_count".to_string(),
-                Value::BigUInt(this.0.vertices().len() as u64),
-            ),
-            (
-                "vertex_stride".to_string(),
-                Value::UInt(size_of::<SkinnedVertex3D>() as u32),
-            ),
-            ("has_indices".to_string(), Value::Bool(this.0.has_indices())),
-            (
-                "index_count".to_string(),
-                Value::BigUInt(indices.map_or(0, <[u32]>::len) as u64),
-            ),
-            (
-                "index_element_size".to_string(),
-                Value::UInt(size_of::<u32>() as u32),
-            ),
-            (
-                "material_ranges".to_string(),
-                ReflectSerialize::serialize(&this.0.material_ranges),
-            ),
-            (
-                "bounding_sphere".to_string(),
-                match this.0.bounding_sphere {
-                    None => Value::None,
-                    Some(ref b) => Value::Object(BTreeMap::from([
-                        ("center".to_string(), ReflectSerialize::serialize(&b.center)),
-                        ("radius".to_string(), Value::Float(b.radius)),
-                    ])),
-                },
-            ),
-        ]))
-    }
-}
 impl StreamableAsset for Mesh {
     fn encode(&self) -> BuiltPayload {
         let mut blobs = Vec::new();
 
-        if !self.vertices().is_empty() {
-            blobs.push(PackedBlob {
-                kind: StreamingAssetBlobKind::MeshVertices,
-                element_count: self.vertices().len() as u64,
-                data: self.vertices().as_bytes().to_vec(),
-            });
+        if let Some(positions) =
+            PackedBlob::pack_data(StreamingAssetBlobKind::MeshPositions, &self.data.positions)
+        {
+            blobs.push(positions);
         }
 
-        if let Some(indices) = self.indices() {
-            if !indices.is_empty() {
-                blobs.push(PackedBlob {
-                    kind: StreamingAssetBlobKind::MeshIndices,
-                    element_count: indices.len() as u64,
-                    data: indices.as_bytes().to_vec(),
-                });
-            }
+        if let Some(uvs) = PackedBlob::pack_data(StreamingAssetBlobKind::MeshUVs, &self.data.uvs) {
+            blobs.push(uvs);
         }
+
+        if let Some(normals) =
+            PackedBlob::pack_data(StreamingAssetBlobKind::MeshNormals, &self.data.normals)
+        {
+            blobs.push(normals);
+        }
+
+        if let Some(tangents) =
+            PackedBlob::pack_data(StreamingAssetBlobKind::MeshTangents, &self.data.tangents)
+        {
+            blobs.push(tangents);
+        }
+
+        if let Some(raw_indices) = &self.data.indices
+            && let Some(indices) =
+                PackedBlob::pack_data(StreamingAssetBlobKind::MeshIndices, raw_indices)
+        {
+            blobs.push(indices);
+        }
+
         BuiltPayload {
-            payload: JsonSerializer::serialize_to_string(&MeshMeta(self)),
+            payload: JsonSerializer::serialize_to_string(self),
             blobs,
         }
     }
@@ -227,41 +178,50 @@ impl StreamableAsset for Mesh {
         payload: &StreamingAssetPayload,
         package: &mut StreamingAssetFile,
     ) -> streaming::error::Result<Self> {
-        let root = payload.data.expect_object("mesh metadata")?;
-
-        let vertex_count = root
-            .required_field("vertex_count")?
-            .expect_usize("mesh vertex count")?;
-        let index_count = root
-            .required_field("index_count")?
-            .expect_usize("mesh index count")?;
+        let root = payload.data.expect_object("mesh data")?;
 
         let material_ranges = root
             .required_field("material_ranges")?
-            .expect_parse("material ranges")?;
+            .expect_parse("mesh material ranges")?;
 
         let bounding_sphere = root
             .optional_field("bounding_sphere")
             .expect_parse("mesh bounding sphere")?;
 
-        let indices = if index_count != 0 {
-            let index_blob = payload
-                .blob_infos
-                .find(StreamingAssetBlobKind::MeshIndices)?;
-            Some(index_blob.decode_from_io("mesh indices", index_count, package)?)
-        } else {
-            None
+        let indices = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshIndices)
+            .ok()
+            .map(|i| i.decode_all_from_io(package))
+            .transpose()?;
+
+        let positions = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshPositions)?
+            .decode_all_from_io(package)?;
+        let uvs = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshUVs)?
+            .decode_all_from_io(package)?;
+        let normals = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshNormals)?
+            .decode_all_from_io(package)?;
+        let tangents = payload
+            .blob_infos
+            .find(StreamingAssetBlobKind::MeshTangents)?
+            .decode_all_from_io(package)?;
+
+        let buffers = RawVertexBuffers {
+            positions,
+            uvs,
+            normals,
+            tangents,
+            indices,
         };
 
-        let vertex_blob = payload
-            .blob_infos
-            .find(StreamingAssetBlobKind::MeshVertices)?;
-
-        let vertices =
-            vertex_blob.decode_from_io("unskinned mesh vertices", vertex_count, package)?;
-
         Ok(Mesh {
-            data: Arc::new(StaticMeshData::new(vertices, indices)),
+            data: Arc::new(buffers),
             material_ranges,
             bounding_sphere,
         })

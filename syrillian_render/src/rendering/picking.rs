@@ -1,6 +1,6 @@
 use crate::ObjectHash;
 use crate::rendering::viewport::ViewportId;
-use syrillian_shadergen::generator::PICKING_TEXTURE_FORMAT;
+use syrillian_asset::defaults::PICKING_TEXTURE_FORMAT;
 use wgpu::{
     Device, Extent3d, SurfaceConfiguration, Texture, TextureDescriptor, TextureDimension,
     TextureUsages, TextureView, TextureViewDescriptor,
