@@ -1,4 +1,4 @@
-use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE};
+use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE};
 use wgpu::{
     BlendState, ColorTargetState, ColorWrites, TextureFormat, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexStepMode,
@@ -15,7 +15,7 @@ pub const DEFAULT_VBL: [VertexBufferLayout; 4] = [
             offset: 0,
             shader_location: 0,
         }],
-    },
+    }, // position
     VertexBufferLayout {
         array_stride: VEC2_SIZE,
         step_mode: VertexStepMode::Vertex,
@@ -24,7 +24,7 @@ pub const DEFAULT_VBL: [VertexBufferLayout; 4] = [
             offset: 0,
             shader_location: 1,
         }],
-    },
+    }, // uv
     VertexBufferLayout {
         array_stride: VEC3_SIZE,
         step_mode: VertexStepMode::Vertex,
@@ -33,16 +33,16 @@ pub const DEFAULT_VBL: [VertexBufferLayout; 4] = [
             offset: 0,
             shader_location: 2,
         }],
-    },
+    }, // normal
     VertexBufferLayout {
-        array_stride: VEC3_SIZE,
+        array_stride: VEC4_SIZE,
         step_mode: VertexStepMode::Vertex,
         attributes: &[VertexAttribute {
-            format: VertexFormat::Float32x3,
+            format: VertexFormat::Float32x4,
             offset: 0,
             shader_location: 3,
         }],
-    },
+    }, // tangent
 ];
 
 pub const DEFAULT_VBL_STEP_INSTANCE: [VertexBufferLayout; 4] = [
@@ -54,7 +54,7 @@ pub const DEFAULT_VBL_STEP_INSTANCE: [VertexBufferLayout; 4] = [
             offset: 0,
             shader_location: 0,
         }],
-    },
+    }, // position
     VertexBufferLayout {
         array_stride: VEC2_SIZE,
         step_mode: VertexStepMode::Instance,
@@ -63,7 +63,7 @@ pub const DEFAULT_VBL_STEP_INSTANCE: [VertexBufferLayout; 4] = [
             offset: 0,
             shader_location: 1,
         }],
-    },
+    }, // uv
     VertexBufferLayout {
         array_stride: VEC3_SIZE,
         step_mode: VertexStepMode::Instance,
@@ -72,16 +72,16 @@ pub const DEFAULT_VBL_STEP_INSTANCE: [VertexBufferLayout; 4] = [
             offset: 0,
             shader_location: 2,
         }],
-    },
+    }, // normal
     VertexBufferLayout {
-        array_stride: VEC3_SIZE,
+        array_stride: VEC4_SIZE,
         step_mode: VertexStepMode::Instance,
         attributes: &[VertexAttribute {
-            format: VertexFormat::Float32x3,
+            format: VertexFormat::Float32x4,
             offset: 0,
             shader_location: 3,
         }],
-    },
+    }, // tangent
 ];
 
 pub const DEFAULT_COLOR_TARGETS: &[Option<ColorTargetState>] = &[

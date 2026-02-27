@@ -1,15 +1,16 @@
-use glamx::{Mat4, Vec3};
+use glamx::{Mat3A, Mat4, Vec3};
+use std::fmt::Debug;
 use syrillian_asset::ensure_aligned;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, Copy, Clone, Immutable, IntoBytes, FromBytes, KnownLayout)]
 pub struct ModelUniform {
-    pub model_mat: Mat4,
-    pub normal_mat: Mat4,
+    pub transform: Mat4,
+    pub normal: Mat3A,
 }
 
-ensure_aligned!(ModelUniform { model_mat, normal_mat }, align <= 16 * 8 => size);
+ensure_aligned!(ModelUniform { transform, normal }, align <= 16 * 7 => size);
 
 impl ModelUniform {
     pub fn empty() -> Self {
@@ -25,24 +26,24 @@ impl ModelUniform {
         Self::from_matrix(&Mat4::from_translation(pos))
     }
 
-    pub fn from_matrix(model_mat: &Mat4) -> Self {
+    pub fn from_matrix(full_trs: &Mat4) -> Self {
         ModelUniform {
-            model_mat: *model_mat,
-            normal_mat: normal_matrix(model_mat),
+            transform: *full_trs,
+            normal: normal_matrix(full_trs),
         }
     }
 
-    pub fn update(&mut self, transform: &Mat4) {
-        self.model_mat = *transform;
-        self.normal_mat = normal_matrix(transform);
+    pub fn update(&mut self, full_trs: &Mat4) {
+        self.transform = *full_trs;
+        self.normal = normal_matrix(full_trs);
     }
 }
 
-fn normal_matrix(model_mat: &Mat4) -> Mat4 {
-    let normal_mat = model_mat.inverse().transpose();
+fn normal_matrix(model_mat: &Mat4) -> Mat3A {
+    let normal_mat = Mat3A::from_mat4(*model_mat).inverse().transpose();
     if normal_mat.is_finite() {
         normal_mat
     } else {
-        Mat4::IDENTITY
+        Mat3A::IDENTITY
     }
 }

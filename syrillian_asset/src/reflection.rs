@@ -21,7 +21,7 @@ impl ReflectSerialize for SkinnedVertex3D {
             ),
             (
                 "tangent".to_string(),
-                ReflectSerialize::serialize(&this.tangent),
+                ReflectSerialize::serialize(&this.tangent.into_inner()),
             ),
             (
                 "bone_indices".to_string(),

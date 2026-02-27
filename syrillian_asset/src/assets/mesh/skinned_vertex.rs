@@ -1,17 +1,32 @@
 use crate::mesh::generic_vertex::{Vertex, Vertex3D};
+use glam::Vec4;
 use glamx::{Vec2, Vec3};
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use std::fmt::{Debug, Formatter};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unalign};
 
 /// A fully featured skinned vertex used for 3D rendering.
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Immutable, IntoBytes, FromBytes, KnownLayout)]
+#[derive(Copy, Clone, Immutable, IntoBytes, FromBytes, KnownLayout)]
 pub struct SkinnedVertex3D {
     pub position: Vec3,
     pub uv: Vec2,
     pub normal: Vec3,
-    pub tangent: Vec3,
+    pub tangent: Unalign<Vec4>,
     pub bone_indices: [u16; 4],
     pub bone_weights: [f32; 4],
+}
+
+impl Debug for SkinnedVertex3D {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SkinnedVertex3D")
+            .field("position", &self.position)
+            .field("uv", &self.uv)
+            .field("normal", &self.normal)
+            .field("tangent", &self.tangent.into_inner())
+            .field("bone_indices", &self.bone_indices)
+            .field("bone_weights", &self.bone_weights)
+            .finish()
+    }
 }
 
 impl SkinnedVertex3D {
@@ -20,7 +35,7 @@ impl SkinnedVertex3D {
         position: Vec3,
         tex_coord: Vec2,
         normal: Vec3,
-        tangent: Vec3,
+        tangent: Vec4,
         bone_indices: [u16; 4],
         bone_weights: [f32; 4],
     ) -> Self {
@@ -28,7 +43,7 @@ impl SkinnedVertex3D {
             position,
             uv: tex_coord,
             normal,
-            tangent,
+            tangent: Unalign::new(tangent),
             bone_indices,
             bone_weights,
         }
@@ -39,7 +54,7 @@ impl SkinnedVertex3D {
             position,
             uv,
             normal,
-            tangent: Vec3::X,
+            tangent: Unalign::new(Vec4::X),
             bone_indices: [0; 4],
             bone_weights: [0.0; 4],
         }
@@ -50,7 +65,7 @@ impl SkinnedVertex3D {
             position,
             uv: Vec2::ZERO,
             normal: Vec3::Y,
-            tangent: Vec3::X,
+            tangent: Unalign::new(Vec4::X),
             bone_indices: [0; 4],
             bone_weights: [0.0; 4],
         }
@@ -76,8 +91,8 @@ impl Vertex3D for SkinnedVertex3D {
     }
 
     #[inline]
-    fn tangent(&self) -> Vec3 {
-        self.tangent
+    fn tangent(&self) -> Vec4 {
+        self.tangent.into_inner()
     }
 }
 
@@ -89,7 +104,7 @@ fn pad_to_four<T: Copy>(input: &[T], default: T) -> [T; 4] {
     arr
 }
 
-pub type SkinnedVertex3DTuple<'a, IU, IF> = (Vec3, Vec2, Vec3, Vec3, IU, IF);
+pub type SkinnedVertex3DTuple<'a, IU, IF> = (Vec3, Vec2, Vec3, Vec4, IU, IF);
 
 impl<'a, IU: AsRef<[u16]>, IF: AsRef<[f32]>> From<SkinnedVertex3DTuple<'a, IU, IF>>
     for SkinnedVertex3D

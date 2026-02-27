@@ -1,5 +1,11 @@
 const MAX_BONES: u32 = 256u;
-const WORDS_PER_VERTEX: u32 = 17u;
+const WORDS_PER_VERTEX: u32 = 18u;
+const BASE_POS: u32 = 0;
+const BASE_UV: u32 = BASE_POS + 3;
+const BASE_NORMAL: u32 = BASE_UV + 2;
+const BASE_TANGENT: u32 = BASE_NORMAL + 3;
+const BASE_BONE_IDX: u32 = BASE_TANGENT + 4;
+const BASE_BONE_WEIGHTS: u32 = BASE_BONE_IDX + 2;
 
 struct BoneData {
     mats: array<mat4x4<f32>, MAX_BONES>,
@@ -147,27 +153,29 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let base = idx * WORDS_PER_VERTEX;
 
-    let p_obj = vec4<f32>(load_vec3(base + 0u), 1.0);
-    let n_obj = load_vec3(base + 5u);
-    let t_obj = load_vec3(base + 8u);
-    let bone_idx = load_u16x4(base + 11u);
-    let bone_w = load_vec4(base + 13u);
+    let p_obj = vec4<f32>(load_vec3(base + BASE_POS), 1.0);
+    let n_obj = load_vec3(base + BASE_NORMAL);
+    let t_obj = load_vec4(base + BASE_TANGENT);
+    let bone_idx = load_u16x4(base + BASE_BONE_IDX);
+    let bone_w = load_vec4(base + BASE_BONE_WEIGHTS);
 
     let p_sk = skin_pos(p_obj, bone_idx, bone_w);
     let n_sk = skin_dir(n_obj, bone_idx, bone_w);
-    let t_sk = skin_dir(t_obj, bone_idx, bone_w);
+    let t_sk = skin_dir(t_obj.xyz, bone_idx, bone_w);
 
-    let out_base = idx * 3u;
+    let out_base_3 = idx * 3u;
+    let out_base_4 = idx * 4u;
 
-    dst_position_words[out_base] = bitcast<u32>(p_sk.x);
-    dst_position_words[out_base + 1u] = bitcast<u32>(p_sk.y);
-    dst_position_words[out_base + 2u] = bitcast<u32>(p_sk.z);
+    dst_position_words[out_base_3] = bitcast<u32>(p_sk.x);
+    dst_position_words[out_base_3 + 1u] = bitcast<u32>(p_sk.y);
+    dst_position_words[out_base_3 + 2u] = bitcast<u32>(p_sk.z);
 
-    dst_normal_words[out_base] = bitcast<u32>(n_sk.x);
-    dst_normal_words[out_base + 1u] = bitcast<u32>(n_sk.y);
-    dst_normal_words[out_base + 2u] = bitcast<u32>(n_sk.z);
+    dst_normal_words[out_base_3] = bitcast<u32>(n_sk.x);
+    dst_normal_words[out_base_3 + 1u] = bitcast<u32>(n_sk.y);
+    dst_normal_words[out_base_3 + 2u] = bitcast<u32>(n_sk.z);
 
-    dst_tangent_words[out_base] = bitcast<u32>(t_sk.x);
-    dst_tangent_words[out_base + 1u] = bitcast<u32>(t_sk.y);
-    dst_tangent_words[out_base + 2u] = bitcast<u32>(t_sk.z);
+    dst_tangent_words[out_base_4] = bitcast<u32>(t_sk.x);
+    dst_tangent_words[out_base_4 + 1u] = bitcast<u32>(t_sk.y);
+    dst_tangent_words[out_base_4 + 2u] = bitcast<u32>(t_sk.z);
+    dst_tangent_words[out_base_4 + 3u] = bitcast<u32>(t_obj.w);
 }

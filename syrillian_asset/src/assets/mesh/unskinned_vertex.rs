@@ -1,5 +1,5 @@
 use crate::mesh::generic_vertex::{Vertex, Vertex3D};
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3, Vec4};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// An unskinned vertex used for 3D rendering.
@@ -9,12 +9,12 @@ pub struct UnskinnedVertex3D {
     pub position: Vec3,
     pub uv: Vec2,
     pub normal: Vec3,
-    pub tangent: Vec3,
+    pub tangent: Vec4,
 }
 
 impl UnskinnedVertex3D {
     /// Creates a new unskinned vertex from individual attributes.
-    pub fn new(position: Vec3, tex_coord: Vec2, normal: Vec3, tangent: Vec3) -> Self {
+    pub fn new(position: Vec3, tex_coord: Vec2, normal: Vec3, tangent: Vec4) -> Self {
         UnskinnedVertex3D {
             position,
             uv: tex_coord,
@@ -28,7 +28,7 @@ impl UnskinnedVertex3D {
             position,
             uv,
             normal,
-            tangent: Vec3::X,
+            tangent: Vec4::X,
         }
     }
 
@@ -37,7 +37,7 @@ impl UnskinnedVertex3D {
             position,
             uv: Vec2::ZERO,
             normal: Vec3::Y,
-            tangent: Vec3::X,
+            tangent: Vec4::X,
         }
     }
 }
@@ -61,12 +61,12 @@ impl Vertex3D for UnskinnedVertex3D {
     }
 
     #[inline]
-    fn tangent(&self) -> Vec3 {
+    fn tangent(&self) -> Vec4 {
         self.tangent
     }
 }
 
-pub type UnskinnedVertex3DTuple = (Vec3, Vec2, Vec3, Vec3, Vec3);
+pub type UnskinnedVertex3DTuple = (Vec3, Vec2, Vec3, Vec4);
 
 impl From<UnskinnedVertex3DTuple> for UnskinnedVertex3D {
     fn from(value: UnskinnedVertex3DTuple) -> Self {
