@@ -12,7 +12,7 @@ use syrillian_asset::{Mesh, SkinnedMesh};
 use syrillian_utils::debug_panic;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{BufferUsages, Device, IndexFormat, Queue};
-use zerocopy::IntoBytes;
+use zerocopy::{IntoBytes, Unalign};
 
 #[derive(Debug, Clone)]
 pub struct RenderVertexBuffers {
@@ -59,7 +59,7 @@ impl RenderVertexBuffers {
         let position = Self::create_buffer::<Vec3>(device, "Mesh Positions Buffer", vertex_count);
         let uv = Self::create_buffer::<Vec2>(device, "Mesh UV Buffer", vertex_count);
         let normal = Self::create_buffer::<Vec3>(device, "Mesh Normals Buffer", vertex_count);
-        let tangent = Self::create_buffer::<Vec3>(device, "Mesh Tangents Buffer", vertex_count);
+        let tangent = Self::create_buffer::<Vec4>(device, "Mesh Tangents Buffer", vertex_count);
 
         Self {
             position,
@@ -72,7 +72,7 @@ impl RenderVertexBuffers {
     pub fn new_for_skinning(device: &Device, vertex_count: u64, uv: wgpu::Buffer) -> Self {
         let position = Self::create_buffer::<Vec3>(device, "Mesh Positions Buffer", vertex_count);
         let normal = Self::create_buffer::<Vec3>(device, "Mesh Normals Buffer", vertex_count);
-        let tangent = Self::create_buffer::<Vec3>(device, "Mesh Tangents Buffer", vertex_count);
+        let tangent = Self::create_buffer::<Vec4>(device, "Mesh Tangents Buffer", vertex_count);
 
         Self {
             position,
@@ -140,7 +140,7 @@ impl PreSkinMeshlet {
         debug_assert_eq!(raw.positions.len(), skinning.bone_weights.len());
         debug_assert_eq!(
             size_of::<SkinnedVertex3D>(),
-            size_of::<u32>() * 17,
+            size_of::<u32>() * 18,
             "Packed skinning vertices must match shader WORDS_PER_VERTEX"
         );
 
@@ -157,7 +157,7 @@ impl PreSkinMeshlet {
                     position,
                     uv,
                     normal,
-                    tangent,
+                    tangent: Unalign::new(tangent),
                     bone_indices: indices,
                     bone_weights: weights,
                 }

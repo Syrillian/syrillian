@@ -1,5 +1,5 @@
 use crate::mesh::generic_vertex::Vertex3D;
-use glam::Vec2;
+use glam::{Vec2, Vec4};
 use glamx::Vec3;
 use itertools::Itertools;
 
@@ -8,7 +8,7 @@ pub struct RawVertexBuffers {
     pub positions: Vec<Vec3>,
     pub uvs: Vec<Vec2>,
     pub normals: Vec<Vec3>,
-    pub tangents: Vec<Vec3>,
+    pub tangents: Vec<Vec4>,
     pub indices: Option<Vec<u32>>,
 }
 
@@ -72,7 +72,7 @@ impl VertexBufferExt for RawVertexBuffers {
         let len = self.positions.len();
         self.uvs.resize(len, Vec2::ZERO);
         self.normals.resize(len, Vec3::ZERO);
-        self.tangents.resize(len, Vec3::ZERO);
+        self.tangents.resize(len, Vec4::ZERO);
     }
 
     fn from_positions(positions: Vec<Vec3>, indices: Option<Vec<u32>>) -> Self {
@@ -81,7 +81,7 @@ impl VertexBufferExt for RawVertexBuffers {
             positions,
             uvs: vec![Vec2::ZERO; len],
             normals: vec![Vec3::ZERO; len],
-            tangents: vec![Vec3::ZERO; len],
+            tangents: vec![Vec4::ZERO; len],
             indices,
         }
     }

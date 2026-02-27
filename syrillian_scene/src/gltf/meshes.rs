@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use syrillian::assets::Mesh;
 use syrillian::core::Bones;
-use syrillian::math::{Vec2, Vec3};
+use syrillian::math::{Vec2, Vec3, Vec4, vec2};
 use syrillian::tracing::warn;
 use syrillian::utils::iter::interpolate_zeros;
 use syrillian_asset::SkinnedMesh;
@@ -32,7 +32,7 @@ pub struct PrimitiveBuffers {
     positions: Vec<Vec3>,
     uvs: Vec<Vec2>,
     normals: Vec<Vec3>,
-    tangents: Vec<Vec3>,
+    tangents: Vec<Vec4>,
     bone_indices: Vec<[u16; 4]>,
     bone_weights: Vec<[f32; 4]>,
     ranges: Vec<std::ops::Range<u32>>,
@@ -40,23 +40,23 @@ pub struct PrimitiveBuffers {
 }
 
 pub struct VertexSources<'a> {
-    pub positions: &'a [[f32; 3]],
-    pub normals: Option<&'a Vec<[f32; 3]>>,
-    pub tangents: Option<&'a Vec<[f32; 4]>>,
-    pub tex_coords: Option<&'a Vec<[f32; 2]>>,
+    pub positions: &'a [Vec3],
+    pub normals: Option<&'a Vec<Vec3>>,
+    pub tangents: Option<&'a Vec<Vec4>>,
+    pub tex_coords: Option<&'a Vec<Vec2>>,
     pub skin: Option<SkinSlices<'a>>,
     pub joint_map: &'a HashMap<usize, usize>,
 }
 
 /// Normalizes texture coordinates from the glTF accessor format
-pub fn convert_tex_coords(iter: mesh::util::ReadTexCoords<'_>) -> Vec<[f32; 2]> {
+pub fn convert_tex_coords(iter: mesh::util::ReadTexCoords<'_>) -> Vec<Vec2> {
     match iter {
-        mesh::util::ReadTexCoords::F32(it) => it.collect::<Vec<_>>(),
+        mesh::util::ReadTexCoords::F32(it) => it.map(Vec2::from_array).collect::<Vec<_>>(),
         mesh::util::ReadTexCoords::U16(it) => it
-            .map(|v| [v[0] as f32 / 65535.0, v[1] as f32 / 65535.0])
+            .map(|v| vec2(v[0] as f32 / 65535.0, v[1] as f32 / 65535.0))
             .collect(),
         mesh::util::ReadTexCoords::U8(it) => it
-            .map(|v| [v[0] as f32 / 255.0, v[1] as f32 / 255.0])
+            .map(|v| vec2(v[0] as f32 / 255.0, v[1] as f32 / 255.0))
             .collect(),
     }
 }
@@ -117,92 +117,21 @@ pub fn normalize_weights(weights: [f32; 4]) -> [f32; 4] {
     weights.map(|w| w / sum)
 }
 
-/// Computes the bitangent vector for a vertex from the normal and tangent
-pub fn compute_bitangent(normal: Vec3, tangent: Vec3, handedness: f32) -> Vec3 {
-    let bitangent = normal.cross(tangent);
-    if bitangent.length_squared() <= 1e-10 {
-        return Vec3::ZERO;
-    }
-
-    let sign = if handedness < 0.0 { -1.0 } else { 1.0 };
-    bitangent.normalize() * sign
-}
-
 impl VertexSources<'_> {
     pub fn vertex_position(&self, index: usize) -> Vec3 {
         Vec3::from(self.positions[index])
     }
 
     pub fn vertex_normal(&self, index: usize) -> Vec3 {
-        self.normals
-            .map_or(Vec3::ZERO, |list| Vec3::from(list[index]))
+        self.normals.map_or(Vec3::ZERO, |list| list[index])
     }
 
     pub fn vertex_tex_coord(&self, index: usize) -> Vec2 {
-        self.tex_coords
-            .map_or(Vec2::ZERO, |list| Vec2::from(list[index]))
+        self.tex_coords.map_or(Vec2::ZERO, |list| list[index])
     }
 
-    pub fn triangle_tangent(&self, indices: [usize; 3]) -> Option<Vec3> {
-        let _ = self.tex_coords?;
-
-        let p0 = self.vertex_position(indices[0]);
-        let p1 = self.vertex_position(indices[1]);
-        let p2 = self.vertex_position(indices[2]);
-
-        let uv0 = self.vertex_tex_coord(indices[0]);
-        let uv1 = self.vertex_tex_coord(indices[1]);
-        let uv2 = self.vertex_tex_coord(indices[2]);
-
-        let edge1 = p1 - p0;
-        let edge2 = p2 - p0;
-        let delta_uv1 = uv1 - uv0;
-        let delta_uv2 = uv2 - uv0;
-
-        let det = delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x;
-        if det.abs() <= 1e-10 {
-            return None;
-        }
-
-        let inv_det = 1.0 / det;
-        let tangent = (edge1 * delta_uv2.y - edge2 * delta_uv1.y) * inv_det;
-        Some(tangent)
-    }
-
-    fn generated_tangent_frame(&self, index: usize, triangle_tangent: Vec3) -> Vec3 {
-        let normal = self.vertex_normal(index);
-        let tangent = orthonormalize_tangent(normal, triangle_tangent);
-
-        tangent
-    }
-}
-
-fn fallback_tangent_for_normal(normal: Vec3) -> Vec3 {
-    let n = if normal.length_squared() <= 1e-10 {
-        Vec3::Y
-    } else {
-        normal.normalize()
-    };
-    let up = if n.y.abs() < 0.999 { Vec3::Y } else { Vec3::X };
-    let tangent = up - n * n.dot(up);
-    if tangent.length_squared() <= 1e-10 {
-        Vec3::X
-    } else {
-        tangent.normalize()
-    }
-}
-
-fn orthonormalize_tangent(normal: Vec3, tangent: Vec3) -> Vec3 {
-    let candidate = if normal.length_squared() <= 1e-10 {
-        tangent
-    } else {
-        tangent - normal * normal.dot(tangent)
-    };
-
-    if candidate.length_squared() <= 1e-10 {
-        fallback_tangent_for_normal(normal)
-    } else {
-        candidate.normalize()
+    pub fn vertex_tangent(&self, index: usize) -> Vec4 {
+        self.tangents.map_or(Vec4::ZERO, |list| list[index])
     }
 }
 
@@ -315,7 +244,7 @@ pub struct PrimitiveResult {
     positions: Vec<Vec3>,
     uvs: Vec<Vec2>,
     normals: Vec<Vec3>,
-    tangents: Vec<Vec3>,
+    tangents: Vec<Vec4>,
     bone_indices: Vec<[u16; 4]>,
     bone_weights: Vec<[f32; 4]>,
     material_index: u32,
@@ -340,50 +269,15 @@ impl PrimitiveResult {
         self.positions.len() as u32
     }
 
-    pub fn push_triangle_with_generated_tangents(
-        &mut self,
-        triangle: [usize; 3],
-        sources: &VertexSources<'_>,
-    ) {
-        let triangle_tangent = sources.triangle_tangent(triangle).unwrap_or_else(|| {
-            let normal = sources.vertex_normal(triangle[0]);
-            let tangent = fallback_tangent_for_normal(normal);
-            tangent
-        });
-
-        for index in triangle {
-            let tangent = sources.generated_tangent_frame(index, triangle_tangent);
-            self.push_vertex_with_frame(index, sources, Some(tangent));
-        }
-    }
-
     /// Appends a vertex with all available attributes to the primitive result.
     pub fn push_vertex(&mut self, index: usize, sources: &VertexSources<'_>) {
-        self.push_vertex_with_frame(index, sources, None);
-    }
-
-    pub fn push_vertex_with_frame(
-        &mut self,
-        index: usize,
-        sources: &VertexSources<'_>,
-        tangent_frame: Option<Vec3>,
-    ) {
         let position = sources.vertex_position(index);
         self.positions.push(position);
 
         let normal = sources.vertex_normal(index);
         self.normals.push(normal);
 
-        let tangent = tangent_frame.unwrap_or_else(|| {
-            sources.tangents.map_or_else(
-                || Vec3::ZERO,
-                |list| {
-                    let t = list[index];
-                    let tangent = Vec3::new(t[0], t[1], t[2]);
-                    tangent
-                },
-            )
-        });
+        let tangent = sources.vertex_tangent(index);
         self.tangents.push(tangent);
 
         let uv = sources.vertex_tex_coord(index);
@@ -417,9 +311,16 @@ impl GltfScene {
         }
 
         let reader = prim.reader(|b| Some(&self.buffers[b.index()].0));
-        let positions = reader.read_positions()?.collect::<Vec<_>>();
-        let normals = reader.read_normals().map(|it| it.collect::<Vec<_>>());
-        let tangents = reader.read_tangents().map(|it| it.collect::<Vec<_>>());
+        let positions = reader
+            .read_positions()?
+            .map(Vec3::from_array)
+            .collect::<Vec<_>>();
+        let normals = reader
+            .read_normals()
+            .map(|it| it.map(Vec3::from_array).collect::<Vec<_>>());
+        let tangents = reader
+            .read_tangents()
+            .map(|it| it.map(Vec4::from_array).collect::<Vec<_>>());
         let tex_coords = reader.read_tex_coords(0).map(convert_tex_coords);
         let joints_raw = reader.read_joints(0);
         let weights_raw = reader.read_weights(0);
@@ -449,12 +350,8 @@ impl GltfScene {
         let mut result = PrimitiveResult::new(material_index);
         for chunk in indices.chunks_exact(3) {
             let triangle = [chunk[0] as usize, chunk[1] as usize, chunk[2] as usize];
-            if sources.tangents.is_some() {
-                for index in triangle {
-                    result.push_vertex(index, &sources);
-                }
-            } else {
-                result.push_triangle_with_generated_tangents(triangle, &sources);
+            for index in triangle {
+                result.push_vertex(index, &sources);
             }
         }
 

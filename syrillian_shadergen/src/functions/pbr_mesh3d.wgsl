@@ -2,20 +2,13 @@ const AMBIENT_STRENGTH: f32 = 0.0;
 const IBL_STRENGTH: f32 = 1.0;
 const EPS: f32 = 1e-7;
 
-// orthonormalize t against n to build a stable tbn basis
-fn ortho_tangent(T: vec3<f32>, N: vec3<f32>) -> vec3<f32> {
-    return safe_normalize(T - N * dot(N, T));
-}
-
 // fetch tangent-space normal and bring it to world space with a proper tbn
 fn normal_from_map(
     tex: texture_2d<f32>, samp: sampler, uv: vec2<f32>,
-    Nw: vec3<f32>, Tw: vec3<f32>, Bw: vec3<f32>
+    N: vec3<f32>, T: vec4<f32>, B: vec3<f32>
 ) -> vec3<f32> {
     let n_ts = textureSample(tex, samp, uv).xyz * 2.0 - 1.0; // [-1..1]
-    let T = ortho_tangent(safe_normalize(Tw), safe_normalize(Nw));
-    let B = safe_normalize(cross(Nw, T)) * sign(dot(Bw, cross(Nw, T))); // preserve handedness
-    let TBN = mat3x3<f32>(T, B, safe_normalize(Nw));
+    let TBN = mat3x3<f32>(T.xyz, B, N);
     return safe_normalize(TBN * n_ts);
 }
 

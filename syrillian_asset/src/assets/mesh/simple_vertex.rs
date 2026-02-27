@@ -1,7 +1,9 @@
 use crate::mesh::generic_vertex::{Vertex, Vertex3D};
 use crate::mesh::{SkinnedVertex3D, UnskinnedVertex3D};
+use glam::Vec4;
 use glamx::{Vec2, Vec3};
 use std::fmt::Debug;
+use zerocopy::Unalign;
 
 /// Convenience vertex used when constructing static meshes.
 #[derive(Debug, Copy, Clone)]
@@ -12,7 +14,7 @@ pub struct SimpleVertex3D {
 }
 
 impl SimpleVertex3D {
-    pub const fn calculate_tangent(normal: Vec3) -> Vec3 {
+    pub const fn calculate_tangent(normal: Vec3) -> Vec4 {
         let world_up = if normal.y.abs() < 0.999 {
             Vec3::Y
         } else {
@@ -23,8 +25,9 @@ impl SimpleVertex3D {
         let tx = world_up.x - normal.x * dot;
         let ty = world_up.y - normal.y * dot;
         let tz = world_up.z - normal.z * dot;
-        Vec3::new(tx, ty, tz)
+        Vec4::new(tx, ty, tz, 1.0)
     }
+
     /// Converts this simplified vertex into a full [`UnskinnedVertex3D`].
     /// This is not recommended as the tangent and bitangent calculation is just a rough approximation.
     pub const fn upgrade_unskinned(self) -> UnskinnedVertex3D {
@@ -50,7 +53,7 @@ impl SimpleVertex3D {
             position: unskinned.position,
             uv: unskinned.uv,
             normal: unskinned.normal,
-            tangent: unskinned.tangent,
+            tangent: Unalign::new(unskinned.tangent),
             bone_indices: [0xFF, 0xFF, 0xFF, 0xFF],
             bone_weights: [0.0, 0.0, 0.0, 0.0],
         }
@@ -84,7 +87,7 @@ impl Vertex3D for SimpleVertex3D {
         Vec3::from(self.normal)
     }
 
-    fn tangent(&self) -> Vec3 {
+    fn tangent(&self) -> Vec4 {
         Self::calculate_tangent(self.normal())
     }
 }
