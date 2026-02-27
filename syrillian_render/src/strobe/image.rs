@@ -86,10 +86,10 @@ impl UiImage {
         let cached_image = ctx.ui_image_data(&model_matrix).clone();
         let model_uniform = crate::model_uniform::ModelUniform::from_matrix(&model_matrix);
 
-        ctx.state().queue.write_buffer(
-            cached_image.uniform.buffer(MeshUniformIndex::MeshData),
-            0,
-            bytemuck::bytes_of(&model_uniform),
+        cached_image.uniform.write_buffer(
+            MeshUniformIndex::MeshData,
+            &model_uniform,
+            &ctx.state().queue,
         );
 
         let mut pass = ctx.pass().write();

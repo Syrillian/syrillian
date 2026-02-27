@@ -1,7 +1,6 @@
 // TODO: refactor
 
 use crate::particle_system::ParticleSystemSettings;
-use bytemuck::bytes_of;
 use std::any::Any;
 use std::mem::size_of;
 use std::time::Instant;
@@ -20,6 +19,7 @@ use syrillian_render::rendering::renderer::Renderer;
 use syrillian_render::rendering::uniform::ShaderUniform;
 use syrillian_render::{AssetCache, proxy_data, proxy_data_mut};
 use syrillian_utils::{ShaderUniformIndex, ShaderUniformMultiIndex};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
@@ -60,7 +60,7 @@ pub enum ParticleComputeUniformIndex {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, FromBytes, IntoBytes, KnownLayout)]
 pub struct ParticleSystemUniform {
     pub position: [f32; 4],
     pub velocity: [f32; 4],
@@ -82,14 +82,14 @@ pub struct ParticleSystemUniform {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, FromBytes, IntoBytes, KnownLayout)]
 pub struct ParticleRuntimeUniform {
     // x=elapsed_time
     pub data: [f32; 4],
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, FromBytes, IntoBytes, KnownLayout)]
 pub struct ParticleDispatchUniform {
     pub start_index: u32,
     pub chunk_count: u32,
@@ -262,17 +262,17 @@ impl SceneProxy for ParticleSystemProxy {
     ) {
         let data: &mut ParticleSystemGpuData = proxy_data_mut!(data);
         let settings = ParticleSystemUniform::new(&self.settings, self.particle_count);
-        renderer.state.queue.write_buffer(
-            data.render_uniform.buffer(ParticleUniformIndex::Settings),
-            0,
-            bytes_of(&settings),
+        data.render_uniform.write_buffer(
+            ParticleUniformIndex::Settings,
+            &settings,
+            &renderer.state.queue,
         );
 
         data.runtime.data[0] = self.start_time.elapsed().as_secs_f32();
-        renderer.state.queue.write_buffer(
-            data.render_uniform.buffer(ParticleUniformIndex::Runtime),
-            0,
-            bytes_of(&data.runtime),
+        data.render_uniform.write_buffer(
+            ParticleUniformIndex::Runtime,
+            &data.runtime,
+            &renderer.state.queue,
         );
 
         let mut encoder = renderer

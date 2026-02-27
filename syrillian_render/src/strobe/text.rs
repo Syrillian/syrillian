@@ -179,11 +179,9 @@ impl UiText {
         }
 
         let model = ModelUniform::empty();
-        ctx.state().queue.write_buffer(
-            cached_text.uniform.buffer(MeshUniformIndex::MeshData),
-            0,
-            bytemuck::bytes_of(&model),
-        );
+        cached_text
+            .uniform
+            .write_buffer(MeshUniformIndex::MeshData, &model, &ctx.state().queue);
 
         let mut pc = TextImmediate {
             position,

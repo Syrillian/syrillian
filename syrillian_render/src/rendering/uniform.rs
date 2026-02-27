@@ -4,8 +4,9 @@ use syrillian_utils::{ShaderUniformIndex, ShaderUniformMultiIndex, ShaderUniform
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Buffer,
-    BufferAddress, BufferDescriptor, BufferUsages, Device, Sampler, TextureView,
+    BufferAddress, BufferDescriptor, BufferUsages, Device, Queue, Sampler, TextureView,
 };
+use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Debug, Clone)]
 pub struct ShaderUniform<I: ShaderUniformIndex> {
@@ -63,10 +64,10 @@ impl<'a, I: ShaderUniformIndex> ShaderUniformBuilder<'a, I> {
     #[inline]
     pub fn with_buffer_data<B>(mut self, data: &'a B) -> Self
     where
-        B: bytemuck::Pod + bytemuck::Zeroable + 'a,
+        B: IntoBytes + Immutable + 'a,
     {
         let name = self._next_index();
-        let data = bytemuck::bytes_of(data);
+        let data = data.as_bytes();
         self.data.push(ResourceDesc::DataBuffer { data, name });
         self
     }
@@ -174,6 +175,10 @@ impl<I: ShaderUniformMultiIndex> ShaderUniform<I> {
             .as_ref()
             .expect("Requested a binding resource that isn't a buffer")
     }
+
+    pub fn write_buffer<D: Immutable + IntoBytes>(&self, idx: I, data: &D, queue: &Queue) {
+        queue.write_buffer(self.buffer(idx), 0, data.as_bytes());
+    }
 }
 
 #[allow(unused)]
@@ -182,6 +187,10 @@ impl<I: ShaderUniformSingleIndex> ShaderUniform<I> {
         self.buffers.buffers[0]
             .as_ref()
             .expect("Requested a binding resource that isn't a buffer")
+    }
+
+    pub fn write_one_buffer<D: Immutable + IntoBytes>(&self, data: &D, queue: &Queue) {
+        queue.write_buffer(self.buffer_one(), 0, data.as_bytes());
     }
 }
 

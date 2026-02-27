@@ -4,7 +4,8 @@ use crate::cache::mesh::{RenderMesh, RenderVertexBuffers};
 use crate::cache::{AssetCache, RuntimeShader};
 use crate::model_uniform::ModelUniform;
 use crate::proxies::{
-    PROXY_PRIORITY_SOLID, PROXY_PRIORITY_TRANSPARENT, SceneProxy, SceneProxyBinding,
+    MeshUniformIndex, PROXY_PRIORITY_SOLID, PROXY_PRIORITY_TRANSPARENT, SceneProxy,
+    SceneProxyBinding,
 };
 #[cfg(debug_assertions)]
 use crate::rendering::debug_renderer::DebugRenderer;
@@ -22,7 +23,9 @@ use syrillian_asset::store::H;
 use syrillian_asset::{HComputeShader, HMaterialInstance, HSkinnedMesh, Shader};
 use syrillian_macros::UniformIndex;
 use syrillian_utils::BoundingSphere;
-use wgpu::{CommandEncoderDescriptor, ComputePassDescriptor, RenderPass};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, RenderPass};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, UniformIndex)]
@@ -36,7 +39,8 @@ pub struct RenderSkinnedMeshData {
     pub mesh_data: ModelUniform,
     // TODO: Consider having a uniform like that, for every Transform by default in some way, or
     //       lazy-make / provide one by default.
-    pub uniform: ShaderUniform<SkinnedMeshUniformIndex>,
+    pub mesh_uniform: ShaderUniform<MeshUniformIndex>,
+    pub skinning_uniform: ShaderUniform<SkinnedMeshUniformIndex>,
     pub skinned_meshlets: Vec<RenderVertexBuffers>,
     pub skinning_uniforms: Vec<ShaderUniform<MeshSkinningComputeUniformIndex>>,
     pub skinning_vertex_counts: Vec<u32>,
@@ -44,9 +48,12 @@ pub struct RenderSkinnedMeshData {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, IntoBytes, FromBytes, KnownLayout)]
 struct MeshSkinningParams {
     vertex_count: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 #[repr(u8)]
@@ -80,7 +87,7 @@ impl RenderSkinnedMeshData {
         try_activate_shader!(shader, pass, ctx => return false);
 
         if let Some(idx) = shader.bind_groups().model {
-            pass.set_bind_group(idx, self.uniform.bind_group(), &[]);
+            pass.set_bind_group(idx, self.mesh_uniform.bind_group(), &[]);
         }
 
         true
@@ -107,7 +114,7 @@ impl RenderSkinnedMeshData {
         let device = &renderer.state.device;
         let skinning_bgl = renderer.cache.bgl_mesh_skinning_compute();
         let bone_buffer = self
-            .uniform
+            .skinning_uniform
             .buffer(SkinnedMeshUniformIndex::BoneData)
             .clone();
 
@@ -126,7 +133,12 @@ impl RenderSkinnedMeshData {
                 vertex_count as u64,
                 meshlet.vertex_buffers.uv.clone(),
             );
-            let params = MeshSkinningParams { vertex_count };
+            let params = MeshSkinningParams {
+                vertex_count,
+                _pad0: 0,
+                _pad1: 0,
+                _pad2: 0,
+            };
 
             let uniform =
                 ShaderUniform::<MeshSkinningComputeUniformIndex>::builder(skinning_bgl.clone())
@@ -205,15 +217,10 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         data.mesh_data.update(&model_mat);
 
         renderer.state.queue.write_buffer(
-            data.uniform.buffer(SkinnedMeshUniformIndex::MeshData),
+            data.skinning_uniform
+                .buffer(SkinnedMeshUniformIndex::MeshData),
             0,
-            bytemuck::bytes_of(&data.mesh_data),
-        );
-
-        renderer.state.queue.write_buffer(
-            data.uniform.buffer(SkinnedMeshUniformIndex::MeshData),
-            0,
-            bytemuck::bytes_of(&data.mesh_data),
+            data.mesh_data.as_bytes(),
         );
     }
 
@@ -231,7 +238,8 @@ impl SceneProxy for SkinnedMeshSceneProxy {
 
         if self.bones_dirty {
             renderer.state.queue.write_buffer(
-                data.uniform.buffer(SkinnedMeshUniformIndex::BoneData),
+                data.skinning_uniform
+                    .buffer(SkinnedMeshUniformIndex::BoneData),
                 0,
                 self.bone_data.as_bytes(),
             );
@@ -437,17 +445,30 @@ impl SkinnedMeshSceneProxy {
         local_to_world: &Affine3A,
     ) -> RenderSkinnedMeshData {
         let device = &renderer.state.device;
-        let model_bgl = renderer.cache.bgl_model_skinning();
+        let model_bgl = renderer.cache.bgl_model();
+        let skinning_model_bgl = renderer.cache.bgl_model_skinning();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
-        let uniform = ShaderUniform::<SkinnedMeshUniformIndex>::builder(model_bgl)
-            .with_buffer_data(&mesh_data)
-            .with_buffer_data_slice(self.bone_data.bones.as_slice())
+        let mesh_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Skinned Mesh Buffer"),
+            contents: mesh_data.as_bytes(),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let mesh_uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
+            .with_buffer(mesh_buffer.clone())
             .build(device);
+
+        let skinning_uniform =
+            ShaderUniform::<SkinnedMeshUniformIndex>::builder(skinning_model_bgl)
+                .with_buffer(mesh_buffer)
+                .with_buffer_data_slice(self.bone_data.bones.as_slice())
+                .build(device);
 
         let mut data = RenderSkinnedMeshData {
             mesh_data,
-            uniform,
+            mesh_uniform,
+            skinning_uniform,
             skinned_meshlets: Vec::new(),
             skinning_uniforms: Vec::new(),
             skinning_vertex_counts: Vec::new(),

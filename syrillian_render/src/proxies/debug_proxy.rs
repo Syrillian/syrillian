@@ -13,6 +13,7 @@ use syrillian_utils::debug_panic;
 use tracing::warn;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{Buffer, BufferUsages, Device, Queue};
+use zerocopy::IntoBytes;
 
 #[derive(Debug)]
 pub struct GPUDebugProxyData {
@@ -176,7 +177,7 @@ impl DebugSceneProxy {
                 let model_mat: glamx::Mat4 = (*model_mat).into();
                 model_uniform.mesh_data.update(&model_mat);
                 let mesh_buffer = model_uniform.uniform.buffer(MeshUniformIndex::MeshData);
-                queue.write_buffer(mesh_buffer, 0, bytemuck::bytes_of(&model_uniform.mesh_data));
+                queue.write_buffer(mesh_buffer, 0, model_uniform.mesh_data.as_bytes());
                 Some(model_uniform)
             }
         };
