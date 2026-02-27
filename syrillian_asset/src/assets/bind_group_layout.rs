@@ -1,4 +1,8 @@
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, UpdateAssetMessage};
+use crate::store::streaming::asset_store::AssetType;
+use crate::store::{
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    UpdateAssetMessage,
+};
 use crate::{HBGL, store_add_checked};
 use crossbeam_channel::Sender;
 use wgpu::{
@@ -52,6 +56,7 @@ impl HBGL {
 
 impl StoreType for BGL {
     const NAME: &str = "Bind Group Layout";
+    const TYPE: AssetType = AssetType::BGL;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {
@@ -80,13 +85,12 @@ impl StoreType for BGL {
         }
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateBGL(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateBGL(self.clone()),
+            ))
             .is_ok()
     }
 

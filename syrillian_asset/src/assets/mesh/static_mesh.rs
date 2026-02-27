@@ -2,12 +2,15 @@ use crate::mesh::buffer::UNIT_SQUARE_VERT;
 use crate::mesh::static_mesh_data::{RawVertexBuffers, VertexBufferExt};
 use crate::mesh::{CUBE_OBJ, DEBUG_ARROW, MeshError, PartialMesh, SPHERE};
 use crate::store::streaming::asset_store::{
-    StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
+    AssetType, StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
 use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
-use crate::store::{H, HandleName, Store, StoreDefaults, StoreType, UpdateAssetMessage, streaming};
+use crate::store::{
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    UpdateAssetMessage, streaming,
+};
 use crate::{HMesh, store_add_checked};
 use crossbeam_channel::Sender;
 use obj::IndexTuple;
@@ -109,6 +112,7 @@ impl StoreDefaults for Mesh {
 
 impl StoreType for Mesh {
     const NAME: &str = "Static Mesh";
+    const TYPE: AssetType = AssetType::Mesh;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {
@@ -120,17 +124,16 @@ impl StoreType for Mesh {
         }
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         if !self.data.is_valid() {
             return false;
         }
 
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateMesh(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateMesh(self.clone()),
+            ))
             .is_ok()
     }
 

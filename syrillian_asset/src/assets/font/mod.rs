@@ -1,6 +1,8 @@
 use crate::assets::HFont;
+use crate::store::streaming::asset_store::AssetType;
 use crate::store::{
-    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    StoreTypeFallback, UpdateAssetMessage,
 };
 use crate::store_add_checked;
 use crossbeam_channel::Sender;
@@ -17,18 +19,18 @@ pub struct Font {
 
 impl StoreType for Font {
     const NAME: &str = "Font";
+    const TYPE: AssetType = AssetType::Font;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateFont(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateFont(self.clone()),
+            ))
             .is_ok()
     }
 

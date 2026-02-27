@@ -1,7 +1,9 @@
 use crate::assets::{HMaterial, HShader, HTexture2D};
 use crate::material_inputs::{MaterialImmediateDef, MaterialInputLayout, MaterialTextureDef};
+use crate::store::streaming::asset_store::AssetType;
 use crate::store::{
-    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    StoreTypeFallback, UpdateAssetMessage,
 };
 use crate::{MaterialShaderSet, store_add_checked};
 use crossbeam_channel::Sender;
@@ -211,6 +213,7 @@ impl H<Material> {
 
 impl StoreType for Material {
     const NAME: &str = "Material";
+    const TYPE: AssetType = AssetType::Material;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {
@@ -220,13 +223,12 @@ impl StoreType for Material {
         }
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateMaterial(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateMaterial(self.clone()),
+            ))
             .is_ok()
     }
 

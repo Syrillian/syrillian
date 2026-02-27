@@ -9,6 +9,7 @@
 
 use crate::assets::*;
 use crate::material_inputs::MaterialInputLayout;
+use crate::store::streaming::asset_store::AssetType;
 use crate::store::streaming::decode::StreamingState;
 use crate::store::{AssetKey, Store, StoreType};
 use crossbeam_channel::{Receiver, Sender};
@@ -38,7 +39,12 @@ pub struct AssetStore {
     pub prefabs: Arc<Store<PrefabAsset>>,
     pub(crate) streaming: StreamingState,
 
-    assets_tx: Sender<(AssetKey, UpdateAssetMessage)>,
+    assets_tx: Sender<AssetRefreshMessage>,
+}
+
+pub enum AssetRefreshMessage {
+    Updated(AssetKey, UpdateAssetMessage),
+    Deleted(AssetKey, AssetType),
 }
 
 pub enum UpdateAssetMessage {
@@ -59,7 +65,7 @@ pub enum UpdateAssetMessage {
 }
 
 impl AssetStore {
-    pub fn new() -> (Arc<AssetStore>, Receiver<(AssetKey, UpdateAssetMessage)>) {
+    pub fn new() -> (Arc<AssetStore>, Receiver<AssetRefreshMessage>) {
         let (assets_tx, assets_rx) = crossbeam_channel::unbounded();
         let store = Arc::new(AssetStore {
             meshes: Arc::new(Store::populated()),

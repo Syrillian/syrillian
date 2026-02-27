@@ -1,11 +1,11 @@
 use crate::store::streaming::asset_store::{
-    StreamingAssetBlobInfo, StreamingAssetBlobInfos, StreamingAssetBlobKind, StreamingAssetFile,
-    StreamingAssetPayload,
+    AssetType, StreamingAssetBlobInfo, StreamingAssetBlobInfos, StreamingAssetBlobKind,
+    StreamingAssetFile, StreamingAssetPayload,
 };
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
 use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
-use crate::store::{H, HandleName, StoreType, UpdateAssetMessage, streaming};
+use crate::store::{AssetKey, AssetRefreshMessage, H, HandleName, StoreType, streaming};
 use crossbeam_channel::Sender;
 use glamx::{EulerRot, Quat, Vec3};
 use serde_json::Value as JsonValue;
@@ -46,16 +46,13 @@ pub struct TransformKeys {
 
 impl StoreType for AnimationClip {
     const NAME: &str = "AnimationClip";
+    const TYPE: AssetType = AssetType::AnimationClip;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        _key: crate::store::AssetKey,
-        _assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, _key: AssetKey, _assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         false
     }
 

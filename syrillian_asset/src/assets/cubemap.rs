@@ -1,12 +1,12 @@
 use crate::store::streaming::asset_store::{
-    StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
+    AssetType, StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
 use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
 use crate::store::{
-    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
-    streaming,
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    StoreTypeFallback, UpdateAssetMessage, streaming,
 };
 use crate::{HCubemap, store_add_checked};
 use crossbeam_channel::Sender;
@@ -145,6 +145,7 @@ impl StoreDefaults for Cubemap {
 
 impl StoreType for Cubemap {
     const NAME: &str = "Cubemap";
+    const TYPE: AssetType = AssetType::Cubemap;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {
@@ -153,13 +154,12 @@ impl StoreType for Cubemap {
         }
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateCubemap(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateCubemap(self.clone()),
+            ))
             .is_ok()
     }
 

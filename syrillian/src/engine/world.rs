@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::mem::{swap, take};
 use std::path::PathBuf;
 use std::sync::Arc;
-use syrillian_asset::store::{AssetKey, Store, UpdateAssetMessage};
+use syrillian_asset::store::{AssetRefreshMessage, Store};
 use syrillian_asset::{AssetStore, ComputeShader};
 use syrillian_asset::{
     BGL, Cubemap, HCubemap, Material, MaterialInstance, Mesh, RenderCubemap, RenderTexture2D,
@@ -264,7 +264,7 @@ impl World {
         Box<World>,
         Receiver<RenderMsg>,
         Receiver<GameAppEvent>,
-        Receiver<(AssetKey, UpdateAssetMessage)>,
+        Receiver<AssetRefreshMessage>,
         Sender<PickResult>,
     ) {
         let (tx1, rx1) = unbounded();

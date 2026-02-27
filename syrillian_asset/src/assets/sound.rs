@@ -1,4 +1,5 @@
-use crate::store::{H, HandleName, StoreType, UpdateAssetMessage};
+use crate::store::streaming::asset_store::AssetType;
+use crate::store::{AssetKey, AssetRefreshMessage, H, HandleName, StoreType};
 use crossbeam_channel::Sender;
 use delegate::delegate;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
@@ -15,16 +16,13 @@ pub struct Sound {
 
 impl StoreType for Sound {
     const NAME: &str = "Sound";
+    const TYPE: AssetType = AssetType::Sound;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        _key: crate::store::AssetKey,
-        _assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, _key: AssetKey, _assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         false
     }
 

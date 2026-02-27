@@ -1,4 +1,5 @@
-use super::{H, UpdateAssetMessage, key::AssetKey};
+use super::{AssetRefreshMessage, H, key::AssetKey};
+use crate::store::streaming::asset_store::AssetType;
 use crossbeam_channel::Sender;
 use dashmap::DashMap;
 use dashmap::iter::{Iter, IterMut};
@@ -117,6 +118,7 @@ pub trait StoreDefaults: StoreType {
 
 pub trait StoreType: Sized + Debug + Clone {
     const NAME: &str;
+    const TYPE: AssetType;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self>;
     fn ident(handle: H<Self>) -> String {
@@ -130,11 +132,7 @@ pub trait StoreType: Sized + Debug + Clone {
         store.as_ref().add(self)
     }
 
-    fn refresh_dirty(
-        &self,
-        key: AssetKey,
-        assets_tx: &Sender<(AssetKey, UpdateAssetMessage)>,
-    ) -> bool;
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool;
 
     fn is_builtin(handle: H<Self>) -> bool;
 }
@@ -242,12 +240,19 @@ impl<T: StoreType> Store<T> {
         swap_store
     }
 
-    pub fn refresh_dirty(&self, assets_tx: &Sender<(AssetKey, UpdateAssetMessage)>) -> usize {
+    pub fn refresh_dirty(&self, assets_tx: &Sender<AssetRefreshMessage>) -> usize {
         let mut refreshed = 0;
         let dirty = self.pop_dirty();
 
         for key in dirty {
             let Some(asset) = self.try_get(key.into()) else {
+                if assets_tx
+                    .send(AssetRefreshMessage::Deleted(key, T::TYPE))
+                    .is_ok()
+                {
+                    refreshed += 1;
+                }
+
                 continue;
             };
 

@@ -1,8 +1,8 @@
-use crate::store::streaming::asset_store::{StreamingAssetFile, StreamingAssetPayload};
+use crate::store::streaming::asset_store::{AssetType, StreamingAssetFile, StreamingAssetPayload};
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
 use crate::store::streaming::packaged_scene::BuiltPayload;
 use crate::store::streaming::payload::StreamableAsset;
-use crate::store::{H, HandleName, StoreType, UpdateAssetMessage, streaming};
+use crate::store::{AssetKey, AssetRefreshMessage, H, HandleName, StoreType, streaming};
 use crossbeam_channel::Sender;
 use glamx::{Quat, Vec3, Vec4};
 use serde_json::Value as JsonValue;
@@ -53,16 +53,13 @@ pub struct PrefabMaterial {
 
 impl StoreType for PrefabMaterial {
     const NAME: &str = "PrefabMaterial";
+    const TYPE: AssetType = AssetType::Prefab;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        _key: crate::store::AssetKey,
-        _assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, _key: AssetKey, _assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         false
     }
 
@@ -73,16 +70,13 @@ impl StoreType for PrefabMaterial {
 
 impl StoreType for PrefabAsset {
     const NAME: &str = "PrefabAsset";
+    const TYPE: AssetType = AssetType::Prefab;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        _key: crate::store::AssetKey,
-        _assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, _key: AssetKey, _assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         false
     }
 
