@@ -698,7 +698,10 @@ impl Renderer {
         let material_dst = self.cache.texture(targets.material);
 
         if normal_dst.format() == TextureFormat::Rg16Float {
-            let extent = normal_dst.size();
+            let mut extent = normal_dst.size();
+            let viewport_size = viewport.size();
+            extent.height = extent.height.min(viewport_size.height);
+            extent.width = extent.width.min(viewport_size.width);
 
             if extent.width > 0 && extent.height > 0 {
                 encoder.copy_texture_to_texture(
@@ -720,7 +723,10 @@ impl Renderer {
         }
 
         if material_dst.format() == TextureFormat::Bgra8Unorm {
-            let extent = material_dst.size();
+            let mut extent = material_dst.size();
+            let viewport_size = viewport.size();
+            extent.height = extent.height.min(viewport_size.height);
+            extent.width = extent.width.min(viewport_size.width);
 
             if extent.width > 0 && extent.height > 0 {
                 encoder.copy_texture_to_texture(
