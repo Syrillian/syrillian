@@ -1,14 +1,16 @@
 use crate::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVertexBuffers};
 use crate::mesh::{Bones, PartialMesh};
 use crate::store::streaming::asset_store::{
-    StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
+    AssetType, StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
 use crate::store::streaming::decode_helper::{
     DecodeHelper, MapDecodeHelper, ParseDecode, ParseDecodeWithBlobs,
 };
 use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
-use crate::store::{H, HandleName, StoreType, UpdateAssetMessage, streaming};
+use crate::store::{
+    AssetKey, AssetRefreshMessage, H, HandleName, StoreType, UpdateAssetMessage, streaming,
+};
 use crossbeam_channel::Sender;
 use std::ops::Range;
 use std::sync::Arc;
@@ -33,22 +35,22 @@ impl PartialMesh for SkinnedMesh {
 
 impl StoreType for SkinnedMesh {
     const NAME: &str = "Skinned Static Mesh";
+    const TYPE: AssetType = AssetType::SkinnedMesh;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         if !self.data.is_valid() {
             return false;
         }
 
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateSkinnedMesh(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateSkinnedMesh(self.clone()),
+            ))
             .is_ok()
     }
 

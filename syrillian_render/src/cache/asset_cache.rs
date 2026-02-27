@@ -10,7 +10,8 @@ use crossbeam_channel::Receiver;
 use dashmap::DashMap;
 use std::sync::Arc;
 use syrillian_asset::material_inputs::MaterialInputLayout;
-use syrillian_asset::store::{AssetKey, UpdateAssetMessage};
+use syrillian_asset::store::streaming::asset_store::AssetType;
+use syrillian_asset::store::{AssetRefreshMessage, UpdateAssetMessage};
 use syrillian_asset::*;
 use wgpu::{BindGroupLayout, BindGroupLayoutDescriptor, Device};
 
@@ -31,13 +32,13 @@ pub struct AssetCache {
     pub fonts: Cache<Font>,
 
     device: Device,
-    assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
+    assets_rx: Receiver<AssetRefreshMessage>,
 
     material_layouts: DashMap<u64, BindGroupLayout>,
 }
 
 impl AssetCache {
-    pub fn new(state: &State, assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>) -> Self {
+    pub fn new(state: &State, assets_rx: Receiver<AssetRefreshMessage>) -> Self {
         let device = &state.device;
         let queue = &state.queue;
         Self {
@@ -264,44 +265,87 @@ impl AssetCache {
     }
 
     pub fn refresh_dirty(&self) {
-        for (key, msg) in self.assets_rx.try_iter() {
+        for msg in self.assets_rx.try_iter() {
             match msg {
-                UpdateAssetMessage::UpdateMesh(mesh) => self.meshes.refresh_item(key, mesh, self),
-                UpdateAssetMessage::UpdateSkinnedMesh(mesh) => {
-                    self.skinned_meshes.refresh_item(key, mesh, self)
+                AssetRefreshMessage::Updated(key, msg) => match msg {
+                    UpdateAssetMessage::UpdateMesh(mesh) => {
+                        self.meshes.refresh_item(key, mesh, self)
+                    }
+                    UpdateAssetMessage::UpdateSkinnedMesh(mesh) => {
+                        self.skinned_meshes.refresh_item(key, mesh, self)
+                    }
+                    UpdateAssetMessage::UpdateShader(shader) => {
+                        self.shaders.refresh_item(key, shader, self)
+                    }
+                    UpdateAssetMessage::UpdateComputeShader(shader) => {
+                        self.compute_shaders.refresh_item(key, shader, self)
+                    }
+                    UpdateAssetMessage::UpdateTexture2D(texture) => {
+                        self.textures.refresh_item(key, texture, self)
+                    }
+                    UpdateAssetMessage::UpdateTexture2DArray(texture) => {
+                        self.texture_arrays.refresh_item(key, texture, self)
+                    }
+                    UpdateAssetMessage::UpdateCubemap(texture) => {
+                        self.cubemaps.refresh_item(key, texture, self)
+                    }
+                    UpdateAssetMessage::UpdateRenderTexture2D(texture) => {
+                        self.render_textures.refresh_item(key, texture, self)
+                    }
+                    UpdateAssetMessage::UpdateRenderTexture2DArray(texture) => {
+                        self.render_texture_arrays.refresh_item(key, texture, self)
+                    }
+                    UpdateAssetMessage::UpdateRenderCubemap(texture) => {
+                        self.render_cubemaps.refresh_item(key, texture, self)
+                    }
+                    UpdateAssetMessage::UpdateMaterial(material) => {
+                        self.materials.refresh_item(key, material, self)
+                    }
+                    UpdateAssetMessage::UpdateMaterialInstance(material) => {
+                        self.material_instances.refresh_item(key, material, self)
+                    }
+                    UpdateAssetMessage::UpdateBGL(layout) => {
+                        self.bgls.refresh_item(key, layout, self)
+                    }
+                    UpdateAssetMessage::UpdateFont(font) => {
+                        self.fonts.refresh_item(key, font, self)
+                    }
+                },
+                AssetRefreshMessage::Deleted(key, AssetType::BGL) => self.bgls.remove(key),
+                AssetRefreshMessage::Deleted(key, AssetType::Mesh) => self.meshes.remove(key),
+                AssetRefreshMessage::Deleted(key, AssetType::SkinnedMesh) => {
+                    self.skinned_meshes.remove(key)
                 }
-                UpdateAssetMessage::UpdateShader(shader) => {
-                    self.shaders.refresh_item(key, shader, self)
+                AssetRefreshMessage::Deleted(key, AssetType::Shader) => self.shaders.remove(key),
+                AssetRefreshMessage::Deleted(key, AssetType::ComputeShader) => {
+                    self.compute_shaders.remove(key)
                 }
-                UpdateAssetMessage::UpdateComputeShader(shader) => {
-                    self.compute_shaders.refresh_item(key, shader, self)
+                AssetRefreshMessage::Deleted(key, AssetType::Texture2D) => {
+                    self.textures.remove(key)
                 }
-                UpdateAssetMessage::UpdateTexture2D(texture) => {
-                    self.textures.refresh_item(key, texture, self)
+                AssetRefreshMessage::Deleted(key, AssetType::Texture2DArray) => {
+                    self.texture_arrays.remove(key)
                 }
-                UpdateAssetMessage::UpdateTexture2DArray(texture) => {
-                    self.texture_arrays.refresh_item(key, texture, self)
+                AssetRefreshMessage::Deleted(key, AssetType::Cubemap) => self.cubemaps.remove(key),
+                AssetRefreshMessage::Deleted(key, AssetType::RenderTexture2D) => {
+                    self.render_textures.remove(key)
                 }
-                UpdateAssetMessage::UpdateCubemap(texture) => {
-                    self.cubemaps.refresh_item(key, texture, self)
+                AssetRefreshMessage::Deleted(key, AssetType::RenderTexture2DArray) => {
+                    self.render_texture_arrays.remove(key)
                 }
-                UpdateAssetMessage::UpdateRenderTexture2D(texture) => {
-                    self.render_textures.refresh_item(key, texture, self)
+                AssetRefreshMessage::Deleted(key, AssetType::RenderCubemap) => {
+                    self.render_cubemaps.remove(key)
                 }
-                UpdateAssetMessage::UpdateRenderTexture2DArray(texture) => {
-                    self.render_texture_arrays.refresh_item(key, texture, self)
+                AssetRefreshMessage::Deleted(key, AssetType::Material) => {
+                    self.materials.remove(key)
                 }
-                UpdateAssetMessage::UpdateRenderCubemap(texture) => {
-                    self.render_cubemaps.refresh_item(key, texture, self)
+                AssetRefreshMessage::Deleted(key, AssetType::MaterialInstance) => {
+                    self.material_instances.remove(key)
                 }
-                UpdateAssetMessage::UpdateMaterial(material) => {
-                    self.materials.refresh_item(key, material, self)
-                }
-                UpdateAssetMessage::UpdateMaterialInstance(material) => {
-                    self.material_instances.refresh_item(key, material, self)
-                }
-                UpdateAssetMessage::UpdateBGL(layout) => self.bgls.refresh_item(key, layout, self),
-                UpdateAssetMessage::UpdateFont(font) => self.fonts.refresh_item(key, font, self),
+                AssetRefreshMessage::Deleted(key, AssetType::Font) => self.fonts.remove(key),
+                AssetRefreshMessage::Deleted(_, AssetType::Sound) => {}
+                AssetRefreshMessage::Deleted(_, AssetType::AnimationClip) => {}
+                AssetRefreshMessage::Deleted(_, AssetType::Prefab) => {}
             }
         }
     }

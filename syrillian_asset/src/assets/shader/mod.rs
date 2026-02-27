@@ -14,12 +14,13 @@ use crate::HShader;
 use crate::defaults::{PARTICLE_VERTEX_LAYOUT, PICKING_COLOR_TARGET};
 use crate::material_inputs::{MaterialInputLayout, MaterialTextureDef};
 use crate::shader::immediates::{TextImmediate, UiLineImmediate};
-use crate::store::streaming::asset_store::{StreamingAssetFile, StreamingAssetPayload};
+use crate::store::streaming::asset_store::{AssetType, StreamingAssetFile, StreamingAssetPayload};
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
 use crate::store::streaming::packaged_scene::BuiltPayload;
 use crate::store::streaming::payload::StreamableAsset;
 use crate::store::{
-    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    StoreTypeFallback, UpdateAssetMessage,
 };
 use crate::store_add_checked;
 use crate::{HBGL, Material};
@@ -579,6 +580,7 @@ impl StoreTypeFallback for Shader {
 
 impl StoreType for Shader {
     const NAME: &str = "Shader";
+    const TYPE: AssetType = AssetType::Shader;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         let name = match handle.id() {
@@ -607,13 +609,12 @@ impl StoreType for Shader {
         HandleName::Static(name)
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateShader(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateShader(self.clone()),
+            ))
             .is_ok()
     }
 

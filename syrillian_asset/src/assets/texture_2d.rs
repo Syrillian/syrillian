@@ -1,12 +1,12 @@
 use crate::store::streaming::asset_store::{
-    StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
+    AssetType, StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
 use crate::store::streaming::decode_helper::{DecodeHelper, MapDecodeHelper, ParseDecode};
 use crate::store::streaming::packaged_scene::{BuiltPayload, PackedBlob};
 use crate::store::streaming::payload::StreamableAsset;
 use crate::store::{
-    H, HandleName, Store, StoreDefaults, StoreType, StoreTypeFallback, UpdateAssetMessage,
-    streaming,
+    AssetKey, AssetRefreshMessage, H, HandleName, Store, StoreDefaults, StoreType,
+    StoreTypeFallback, UpdateAssetMessage, streaming,
 };
 use crate::{HTexture2D, store_add_checked};
 use crossbeam_channel::Sender;
@@ -189,6 +189,7 @@ impl StoreDefaults for Texture2D {
 
 impl StoreType for Texture2D {
     const NAME: &str = "Texture 2D";
+    const TYPE: AssetType = AssetType::Texture2D;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         match handle.id() {
@@ -199,13 +200,12 @@ impl StoreType for Texture2D {
         }
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((key, UpdateAssetMessage::UpdateTexture2D(self.clone())))
+            .send(AssetRefreshMessage::Updated(
+                key,
+                UpdateAssetMessage::UpdateTexture2D(self.clone()),
+            ))
             .is_ok()
     }
 

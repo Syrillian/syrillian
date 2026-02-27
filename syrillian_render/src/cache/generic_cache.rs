@@ -95,4 +95,8 @@ impl<T: CacheType> Cache<T> {
         self.data
             .insert(key, T::upload(message, &self.device, &self.queue, cache));
     }
+
+    pub fn remove(&self, key: AssetKey) {
+        self.data.remove(&key);
+    }
 }

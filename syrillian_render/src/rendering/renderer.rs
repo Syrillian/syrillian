@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem;
 use std::sync::Arc;
-use syrillian_asset::store::{AssetKey, UpdateAssetMessage};
+use syrillian_asset::store::AssetRefreshMessage;
 use syrillian_asset::{HShader, HTexture2D};
 use syrillian_utils::frustum::FrustumSide;
 use syrillian_utils::{EngineArgs, Frustum, TypedComponentId, debug_panic};
@@ -66,7 +66,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(
         state: Arc<State>,
-        assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
+        assets_rx: Receiver<AssetRefreshMessage>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self> {

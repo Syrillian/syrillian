@@ -1,4 +1,5 @@
-use crate::store::{H, HandleName, StoreType, UpdateAssetMessage};
+use crate::store::streaming::asset_store::AssetType;
+use crate::store::{AssetKey, AssetRefreshMessage, H, HandleName, StoreType, UpdateAssetMessage};
 use crossbeam_channel::Sender;
 use std::fmt::Debug;
 use wgpu::{AddressMode, FilterMode, MipmapFilterMode, TextureFormat};
@@ -32,18 +33,15 @@ impl RenderTexture2DArray {
 
 impl StoreType for RenderTexture2DArray {
     const NAME: &str = "Render Texture 2D Array";
+    const TYPE: AssetType = AssetType::RenderTexture2DArray;
 
     fn ident_fmt(handle: H<Self>) -> HandleName<Self> {
         HandleName::Id(handle)
     }
 
-    fn refresh_dirty(
-        &self,
-        key: crate::store::AssetKey,
-        assets_tx: &Sender<(crate::store::AssetKey, UpdateAssetMessage)>,
-    ) -> bool {
+    fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send((
+            .send(AssetRefreshMessage::Updated(
                 key,
                 UpdateAssetMessage::UpdateRenderTexture2DArray(self.clone()),
             ))

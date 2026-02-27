@@ -1,6 +1,6 @@
 use crossbeam_channel::{Receiver, Sender, bounded, select, unbounded};
 use std::sync::Arc;
-use syrillian_asset::store::{AssetKey, UpdateAssetMessage};
+use syrillian_asset::store::AssetRefreshMessage;
 use syrillian_render::rendering::message::RenderMsg;
 use syrillian_render::rendering::picking::PickResult;
 use syrillian_render::rendering::renderer::{RenderedFrame, Renderer};
@@ -34,7 +34,7 @@ impl RenderThreadInner {
         control_rx: Receiver<RenderControlMsg>,
         frame_tx: Sender<RenderBatch>,
         pick_result_tx: Sender<PickResult>,
-        assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
+        assets_rx: Receiver<AssetRefreshMessage>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self, syrillian_render::error::RenderError> {
         let renderer = Renderer::new(state, assets_rx, pick_result_tx, primary_config)?;
@@ -137,7 +137,7 @@ pub struct RenderThread {
 impl RenderThread {
     pub fn new(
         state: Arc<State>,
-        assets_rx: Receiver<(AssetKey, UpdateAssetMessage)>,
+        assets_rx: Receiver<AssetRefreshMessage>,
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
         primary_config: SurfaceConfiguration,
