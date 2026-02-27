@@ -133,7 +133,15 @@ pub const SURFACE_PP_COLOR_TARGETS: &[Option<ColorTargetState>] = &[Some(ColorTa
 })];
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct ParticleVertex {
     pub world_pos_alive: [f32; 4],
     pub life_t: f32,

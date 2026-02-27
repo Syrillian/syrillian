@@ -14,7 +14,6 @@ syrillian_render.workspace = true
 delegate.workspace = true
 itertools.workspace = true
 snafu.workspace = true
-bytemuck.workspace = true
 web-time.workspace = true
 kira.workspace = true
 zerocopy.workspace = true

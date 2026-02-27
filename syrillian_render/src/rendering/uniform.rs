@@ -75,10 +75,10 @@ impl<'a, I: ShaderUniformIndex> ShaderUniformBuilder<'a, I> {
     #[inline]
     pub fn with_buffer_data_slice<B>(mut self, data: &'a [B]) -> Self
     where
-        B: bytemuck::Pod + bytemuck::Zeroable + 'a,
+        B: IntoBytes + Immutable + 'a,
     {
         let name = self._next_index();
-        let data = bytemuck::cast_slice(data);
+        let data = data.as_bytes();
         self.data.push(ResourceDesc::DataBuffer { data, name });
         self
     }
@@ -93,10 +93,10 @@ impl<'a, I: ShaderUniformIndex> ShaderUniformBuilder<'a, I> {
     #[inline]
     pub fn with_storage_buffer_data<B>(mut self, data: &'a [B]) -> Self
     where
-        B: bytemuck::Pod + bytemuck::Zeroable + 'a,
+        B: IntoBytes + Immutable + 'a,
     {
         let name = self._next_index();
-        let data = bytemuck::cast_slice(data);
+        let data = data.as_bytes();
         self.data
             .push(ResourceDesc::StorageBufferData { data, name });
         self

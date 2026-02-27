@@ -71,7 +71,6 @@ image = "0.25"
 parking_lot = "0.12"
 web-time = "1.1"
 delegate = "0.13"
-bytemuck = "1.25"
 snafu = "0.8"
 itertools = "0.14"
 uuid = { version = "1.20", features = ["v4"] }

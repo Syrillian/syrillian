@@ -135,7 +135,7 @@ impl SceneProxy for MeshSceneProxy {
         let mut pass = ctx.pass.write();
 
         let color = hash_to_rgba(binding.object_hash);
-        pass.set_immediates(0, bytemuck::bytes_of(&color));
+        pass.set_immediates(0, color.as_bytes());
 
         self.draw_mesh_picking(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
@@ -309,7 +309,7 @@ fn draw_edges(
         return;
     }
 
-    pass.set_immediates(0, bytemuck::bytes_of(&COLOR));
+    pass.set_immediates(0, COLOR.as_bytes());
 
     mesh.draw_all(pass);
 }

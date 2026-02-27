@@ -4,17 +4,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// An unskinned vertex used for 3D rendering.
 #[repr(C)]
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    bytemuck::Pod,
-    bytemuck::Zeroable,
-    Immutable,
-    IntoBytes,
-    FromBytes,
-    KnownLayout,
-)]
+#[derive(Copy, Clone, Debug, Immutable, IntoBytes, FromBytes, KnownLayout)]
 pub struct UnskinnedVertex3D {
     pub position: Vec3,
     pub uv: Vec2,

@@ -19,7 +19,6 @@ dashmap.workspace = true
 parking_lot.workspace = true
 web-time.workspace = true
 bon.workspace = true
-bytemuck.workspace = true
 delegate.workspace = true
 snafu.workspace = true
 itertools.workspace = true

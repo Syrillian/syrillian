@@ -16,6 +16,7 @@ use crate::rendering::{GPUDrawCtx, RenderPassType};
 use crate::{proxy_data, proxy_data_mut, try_activate_shader};
 use glamx::Affine3A;
 use parking_lot::RwLockWriteGuard;
+use static_assertions::const_assert_eq;
 use std::any::Any;
 use std::ops::Range;
 use syrillian_asset::mesh::bone::BoneData;
@@ -55,6 +56,8 @@ struct MeshSkinningParams {
     _pad1: u32,
     _pad2: u32,
 }
+
+const_assert_eq!(size_of::<MeshSkinningParams>(), 16);
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, UniformIndex)]
@@ -301,7 +304,7 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         let mut pass = ctx.pass.write();
 
         let color = hash_to_rgba(binding.object_hash);
-        pass.set_immediates(0, bytemuck::bytes_of(&color));
+        pass.set_immediates(0, color.as_bytes());
 
         self.draw_mesh_picking(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
@@ -499,7 +502,7 @@ fn draw_edges(
         return;
     }
 
-    pass.set_immediates(0, bytemuck::bytes_of(&COLOR));
+    pass.set_immediates(0, COLOR.as_bytes());
 
     mesh.draw_all(pass);
 }

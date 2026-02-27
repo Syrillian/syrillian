@@ -4,7 +4,15 @@ use syrillian_asset::ensure_aligned;
 use syrillian_macros::UniformIndex;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct LightProxy {
     pub position: Vec3,
     pub _p0: u32,

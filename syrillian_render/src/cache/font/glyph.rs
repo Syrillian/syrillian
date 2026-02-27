@@ -6,7 +6,15 @@ use static_assertions::{const_assert, const_assert_eq};
 use ttf_parser::Face;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct GlyphVertex {
     pub pos: [f32; 2],
     pub uv: [f32; 2],
@@ -16,7 +24,15 @@ pub const GLYPH_TRIANGLE_COUNT: usize = 2;
 pub const GLYPH_VERTEX_COUNT: usize = GLYPH_TRIANGLE_COUNT * 3;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct GlyphRenderData {
     vertices: [GlyphVertex; GLYPH_VERTEX_COUNT],
 }
