@@ -4047,6 +4047,7 @@ dependencies = [
  "syrillian_render",
  "syrillian_utils",
  "web-time",
+ "zerocopy",
 ]
 
 [[package]]

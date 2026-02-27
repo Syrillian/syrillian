@@ -27,6 +27,7 @@ use syrillian_utils::color::hsv_to_rgb;
 use syrillian_utils::debug_panic;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{Buffer, BufferUsages, RenderPass};
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone)]
 pub struct TextRenderData {
@@ -420,7 +421,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         renderer
             .state
             .queue
-            .write_buffer(mesh_buffer, 0, bytemuck::bytes_of(&self.translation));
+            .write_buffer(mesh_buffer, 0, self.translation.as_bytes());
     }
 
     fn update_render(

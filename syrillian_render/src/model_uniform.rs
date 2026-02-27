@@ -1,8 +1,9 @@
 use glamx::{Mat4, Vec3};
 use syrillian_asset::ensure_aligned;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, IntoBytes, FromBytes, KnownLayout)]
 pub struct ModelUniform {
     pub model_mat: Mat4,
     pub normal_mat: Mat4,

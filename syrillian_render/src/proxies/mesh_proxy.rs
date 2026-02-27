@@ -22,6 +22,7 @@ use syrillian_asset::{HMaterialInstance, HMesh, Shader};
 use syrillian_macros::UniformIndex;
 use syrillian_utils::BoundingSphere;
 use wgpu::RenderPass;
+use zerocopy::IntoBytes;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, UniformIndex)]
@@ -85,7 +86,7 @@ impl SceneProxy for MeshSceneProxy {
         renderer.state.queue.write_buffer(
             data.uniform.buffer(MeshUniformIndex::MeshData),
             0,
-            bytemuck::bytes_of(&data.mesh_data),
+            data.mesh_data.as_bytes(),
         );
     }
 

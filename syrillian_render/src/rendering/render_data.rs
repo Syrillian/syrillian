@@ -6,10 +6,11 @@ use syrillian_asset::ensure_aligned;
 use syrillian_macros::UniformIndex;
 use syrillian_utils::Frustum;
 use wgpu::{BindGroupLayout, Device, Queue, Sampler, TextureView};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 // TODO: Use proper matrix types (Affine3, Perspective3)
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, FromBytes, IntoBytes, KnownLayout)]
 pub struct CameraUniform {
     pub pos: Vec3,
     pub fov: f32,
@@ -35,7 +36,7 @@ ensure_aligned!(
 );
 
 #[repr(C)]
-#[derive(Default, Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Default, Copy, Clone, Debug, Immutable, FromBytes, IntoBytes, KnownLayout)]
 pub struct SystemUniform {
     pub screen_size: UVec2,
     pub time: f32,
@@ -124,7 +125,7 @@ impl SkyAtmosphereSettings {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, Immutable, FromBytes, IntoBytes, KnownLayout)]
 pub struct SkyUniform {
     pub sun_direction: Vec3,
     pub mode: u32,
@@ -346,7 +347,7 @@ impl RenderUniformData {
         queue.write_buffer(
             self.uniform.buffer(RenderUniformIndex::Camera),
             0,
-            bytemuck::bytes_of(&self.camera_data),
+            self.camera_data.as_bytes(),
         );
     }
 
@@ -354,7 +355,7 @@ impl RenderUniformData {
         queue.write_buffer(
             self.uniform.buffer(RenderUniformIndex::System),
             0,
-            bytemuck::bytes_of(&self.system_data),
+            self.system_data.as_bytes(),
         );
     }
 
@@ -362,7 +363,7 @@ impl RenderUniformData {
         queue.write_buffer(
             self.uniform.buffer(RenderUniformIndex::Sky),
             0,
-            bytemuck::bytes_of(&self.sky_data),
+            self.sky_data.as_bytes(),
         );
     }
 
