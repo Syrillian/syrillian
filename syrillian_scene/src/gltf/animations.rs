@@ -1,5 +1,6 @@
 use crate::GltfScene;
 use gltf::animation::util::ReadOutputs;
+use std::collections::HashMap;
 use syrillian::math::{Quat, Vec3};
 use syrillian_asset::{AnimationChannel, AnimationClip, TransformKeys};
 
@@ -35,15 +36,22 @@ impl GltfScene {
         &self,
         anim: gltf::Animation,
     ) -> (Vec<AnimationChannel>, f32) {
-        let mut channels = Vec::new();
+        let mut channels: HashMap<String, AnimationChannel> = HashMap::new();
         let mut max_time = 0.0f32;
 
         for ch in anim.channels() {
             if let Some((channel, duration)) = self.read_channel(ch) {
-                channels.push(channel);
+                match channels.get_mut(&channel.target_name) {
+                    None => {
+                        channels.insert(channel.target_name.clone(), channel);
+                    }
+                    Some(existing_channel) => existing_channel.extend(&channel),
+                };
                 max_time = max_time.max(duration);
             }
         }
+
+        let channels = channels.into_values().collect();
 
         (channels, max_time)
     }
@@ -63,15 +71,15 @@ impl GltfScene {
         let times: Vec<f32> = reader.read_inputs()?.collect();
         let duration = times.last().copied().unwrap_or(0.0);
         let outputs = reader.read_outputs()?;
-        let keys = build_transform_keys(outputs, &times);
+        let keys = build_transform_keys(outputs, &times)?;
 
         Some((AnimationChannel { target_name, keys }, duration))
     }
 }
 
 /// Builds transform keyframes from glTF animation outputs
-fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
-    match outputs {
+fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> Option<TransformKeys> {
+    let keys = match outputs {
         ReadOutputs::Translations(values) => {
             let translations: Vec<Vec3> = values.into_iter().map(Vec3::from).collect();
             TransformKeys {
@@ -96,6 +104,8 @@ fn build_transform_keys(outputs: ReadOutputs, times: &[f32]) -> TransformKeys {
                 ..TransformKeys::default()
             }
         }
-        _ => TransformKeys::default(),
-    }
+        _ => return None,
+    };
+
+    Some(keys)
 }
