@@ -657,9 +657,10 @@ impl StreamingAssetBlobInfo {
         T: Immutable + FromBytes + KnownLayout + Clone,
     {
         let bytes = package.read_blob_bytes(self)?;
-        let bytes_section = &bytes[0..count * size_of::<T>()];
+        let section_size = (count * size_of::<T>()).min(bytes.len());
+        let bytes_section = &bytes[0..section_size];
 
-        let elems = <[T]>::try_ref_from_bytes_with_elems(&bytes_section, count).map_err(|e| {
+        let elems = <[T]>::try_ref_from_bytes_with_elems(bytes_section, count).map_err(|e| {
             AssetStreamingError::Decode {
                 source: None,
                 message: e.to_string(),
