@@ -168,6 +168,26 @@ impl TransformKeys {
             .binary_search_by(|k| k.partial_cmp(&t).unwrap_or(Ordering::Equal))
             .unwrap_or_else(|i| (i - 1).max(0))
     }
+
+    // TODO: consider resorting the combined array so that the times always increase,
+    //       in case the loader backend does not stream them in temporal order
+    pub fn extend(&mut self, other: &Self) {
+        if !other.t_times.is_empty() {
+            debug_assert!(other.t_times.len() == other.t_values.len());
+            self.t_times.extend(&other.t_times);
+            self.t_values.extend(&other.t_values);
+        }
+        if !other.r_times.is_empty() {
+            debug_assert!(other.r_times.len() == other.r_values.len());
+            self.r_times.extend(&other.r_times);
+            self.r_values.extend(&other.r_values);
+        }
+        if !other.s_times.is_empty() {
+            debug_assert!(other.s_times.len() == other.s_values.len());
+            self.s_times.extend(&other.s_times);
+            self.s_values.extend(&other.s_values);
+        }
+    }
 }
 
 impl StreamableAsset for AnimationClip {
@@ -391,6 +411,10 @@ impl AnimationChannel {
                 s_values,
             },
         })
+    }
+
+    pub fn extend(&mut self, other: &Self) {
+        self.keys.extend(&other.keys);
     }
 }
 
