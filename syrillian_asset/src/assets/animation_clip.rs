@@ -9,11 +9,11 @@ use crate::store::{AssetKey, AssetRefreshMessage, H, HandleName, StoreType, stre
 use crossbeam_channel::Sender;
 use glamx::{EulerRot, Quat, Vec3};
 use serde_json::Value as JsonValue;
-use snafu::{ensure_whatever, whatever};
+use snafu::whatever;
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{HashMap, VecDeque};
 use syrillian_reflect::serializer::JsonSerializer;
-use syrillian_reflect::{ReflectSerialize, Value};
+use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 pub type HAnimationClipAsset = H<AnimationClip>;
 
@@ -170,87 +170,6 @@ impl TransformKeys {
     }
 }
 
-struct AnimationClipMeta<'a> {
-    clip: &'a AnimationClip,
-}
-
-struct AnimationChannelMeta<'a> {
-    channel: &'a AnimationChannel,
-}
-
-struct AnimationKeysMeta<'a> {
-    keys: &'a TransformKeys,
-}
-
-impl ReflectSerialize for AnimationKeysMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        Value::Object(BTreeMap::from([
-            (
-                "t_times_count".to_string(),
-                Value::BigUInt(this.keys.t_times.len() as u64),
-            ),
-            (
-                "t_values_count".to_string(),
-                Value::BigUInt(this.keys.t_values.len() as u64),
-            ),
-            (
-                "r_times_count".to_string(),
-                Value::BigUInt(this.keys.r_times.len() as u64),
-            ),
-            (
-                "r_values_count".to_string(),
-                Value::BigUInt(this.keys.r_values.len() as u64),
-            ),
-            (
-                "s_times_count".to_string(),
-                Value::BigUInt(this.keys.s_times.len() as u64),
-            ),
-            (
-                "s_values_count".to_string(),
-                Value::BigUInt(this.keys.s_values.len() as u64),
-            ),
-        ]))
-    }
-}
-
-impl ReflectSerialize for AnimationChannelMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        Value::Object(BTreeMap::from([
-            (
-                "target_name".to_string(),
-                Value::String(this.channel.target_name.clone()),
-            ),
-            (
-                "keys".to_string(),
-                ReflectSerialize::serialize(&AnimationKeysMeta {
-                    keys: &this.channel.keys,
-                }),
-            ),
-        ]))
-    }
-}
-
-impl ReflectSerialize for AnimationClipMeta<'_> {
-    fn serialize(this: &Self) -> Value {
-        let channels = this
-            .clip
-            .channels
-            .iter()
-            .map(|channel| ReflectSerialize::serialize(&AnimationChannelMeta { channel }))
-            .collect::<Vec<_>>();
-
-        Value::Object(BTreeMap::from([
-            ("name".to_string(), Value::String(this.clip.name.clone())),
-            ("duration".to_string(), Value::Float(this.clip.duration)),
-            (
-                "channel_count".to_string(),
-                Value::BigUInt(channels.len() as u64),
-            ),
-            ("channels".to_string(), Value::Array(channels)),
-        ]))
-    }
-}
-
 impl StreamableAsset for AnimationClip {
     fn encode(&self) -> BuiltPayload {
         let mut blobs = Vec::new();
@@ -291,7 +210,7 @@ impl StreamableAsset for AnimationClip {
         }
 
         BuiltPayload {
-            payload: JsonSerializer::serialize_to_string(&AnimationClipMeta { clip: self }),
+            payload: JsonSerializer::serialize_to_string(self),
             blobs,
         }
     }
@@ -303,15 +222,6 @@ impl StreamableAsset for AnimationClip {
         let root = payload.data.expect_object("animation metadata root")?;
         let channels_value = root.required_field("channels")?;
         let channel_values = channels_value.expect_array("animation channels")?;
-        let declared_channel_count: usize = root
-            .required_field("channel_count")?
-            .expect_parse("animation channel_count")?;
-        ensure_whatever!(
-            declared_channel_count == channel_values.len(),
-            "animation channel_count {} did not match channels length {}",
-            declared_channel_count,
-            channel_values.len()
-        );
 
         let mut cursor = AnimationBlobCursor::new(&payload.blob_infos);
         let mut channels = Vec::with_capacity(channel_values.len());
@@ -337,27 +247,22 @@ impl StreamableAsset for AnimationClip {
 }
 
 struct AnimationBlobCursor<'a> {
-    by_kind: HashMap<StreamingAssetBlobKind, Vec<&'a StreamingAssetBlobInfo>>,
+    by_kind: HashMap<StreamingAssetBlobKind, VecDeque<&'a StreamingAssetBlobInfo>>,
 }
 
 impl<'a> AnimationBlobCursor<'a> {
     fn new(blobs: &'a StreamingAssetBlobInfos) -> Self {
-        let mut by_kind: HashMap<StreamingAssetBlobKind, Vec<&'a StreamingAssetBlobInfo>> =
+        let mut by_kind: HashMap<StreamingAssetBlobKind, VecDeque<&'a StreamingAssetBlobInfo>> =
             HashMap::new();
         for blob in &blobs.infos {
-            by_kind.entry(blob.kind).or_default().push(blob);
+            by_kind.entry(blob.kind).or_default().push_back(blob);
         }
-
-        // reverse all so we can pop later
-        by_kind.values_mut().for_each(|v| v.reverse());
 
         Self { by_kind }
     }
 
     fn take(&mut self, kind: StreamingAssetBlobKind) -> Option<&'a StreamingAssetBlobInfo> {
-        let kind_blobs = self.by_kind.get_mut(&kind)?;
-
-        kind_blobs.pop()
+        self.by_kind.get_mut(&kind)?.pop_front()
     }
 
     fn ensure_exhausted(&self) -> streaming::error::Result<()> {
@@ -372,6 +277,32 @@ impl<'a> AnimationBlobCursor<'a> {
         }
         Ok(())
     }
+
+    fn decode_track_blob<T>(
+        &mut self,
+        kind: StreamingAssetBlobKind,
+        expected_count: usize,
+        package: &mut StreamingAssetFile,
+        label: &str,
+    ) -> streaming::error::Result<Vec<T>>
+    where
+        T: Immutable + FromBytes + KnownLayout + Clone,
+    {
+        if expected_count == 0 {
+            return Ok(Vec::new());
+        }
+
+        let Some(blob) = self.take(kind) else {
+            whatever!(
+                "missing '{}' blob for {} (expected {})",
+                kind.name(),
+                label,
+                expected_count
+            );
+        };
+
+        blob.decode_exact_from_io(label, expected_count, package)
+    }
 }
 
 impl AnimationChannel {
@@ -384,42 +315,70 @@ impl AnimationChannel {
         let target_name = channel
             .required_field("target_name")?
             .expect_parse("animation target_name")?;
+        let keys = channel
+            .required_field("keys")?
+            .expect_object("animation channel keys")?;
 
-        let t_times = cursor
-            .take(StreamingAssetBlobKind::AnimationTranslationTimes)
-            .map(|i| i.decode_all_from_io(package))
-            .transpose()?
-            .unwrap_or_default();
+        let t_times_count = keys
+            .required_field("t_times_count")?
+            .expect_parse("animation t_times_count")?;
+        let t_values_count = keys
+            .required_field("t_values_count")?
+            .expect_parse("animation t_values_count")?;
+        let r_times_count = keys
+            .required_field("r_times_count")?
+            .expect_parse("animation r_times_count")?;
+        let r_values_count = keys
+            .required_field("r_values_count")?
+            .expect_parse("animation r_values_count")?;
+        let s_times_count = keys
+            .required_field("s_times_count")?
+            .expect_parse("animation s_times_count")?;
+        let s_values_count = keys
+            .required_field("s_values_count")?
+            .expect_parse("animation s_values_count")?;
 
-        let t_values = cursor
-            .take(StreamingAssetBlobKind::AnimationTranslationValues)
-            .map(|i| i.decode_all_from_io(package))
-            .transpose()?
-            .unwrap_or_default();
+        let t_times = cursor.decode_track_blob(
+            StreamingAssetBlobKind::AnimationTranslationTimes,
+            t_times_count,
+            package,
+            "animation translation times",
+        )?;
 
-        let r_times = cursor
-            .take(StreamingAssetBlobKind::AnimationRotationTimes)
-            .map(|i| i.decode_all_from_io(package))
-            .transpose()?
-            .unwrap_or_default();
+        let t_values = cursor.decode_track_blob(
+            StreamingAssetBlobKind::AnimationTranslationValues,
+            t_values_count,
+            package,
+            "animation translation values",
+        )?;
 
-        let r_values = cursor
-            .take(StreamingAssetBlobKind::AnimationRotationValues)
-            .map(|i| i.decode_all_from_io(package))
-            .transpose()?
-            .unwrap_or_default();
+        let r_times = cursor.decode_track_blob(
+            StreamingAssetBlobKind::AnimationRotationTimes,
+            r_times_count,
+            package,
+            "animation rotation times",
+        )?;
 
-        let s_times = cursor
-            .take(StreamingAssetBlobKind::AnimationScaleTimes)
-            .map(|i| i.decode_all_from_io(package))
-            .transpose()?
-            .unwrap_or_default();
+        let r_values = cursor.decode_track_blob(
+            StreamingAssetBlobKind::AnimationRotationValues,
+            r_values_count,
+            package,
+            "animation rotation values",
+        )?;
 
-        let s_values = cursor
-            .take(StreamingAssetBlobKind::AnimationScaleValues)
-            .map(|i| i.decode_all_from_io(package))
-            .transpose()?
-            .unwrap_or_default();
+        let s_times = cursor.decode_track_blob(
+            StreamingAssetBlobKind::AnimationScaleTimes,
+            s_times_count,
+            package,
+            "animation scale times",
+        )?;
+
+        let s_values = cursor.decode_track_blob(
+            StreamingAssetBlobKind::AnimationScaleValues,
+            s_values_count,
+            package,
+            "animation scale values",
+        )?;
 
         Ok(AnimationChannel {
             target_name,

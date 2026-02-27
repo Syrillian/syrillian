@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
 use std::thread;
-use tracing::debug;
+use tracing::{debug, warn};
 use zerocopy::{FromBytes, Immutable, KnownLayout, TryFromBytes};
 
 pub trait StreamingLoadableAsset: StoreType + Send + Sync + 'static {
@@ -540,6 +540,13 @@ fn spawn_worker(
         .spawn(move || {
             while let Ok(job) = rx.recv() {
                 let result = runtime.process_load_job(&backend, &job);
+                if let Err(e) = &result {
+                    warn!(
+                        "Failed to decode stream of {} asset {:?}. Error: {e}",
+                        job.entry.asset_type.name(),
+                        job.path
+                    );
+                }
                 complete_job(&backend, &job, result);
             }
             debug!("Streaming asset worker thread terminated");

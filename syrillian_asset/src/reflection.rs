@@ -235,28 +235,28 @@ impl ReflectSerialize for TransformKeys {
     fn serialize(this: &Self) -> Value {
         Value::Object(BTreeMap::from([
             (
-                "t_times".to_string(),
-                ReflectSerialize::serialize(&this.t_times),
+                "t_times_count".to_string(),
+                Value::BigUInt(this.t_times.len() as u64),
             ),
             (
-                "t_values".to_string(),
-                ReflectSerialize::serialize(&this.t_values),
+                "t_values_count".to_string(),
+                Value::BigUInt(this.t_values.len() as u64),
             ),
             (
-                "r_times".to_string(),
-                ReflectSerialize::serialize(&this.r_times),
+                "r_times_count".to_string(),
+                Value::BigUInt(this.r_times.len() as u64),
             ),
             (
-                "r_values".to_string(),
-                ReflectSerialize::serialize(&this.r_values),
+                "r_values_count".to_string(),
+                Value::BigUInt(this.r_values.len() as u64),
             ),
             (
-                "s_times".to_string(),
-                ReflectSerialize::serialize(&this.s_times),
+                "s_times_count".to_string(),
+                Value::BigUInt(this.s_times.len() as u64),
             ),
             (
-                "s_values".to_string(),
-                ReflectSerialize::serialize(&this.s_values),
+                "s_values_count".to_string(),
+                Value::BigUInt(this.s_values.len() as u64),
             ),
         ]))
     }
@@ -276,13 +276,16 @@ impl ReflectSerialize for AnimationChannel {
 
 impl ReflectSerialize for AnimationClip {
     fn serialize(this: &Self) -> Value {
+        let channels = this
+            .channels
+            .iter()
+            .map(ReflectSerialize::serialize)
+            .collect::<Vec<_>>();
+
         Value::Object(BTreeMap::from([
             ("name".to_string(), Value::String(this.name.clone())),
             ("duration".to_string(), Value::Float(this.duration)),
-            (
-                "channels".to_string(),
-                ReflectSerialize::serialize(&this.channels),
-            ),
+            ("channels".to_string(), Value::Array(channels)),
         ]))
     }
 }
