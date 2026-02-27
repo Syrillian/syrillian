@@ -1577,7 +1577,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9"
 dependencies = [
  "approx",
- "bytemuck",
  "libm",
  "mint",
  "zerocopy",
@@ -1591,7 +1590,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "375b4fa374a343fef990a18a6e0413d54bd990c6d7b8c7ada2d3c884275edea3"
 dependencies = [
  "approx",
- "bytemuck",
  "glam 0.30.10",
  "nalgebra",
  "num-traits",
@@ -3969,7 +3967,6 @@ dependencies = [
 name = "syrillian"
 version = "0.7.1"
 dependencies = [
- "bytemuck",
  "chrono",
  "const_format",
  "crossbeam-channel",
@@ -4007,7 +4004,6 @@ name = "syrillian_asset"
 version = "0.7.1"
 dependencies = [
  "bon",
- "bytemuck",
  "crossbeam-channel",
  "dashmap",
  "delegate",
@@ -4038,7 +4034,6 @@ dependencies = [
 name = "syrillian_components"
 version = "0.3.0"
 dependencies = [
- "bytemuck",
  "delegate",
  "itertools",
  "kira",
@@ -4091,7 +4086,6 @@ dependencies = [
 name = "syrillian_render"
 version = "0.7.1"
 dependencies = [
- "bytemuck",
  "crossbeam-channel",
  "dashmap",
  "delegate",
@@ -4145,11 +4139,11 @@ dependencies = [
 name = "syrillian_shadergen"
 version = "0.7.1"
 dependencies = [
- "bytemuck",
  "glamx",
  "syrillian_utils",
  "uuid",
  "wgpu",
+ "zerocopy",
 ]
 
 [[package]]

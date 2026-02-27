@@ -18,6 +18,7 @@ use wgpu::{
     AddressMode, Device, FilterMode, MipmapFilterMode, Queue, Sampler, SamplerDescriptor,
     TextureView,
 };
+use zerocopy::IntoBytes;
 
 const DUMMY_POINT_LIGHT: LightProxy = LightProxy::dummy();
 
@@ -307,14 +308,15 @@ impl LightManager {
             self.shadow_uniform
                 .buffer(ShadowUniformIndex::ShadowMatrices),
             0,
-            bytemuck::cast_slice(self.shadow_matrices.as_slice()),
+            self.shadow_matrices.as_bytes(),
         );
 
         let proxies = proxy_buffer_slice(&self.proxies);
         let size = proxies.len();
 
         let count = self.uniform.buffer(LightUniformIndex::Count);
-        queue.write_buffer(count, 0, bytemuck::bytes_of(&(size as u32)));
+        let count_u32 = size as u32;
+        queue.write_buffer(count, 0, count_u32.as_bytes());
 
         let data = self.uniform.buffer(LightUniformIndex::Lights);
         if size_of_val(proxies) > data.size() as usize {
@@ -324,7 +326,7 @@ impl LightManager {
                 .with_storage_buffer_data(proxies)
                 .build(device);
         } else {
-            queue.write_buffer(data, 0, bytemuck::cast_slice(proxies));
+            queue.write_buffer(data, 0, proxies.as_bytes());
         }
     }
 
@@ -347,7 +349,8 @@ impl LightManager {
                 }
             };
 
-            pass.set_immediates(0, bytemuck::bytes_of(&(i as u32)));
+            let light_idx = i as u32;
+            pass.set_immediates(0, light_idx.as_bytes());
             match type_id {
                 LightType::Point => pass.draw(0..2, 0..6),
                 LightType::Sun => pass.draw(0..2, 0..9),

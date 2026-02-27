@@ -26,8 +26,7 @@ syrillian_utils.workspace = true
 
 wgpu.workspace = true
 winit.workspace = true
-glamx = { workspace = true, features = ["bytemuck", "mint", "nalgebra"] }
-bytemuck.workspace = true
+glamx = { workspace = true, features = ["mint", "nalgebra"] }
 itertools.workspace = true
 snafu.workspace = true
 tracing.workspace = true

@@ -9,6 +9,7 @@ use wgpu::{
     AddressMode, BindGroupLayout, Buffer, BufferUsages, ComputePassDescriptor, Device, FilterMode,
     MipmapFilterMode, Queue, SamplerDescriptor, TextureFormat, TextureUsages, TextureView,
 };
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Copy, Clone)]
 pub struct BloomSettings {
@@ -77,7 +78,15 @@ impl BloomSettings {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 struct BloomComputeParams {
     threshold: f32,
     soft_knee: f32,
@@ -205,25 +214,25 @@ impl BloomRenderPass {
 
         let prefilter_params = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Bloom Prefilter Params"),
-            contents: bytemuck::bytes_of(&params_prefilter),
+            contents: params_prefilter.as_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
         let blur_horizontal_params = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Bloom Blur Horizontal Params"),
-            contents: bytemuck::bytes_of(&params_blur_h),
+            contents: params_blur_h.as_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
         let blur_vertical_params = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Bloom Blur Vertical Params"),
-            contents: bytemuck::bytes_of(&params_blur_v),
+            contents: params_blur_v.as_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
         let composite_params = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Bloom Composite Params"),
-            contents: bytemuck::bytes_of(&params_composite),
+            contents: params_composite.as_bytes(),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
@@ -318,10 +327,10 @@ impl BloomRenderPass {
             ],
         );
 
-        queue.write_buffer(&self.prefilter_params, 0, bytemuck::bytes_of(&prefilter));
-        queue.write_buffer(&self.blur_horizontal_params, 0, bytemuck::bytes_of(&blur_h));
-        queue.write_buffer(&self.blur_vertical_params, 0, bytemuck::bytes_of(&blur_v));
-        queue.write_buffer(&self.composite_params, 0, bytemuck::bytes_of(&composite));
+        queue.write_buffer(&self.prefilter_params, 0, prefilter.as_bytes());
+        queue.write_buffer(&self.blur_horizontal_params, 0, blur_h.as_bytes());
+        queue.write_buffer(&self.blur_vertical_params, 0, blur_v.as_bytes());
+        queue.write_buffer(&self.composite_params, 0, composite.as_bytes());
     }
 }
 

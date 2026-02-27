@@ -12,6 +12,7 @@ use syrillian_asset::{HFont, HShader};
 use syrillian_utils::color::hsv_to_rgb;
 use wgpu::BufferUsages;
 use wgpu::util::DeviceExt;
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TextAlignment {
@@ -162,7 +163,7 @@ impl UiText {
 
         let mut cached_text = ctx.ui_text_data().clone();
 
-        let glyph_bytes = bytemuck::cast_slice(&glyphs[..]);
+        let glyph_bytes = glyphs.as_bytes();
         if (cached_text.glyph_vbo.size() as usize) < glyph_bytes.len() {
             cached_text.glyph_vbo =
                 ctx.state()
@@ -221,7 +222,7 @@ impl UiText {
         };
         pass.set_bind_group(material, &atlas_binding, &[]);
 
-        pass.set_immediates(0, bytemuck::bytes_of(&pc));
+        pass.set_immediates(0, pc.as_bytes());
         pass.set_vertex_buffer(0, cached_text.glyph_vbo.slice(..));
         pass.draw(0..glyphs.len() as u32 * 6, 0..1);
     }

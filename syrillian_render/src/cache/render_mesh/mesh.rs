@@ -166,7 +166,7 @@ impl PreSkinMeshlet {
 
         let packed_input = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Mesh Packed Skinning Input Buffer"),
-            contents: bytemuck::cast_slice(packed_vertices.as_slice()),
+            contents: packed_vertices.as_bytes(),
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 
@@ -428,7 +428,7 @@ fn upload_skinned_mesh(msg: SkinnedMesh, device: &Device) -> Arc<RenderMesh> {
 
             let indices_buf = device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("Mesh Index Buffer"),
-                contents: bytemuck::cast_slice(&indices[start..end]),
+                contents: indices[start..end].as_bytes(),
                 usage: BufferUsages::INDEX,
             });
 

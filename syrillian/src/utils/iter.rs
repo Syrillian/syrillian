@@ -1,13 +1,11 @@
-use bytemuck::Zeroable;
-
 pub trait Interpolatable {
     fn interpolate(&mut self, len: usize);
 }
 
-impl<Z: Zeroable + Clone> Interpolatable for Vec<Z> {
+impl<Z: Default + Clone> Interpolatable for Vec<Z> {
     fn interpolate(&mut self, len: usize) {
         if self.len() != len {
-            self.resize(len, Z::zeroed());
+            self.resize(len, Z::default());
         }
     }
 }

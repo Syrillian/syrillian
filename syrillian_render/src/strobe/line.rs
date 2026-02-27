@@ -6,6 +6,7 @@ use crate::strobe::ui_element::{Rect, UiElement};
 use glamx::{Vec2, Vec4};
 use syrillian_asset::HShader;
 use syrillian_asset::shader::immediates::UiLineImmediate;
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone)]
 pub struct UiLine {
@@ -89,7 +90,7 @@ impl UiElement for UiLine {
             &[],
         );
 
-        pass.set_immediates(0, bytemuck::bytes_of(&pc));
+        pass.set_immediates(0, pc.as_bytes());
         pass.draw(0..6, 0..1);
     }
 

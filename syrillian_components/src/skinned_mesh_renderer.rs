@@ -12,7 +12,15 @@ use syrillian_render::proxy_data_mut;
 use syrillian_render::rendering::CPUDrawCtx;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct DebugVertexNormal {
     position: Vec3,
     normal: Vec3,

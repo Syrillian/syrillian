@@ -6,6 +6,7 @@ use crate::strobe::UiDrawContext;
 use crate::strobe::ui_element::{Rect, UiElement};
 use glamx::{Affine3A, Mat4, Vec2, Vec3, vec2};
 use syrillian_asset::{HMaterialInstance, HShader};
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone)]
 pub struct UiImage {
@@ -117,7 +118,7 @@ impl UiImage {
             }
             RenderPassType::PickingUi => {
                 let color = hash_to_rgba(self.object_hash);
-                pass.set_immediates(0, bytemuck::bytes_of(&color));
+                pass.set_immediates(0, color.as_bytes());
             }
             _ => {}
         }

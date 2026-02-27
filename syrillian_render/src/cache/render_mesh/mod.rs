@@ -6,6 +6,7 @@ use syrillian_asset::mesh::PartialMesh;
 use syrillian_asset::store::StoreType;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{BufferUsages, Device};
+use zerocopy::IntoBytes;
 
 pub mod mesh;
 
@@ -39,7 +40,7 @@ pub trait PartialMeshCacheType: PartialMesh + StoreType {
 
                 let indices_buf = device.create_buffer_init(&BufferInitDescriptor {
                     label: Some("Mesh Index Buffer"),
-                    contents: bytemuck::cast_slice(&indices[start..end]),
+                    contents: indices[start..end].as_bytes(),
                     usage: BufferUsages::INDEX,
                 });
                 meshlets.push(Meshlet {

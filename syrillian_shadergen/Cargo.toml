@@ -10,6 +10,6 @@ authors.workspace = true
 [dependencies]
 wgpu.workspace = true
 syrillian_utils.workspace = true
-glamx = { workspace = true, features = ["bytemuck"] }
+glamx.workspace = true
 uuid = { workspace = true, features = ["v4"] }
-bytemuck.workspace = true
+zerocopy.workspace = true

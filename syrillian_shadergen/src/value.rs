@@ -1,4 +1,5 @@
 use glamx::{Vec2, Vec3, Vec4};
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum MaterialValueType {
@@ -26,6 +27,9 @@ pub enum MaterialBindingType {
 }
 
 impl MaterialValue {
+    const BOOL_TRUE_U32: u32 = true as u32;
+    const BOOL_FALSE_U32: u32 = 0;
+
     pub fn ty(&self) -> MaterialValueType {
         match self {
             MaterialValue::F32(_) => MaterialValueType::F32,
@@ -39,13 +43,13 @@ impl MaterialValue {
 
     pub fn bytes(&self) -> &[u8] {
         match self {
-            MaterialValue::F32(v) => bytemuck::bytes_of(v),
-            MaterialValue::U32(v) => bytemuck::bytes_of(v),
-            MaterialValue::Bool(true) => bytemuck::bytes_of(&1u32),
-            MaterialValue::Bool(false) => bytemuck::bytes_of(&0u32),
-            MaterialValue::Vec2(v) => bytemuck::bytes_of(v),
-            MaterialValue::Vec3(v) => bytemuck::bytes_of(v),
-            MaterialValue::Vec4(v) => bytemuck::bytes_of(v),
+            MaterialValue::F32(v) => v.as_bytes(),
+            MaterialValue::U32(v) => v.as_bytes(),
+            MaterialValue::Bool(true) => Self::BOOL_TRUE_U32.as_bytes(),
+            MaterialValue::Bool(false) => Self::BOOL_FALSE_U32.as_bytes(),
+            MaterialValue::Vec2(v) => v.as_bytes(),
+            MaterialValue::Vec3(v) => v.as_bytes(),
+            MaterialValue::Vec4(v) => v.as_bytes(),
         }
     }
 }

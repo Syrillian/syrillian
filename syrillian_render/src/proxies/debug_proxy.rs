@@ -31,7 +31,15 @@ pub struct DebugLine {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 struct DebugLineVertex {
     position: [f32; 3],
     color: [f32; 4],
@@ -134,7 +142,7 @@ impl DebugSceneProxy {
 
         Some(device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Debug Ray Data Buffer"),
-            contents: bytemuck::cast_slice(vertices.as_slice()),
+            contents: vertices.as_bytes(),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         }))
     }
@@ -237,7 +245,7 @@ impl DebugSceneProxy {
             let mut pass = ctx.pass.write();
 
             pass.set_pipeline(pipeline);
-            pass.set_immediates(0, bytemuck::bytes_of(&self.color));
+            pass.set_immediates(0, self.color.as_bytes());
             pass.set_bind_group(groups.render, ctx.render_bind_group, &[]);
             if let Some(idx) = groups.model {
                 pass.set_bind_group(idx, data.uniform.bind_group(), &[]);

@@ -219,15 +219,14 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
                     .device
                     .create_buffer_init(&BufferInitDescriptor {
                         label: Some("Text Glyph Data"),
-                        contents: bytemuck::cast_slice(&self.glyph_data[..]),
+                        contents: self.glyph_data.as_bytes(),
                         usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                     });
             } else {
-                renderer.state.queue.write_buffer(
-                    &data.glyph_vbo,
-                    0,
-                    bytemuck::cast_slice(&self.glyph_data[..]),
-                );
+                renderer
+                    .state
+                    .queue
+                    .write_buffer(&data.glyph_vbo, 0, self.glyph_data.as_bytes());
             }
 
             self.last_text_len = self.text.len();
@@ -259,7 +258,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
         pass.set_pipeline(pipeline);
         pass.set_vertex_buffer(0, data.glyph_vbo.slice(..));
-        pass.set_immediates(0, bytemuck::bytes_of(&self.pc));
+        pass.set_immediates(0, self.pc.as_bytes());
         pass.set_bind_group(groups.render, ctx.render_bind_group, &[]);
         if let Some(idx) = groups.model {
             pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
@@ -297,7 +296,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             pass.set_bind_group(idx, uniform.bind_group(), &[]);
         }
 
-        pass.set_immediates(0, bytemuck::bytes_of(&self.pc));
+        pass.set_immediates(0, self.pc.as_bytes());
 
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
     }
@@ -395,7 +394,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
 
         let glyph_vbo = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Text Glyph Data"),
-            contents: bytemuck::cast_slice(&self.glyph_data[..]),
+            contents: self.glyph_data.as_bytes(),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
@@ -484,7 +483,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         let mut pc = self.pc;
         pc.color = Vec3::new(color[0], color[1], color[2]);
 
-        pass.set_immediates(0, bytemuck::bytes_of(&pc));
+        pass.set_immediates(0, pc.as_bytes());
         pass.set_vertex_buffer(0, data.glyph_vbo.slice(..));
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
     }

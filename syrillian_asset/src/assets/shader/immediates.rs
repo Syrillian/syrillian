@@ -1,7 +1,15 @@
 use glamx::{Vec2, Vec3};
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct TextImmediate {
     pub position: Vec2,
     pub em_scale: f32,
@@ -11,7 +19,15 @@ pub struct TextImmediate {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct UiLineImmediate {
     pub from: Vec2,
     pub to: Vec2,

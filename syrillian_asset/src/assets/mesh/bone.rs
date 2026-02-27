@@ -1,11 +1,21 @@
 use crate::ensure_aligned;
 use glamx::Mat4;
 use std::collections::HashMap;
+use zerocopy::IntoBytes;
 
 pub const MAX_BONES: usize = 256;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    zerocopy::Immutable,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::KnownLayout,
+)]
 pub struct Bone {
     pub transform: Mat4,
 }
@@ -82,6 +92,6 @@ impl BoneData {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        bytemuck::cast_slice(&self.bones)
+        self.bones.as_bytes()
     }
 }
