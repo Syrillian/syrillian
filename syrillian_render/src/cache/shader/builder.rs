@@ -74,7 +74,8 @@ impl<'a> RenderPipelineBuilder<'a> {
     pub fn desc(&'a self) -> RenderPipelineDescriptor<'a> {
         let depth_stencil =
             (!self.is_post_process && self.has_depth).then_some(DEFAULT_DEPTH_STENCIL);
-        let cull_mode = (!self.has_shadow_transparency && !self.is_post_process).then_some(Face::Back);
+        let cull_mode =
+            (!self.has_shadow_transparency && !self.is_post_process).then_some(Face::Back);
 
         RenderPipelineDescriptor {
             label: Some(&self.label),
