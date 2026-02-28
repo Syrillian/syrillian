@@ -1,6 +1,6 @@
 // TODO: refactor
 
-use crate::cache::mesh::RenderMesh;
+use crate::cache::mesh::{BindMeshBuffers, RenderMesh};
 use crate::cache::{AssetCache, RuntimeShader};
 use crate::model_uniform::ModelUniform;
 use crate::proxies::{
@@ -270,7 +270,7 @@ impl MeshSceneProxy {
                 pass.set_immediates(0, &material.immediates);
             }
 
-            mesh.draw(range.clone(), pass);
+            mesh.draw(range.clone(), pass, BindMeshBuffers::all());
         }
     }
 
@@ -311,7 +311,7 @@ fn draw_edges(
 
     pass.set_immediates(0, COLOR.as_bytes());
 
-    mesh.draw_all(pass);
+    mesh.draw_all(pass, BindMeshBuffers::POSITION);
 }
 
 #[cfg(debug_assertions)]
@@ -329,5 +329,5 @@ fn draw_vertex_normals(
         return;
     }
 
-    mesh.draw_all_as_instances(0..2, pass);
+    mesh.draw_all_as_instances(0..2, pass, BindMeshBuffers::POSITION_NORMAL);
 }

@@ -1,5 +1,9 @@
 #use model
-#use default_vertex
+
+struct VInput {
+    @location(0) position: vec3f,
+    @location(2) normal: vec3f,
+}
 
 struct FIn {
     @builtin(position) position: vec4<f32>,
@@ -15,7 +19,7 @@ fn vs_main(in: VInput, @builtin(vertex_index) vid: u32) -> FIn {
     if vid == 0 {
         out.color = vec4(0.5, 0.0, 1.0, 1.0);
     } else {
-        world_pos += vec4(normalize(in.normal) / 2, 0.0);
+        world_pos += vec4(normalize(in.normal) / 10, 0.0);
         out.color = vec4(0.0, 0.5, 1.0, 0.0);
     }
 

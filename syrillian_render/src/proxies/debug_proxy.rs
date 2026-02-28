@@ -1,4 +1,5 @@
 use crate::cache::AssetCache;
+use crate::cache::mesh::BindMeshBuffers;
 use crate::model_uniform::ModelUniform;
 use crate::proxies::mesh_proxy::{MeshUniformIndex, RenderMeshData};
 use crate::proxies::{PROXY_PRIORITY_SOLID, SceneProxy, SceneProxyBinding};
@@ -251,7 +252,7 @@ impl DebugSceneProxy {
                 pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
             }
 
-            runtime_mesh.draw_all(&mut pass);
+            runtime_mesh.draw_all(&mut pass, BindMeshBuffers::POSITION);
         }
     }
 }
