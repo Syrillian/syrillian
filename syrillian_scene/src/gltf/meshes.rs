@@ -10,6 +10,7 @@ use syrillian::tracing::warn;
 use syrillian::utils::iter::interpolate_zeros;
 use syrillian_asset::SkinnedMesh;
 use syrillian_asset::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVertexBuffers};
+use syrillian_utils::BoundingSphere;
 
 /// Mesh and associated material indices for each sub-mesh range
 pub type MeshData = Option<(MeshLoadResult, Vec<u32>)>;
@@ -245,12 +246,14 @@ impl PrimitiveBuffers {
             tangents,
             indices,
         };
+        let bounding_sphere = BoundingSphere::from_positions(buffers.positions.iter().copied());
 
         debug_assert!(buffers.is_valid());
 
         let mesh = Mesh::builder()
             .data(Arc::new(buffers))
             .material_ranges(ranges)
+            .bounding_sphere(bounding_sphere)
             .build();
         (mesh, materials)
     }
