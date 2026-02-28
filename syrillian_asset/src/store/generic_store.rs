@@ -8,6 +8,7 @@ use dashmap::mapref::one::RefMut as MapRefMut;
 use parking_lot::RwLock;
 #[cfg(debug_assertions)]
 use std::backtrace::Backtrace;
+use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::mem;
 use std::ops::{Deref, DerefMut};
@@ -109,7 +110,7 @@ impl<'a, T: StoreType> DerefMut for RefMut<'a, T> {
 pub struct Store<T: StoreType> {
     data: DashMap<AssetKey, T>,
     next_id: AtomicU32,
-    dirty: RwLock<Vec<AssetKey>>,
+    dirty: RwLock<HashSet<AssetKey>>,
 }
 
 pub trait StoreDefaults: StoreType {
@@ -226,18 +227,14 @@ impl<T: StoreType> Store<T> {
 
     pub fn set_dirty(&self, h: AssetKey) {
         let mut dirty_store = self.dirty.write();
-        if !dirty_store.contains(&h) {
+        if dirty_store.insert(h) {
             trace!("Set {} {} dirty", T::NAME, T::ident(h.into()));
-            dirty_store.push(h);
         }
     }
 
-    pub fn pop_dirty(&self) -> Vec<AssetKey> {
+    pub fn pop_dirty(&self) -> HashSet<AssetKey> {
         let mut dirty_store = self.dirty.write();
-        let mut swap_store = Vec::new();
-        mem::swap::<Vec<AssetKey>>(dirty_store.as_mut(), swap_store.as_mut());
-
-        swap_store
+        mem::take::<HashSet<AssetKey>>(&mut dirty_store)
     }
 
     pub fn refresh_dirty(&self, assets_tx: &Sender<AssetRefreshMessage>) -> usize {
