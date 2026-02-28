@@ -1,18 +1,22 @@
 use self::ColliderError::{DesyncedCollider, InvalidMesh, InvalidMeshRef, NoMeshRenderer};
+use crate::{MeshRenderer, RigidBodyComponent};
 use snafu::Snafu;
-use std::sync::Arc;
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::assets::mesh::PartialMesh;
-use syrillian::assets::mesh::static_mesh_data::{RawVertexBuffers, VertexBufferExt};
+use syrillian::assets::mesh::static_mesh_data::VertexBufferExt;
 use syrillian::assets::{HMesh, Mesh};
 use syrillian::components::Component;
 use syrillian::core::GameObjectId;
 use syrillian::math::Vec3;
 use syrillian::physics::rapier3d::prelude::*;
 use syrillian::tracing::{trace, warn};
+use syrillian_utils::debug_panic;
 
-use crate::{MeshRenderer, RigidBodyComponent};
+#[cfg(debug_assertions)]
+use std::sync::Arc;
+#[cfg(debug_assertions)]
+use syrillian::assets::mesh::static_mesh_data::RawVertexBuffers;
 #[cfg(debug_assertions)]
 use syrillian::assets::store::StoreType;
 #[cfg(debug_assertions)]
@@ -23,7 +27,6 @@ use syrillian::rendering::proxies::SceneProxy;
 use syrillian::rendering::proxy_data_mut;
 #[cfg(debug_assertions)]
 use syrillian::rendering::rendering::CPUDrawCtx;
-use syrillian_utils::debug_panic;
 
 #[derive(Debug, Reflect)]
 pub struct Collider3D {
