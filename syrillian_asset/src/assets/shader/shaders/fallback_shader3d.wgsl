@@ -1,4 +1,3 @@
-// todo: make shadermanager be able to load vertex and fragment each and combine them in a pipeline. so i can switch 2d and 3d with the fragment shader below
 @fragment
 fn fallback_fs_main(in: FInput) -> FOutput {
     var out: FOutput;

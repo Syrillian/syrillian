@@ -258,9 +258,10 @@ impl StoreDefaults for Shader {
             store,
             HShader::DIM2_ID,
             Shader::builder()
-                .shader_type(ShaderType::Default)
+                .shader_type(ShaderType::Custom)
                 .name("2D Default")
                 .code(ShaderCode::Full(SHADER_DIM2.to_string()))
+                .vertex_buffers(&DEFAULT_VBL[0..2])
                 .color_target(ONLY_COLOR_TARGET_SRGB)
                 .immediate_size(material_immediates)
                 .material_layout(default_layout.clone())
@@ -278,6 +279,7 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(SHADER_DIM2_PICKER.to_string()))
                 .immediate_size(VEC4_SIZE as u32)
                 .depth_enabled(false)
+                .vertex_buffers(&DEFAULT_VBL[0..2])
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
         );
@@ -471,6 +473,7 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(DEBUG_EDGES_SHADER.to_string()))
                 .polygon_mode(PolygonMode::Line)
                 .immediate_size(WGPU_VEC4_ALIGN as u32)
+                .vertex_buffers(&DEFAULT_VBL[0..1])
                 .build()
         );
 

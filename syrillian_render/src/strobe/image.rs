@@ -1,4 +1,5 @@
 use crate::ObjectHash;
+use crate::cache::mesh::BindMeshBuffers;
 use crate::proxies::MeshUniformIndex;
 use crate::rendering::RenderPassType;
 use crate::rendering::picking::hash_to_rgba;
@@ -123,6 +124,8 @@ impl UiImage {
             _ => {}
         }
 
-        ctx.cache().mesh_unit_square().draw_all(&mut pass);
+        ctx.cache()
+            .mesh_unit_square()
+            .draw_all(&mut pass, BindMeshBuffers::POSITION_UV);
     }
 }

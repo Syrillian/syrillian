@@ -1,3 +1,17 @@
+#use model
+#use material
+#use material_textures
+
+struct VInput {
+    @location(0) position: vec3f,
+    @location(1) uv: vec2f,
+}
+
+struct FInput {
+    @builtin(position) clip: vec4f,
+    @location(0) uv: vec2f,
+}
+
 @vertex
 fn vs_main_2d(in: VInput) -> FInput {
     var out: FInput;

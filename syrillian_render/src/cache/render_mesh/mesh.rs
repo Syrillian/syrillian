@@ -1,6 +1,7 @@
 use crate::cache::AssetCache;
 use crate::cache::generic_cache::CacheType;
 use crate::cache::render_mesh::PartialMeshCacheType;
+use bitflags::bitflags;
 use glamx::{Vec2, Vec3, Vec4};
 use more_asserts::debug_assert_le;
 use std::mem::size_of;
@@ -42,6 +43,18 @@ pub struct RenderMesh {
     meshlets: Vec<Meshlet>,
     total_vertex_count: u32,
     total_index_count: u32,
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone)]
+    pub struct BindMeshBuffers: u32 {
+        const POSITION = 1;
+        const UV = 1 << 1;
+        const NORMAL = 1 << 2;
+        const TANGENT = 1 << 3;
+        const POSITION_NORMAL = Self::POSITION.bits() | Self::NORMAL.bits();
+        const POSITION_UV = Self::POSITION.bits() | Self::UV.bits();
+    }
 }
 
 impl RenderVertexBuffers {
@@ -116,11 +129,19 @@ impl RenderVertexBuffers {
     }
 
     #[inline]
-    fn bind_all(&self, pass: &mut wgpu::RenderPass<'_>) {
-        pass.set_vertex_buffer(0, self.position.slice(..));
-        pass.set_vertex_buffer(1, self.uv.slice(..));
-        pass.set_vertex_buffer(2, self.normal.slice(..));
-        pass.set_vertex_buffer(3, self.tangent.slice(..));
+    fn bind(&self, pass: &mut wgpu::RenderPass<'_>, to_bind: BindMeshBuffers) {
+        if to_bind.contains(BindMeshBuffers::POSITION) {
+            pass.set_vertex_buffer(0, self.position.slice(..));
+        }
+        if to_bind.contains(BindMeshBuffers::UV) {
+            pass.set_vertex_buffer(1, self.uv.slice(..));
+        }
+        if to_bind.contains(BindMeshBuffers::NORMAL) {
+            pass.set_vertex_buffer(2, self.normal.slice(..));
+        }
+        if to_bind.contains(BindMeshBuffers::TANGENT) {
+            pass.set_vertex_buffer(3, self.tangent.slice(..));
+        }
     }
 }
 
@@ -183,27 +204,43 @@ impl Meshlet {
         }
     }
 
-    fn clamp_range(&self, range: Range<u32>) -> Option<Range<u32>> {
-        if !self.applies_to(range.clone()) {
+    fn clamp_range(&self, range: Range<u32>, point_count: u32) -> Option<Range<u32>> {
+        if !self.applies_to(range.clone(), point_count) {
             return None;
         }
 
         let start = range.start.saturating_sub(self.offset);
-        let end = if range.end >= self.offset + self.point_count() {
-            self.point_count()
+        let end = if range.end >= self.offset + point_count {
+            point_count
         } else {
             range.end - self.offset
         };
 
         debug_assert_le!(start, end);
-        debug_assert_le!(start, self.point_count());
-        debug_assert_le!(end, self.point_count());
+        debug_assert_le!(start, point_count);
+        debug_assert_le!(end, point_count);
 
         Some(Range { start, end })
     }
 
-    pub fn applies_to(&self, range: Range<u32>) -> bool {
-        self.offset < range.end && range.start <= self.offset + self.point_count()
+    fn clamp_point_range(&self, range: Range<u32>) -> Option<Range<u32>> {
+        self.clamp_range(range, self.point_count())
+    }
+
+    fn clamp_vertex_range(&self, range: Range<u32>) -> Option<Range<u32>> {
+        self.clamp_range(range, self.vertex_count)
+    }
+
+    pub fn applies_to_points(&self, range: Range<u32>) -> bool {
+        self.applies_to(range, self.point_count())
+    }
+
+    pub fn applies_to_vertices(&self, range: Range<u32>) -> bool {
+        self.applies_to(range, self.vertex_count)
+    }
+
+    pub fn applies_to(&self, range: Range<u32>, point_count: u32) -> bool {
+        self.offset < range.end && range.start <= self.offset + point_count
     }
 
     pub fn has_indices(&self) -> bool {
@@ -216,20 +253,25 @@ impl Meshlet {
 }
 
 impl Meshlet {
-    pub fn bind(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.vertex_buffers.bind_all(pass);
+    pub fn bind(&self, pass: &mut wgpu::RenderPass<'_>, to_bind: BindMeshBuffers) {
+        self.vertex_buffers.bind(pass, to_bind);
         if let Some(i_buffer) = &self.index_buffer {
             pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
         }
     }
 
-    pub fn draw(&self, range: Range<u32>, pass: &mut wgpu::RenderPass<'_>) {
-        let Some(inner_range) = self.clamp_range(range) else {
+    pub fn draw(
+        &self,
+        range: Range<u32>,
+        pass: &mut wgpu::RenderPass<'_>,
+        to_bind: BindMeshBuffers,
+    ) {
+        let Some(inner_range) = self.clamp_point_range(range) else {
             debug_panic!("Meshlet received invalid draw command");
             return;
         };
 
-        self.bind(pass);
+        self.bind(pass, to_bind);
 
         if self.has_indices() {
             pass.draw_indexed(inner_range, 0, 0..1);
@@ -243,13 +285,14 @@ impl Meshlet {
         range: Range<u32>,
         vertex_buffers: &RenderVertexBuffers,
         pass: &mut wgpu::RenderPass<'_>,
+        bind_buffers: BindMeshBuffers,
     ) {
-        let Some(inner_range) = self.clamp_range(range) else {
+        let Some(inner_range) = self.clamp_point_range(range) else {
             debug_panic!("Meshlet received invalid draw command");
             return;
         };
 
-        vertex_buffers.bind_all(pass);
+        vertex_buffers.bind(pass, bind_buffers);
 
         if let Some(i_buffer) = &self.index_buffer {
             pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
@@ -261,16 +304,18 @@ impl Meshlet {
 
     pub fn draw_as_instances(
         &self,
-        range: Range<u32>,
+        vertices_instance_range: Range<u32>,
         vertices_range: Range<u32>,
         pass: &mut wgpu::RenderPass<'_>,
+        bind_buffers: BindMeshBuffers,
     ) {
-        let Some(inner_range) = self.clamp_range(range) else {
+        // Instance data comes from the per-vertex buffers.
+        let Some(inner_range) = self.clamp_vertex_range(vertices_instance_range) else {
             debug_panic!("Meshlet received invalid draw command");
             return;
         };
 
-        self.bind(pass);
+        self.bind(pass, bind_buffers);
 
         if self.has_indices() {
             pass.draw_indexed(vertices_range, 0, inner_range);
@@ -310,25 +355,36 @@ impl RenderMesh {
         }
     }
 
-    pub fn draw_all(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw(0..self.total_point_count(), pass);
+    pub fn draw_all(&self, pass: &mut wgpu::RenderPass<'_>, bind_buffers: BindMeshBuffers) {
+        self.draw(0..self.total_point_count(), pass, bind_buffers);
     }
 
     pub fn draw_all_as_instances(
         &self,
         vertices_range: Range<u32>,
         pass: &mut wgpu::RenderPass<'_>,
+        bind_buffers: BindMeshBuffers,
     ) {
-        self.draw_as_instances(0..self.total_point_count(), vertices_range, pass);
+        self.draw_as_instances(
+            0..self.total_vertex_count(),
+            vertices_range,
+            pass,
+            bind_buffers,
+        );
     }
 
-    pub fn draw(&self, range: Range<u32>, pass: &mut wgpu::RenderPass<'_>) {
-        for mesh in &self.meshlets {
-            if range.end < mesh.offset || range.start > mesh.offset + mesh.point_count() {
+    pub fn draw(
+        &self,
+        range: Range<u32>,
+        pass: &mut wgpu::RenderPass<'_>,
+        bind_buffers: BindMeshBuffers,
+    ) {
+        for meshlet in &self.meshlets {
+            if range.end < meshlet.offset || range.start > meshlet.offset + meshlet.point_count() {
                 continue;
             }
 
-            mesh.draw(range.clone(), pass);
+            meshlet.draw(range.clone(), pass, bind_buffers);
         }
     }
 
@@ -337,6 +393,7 @@ impl RenderMesh {
         range: Range<u32>,
         vertex_buffers: &[RenderVertexBuffers],
         pass: &mut wgpu::RenderPass<'_>,
+        bind_buffers: BindMeshBuffers,
     ) {
         debug_assert_eq!(
             vertex_buffers.len(),
@@ -345,26 +402,32 @@ impl RenderMesh {
         );
 
         for (meshlet, vertex_buffer) in self.meshlets.iter().zip(vertex_buffers) {
-            if !meshlet.applies_to(range.clone()) {
+            if !meshlet.applies_to_points(range.clone()) {
                 continue;
             }
 
-            meshlet.draw_with_vertex_buffers(range.clone(), vertex_buffer, pass);
+            meshlet.draw_with_vertex_buffers(range.clone(), vertex_buffer, pass, bind_buffers);
         }
     }
 
     pub fn draw_as_instances(
         &self,
-        total_range: Range<u32>,
+        vertices_instance_range: Range<u32>,
         vertices_range: Range<u32>,
         pass: &mut wgpu::RenderPass<'_>,
+        bind_buffers: BindMeshBuffers,
     ) {
         for mesh in &self.meshlets {
-            if !mesh.applies_to(total_range.clone()) {
+            if !mesh.applies_to_vertices(vertices_instance_range.clone()) {
                 continue;
             }
 
-            mesh.draw_as_instances(total_range.clone(), vertices_range.clone(), pass);
+            mesh.draw_as_instances(
+                vertices_instance_range.clone(),
+                vertices_range.clone(),
+                pass,
+                bind_buffers,
+            );
         }
     }
 

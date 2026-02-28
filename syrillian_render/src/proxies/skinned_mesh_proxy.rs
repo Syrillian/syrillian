@@ -23,6 +23,7 @@ use syrillian_asset::mesh::bone::BoneData;
 use syrillian_asset::store::H;
 use syrillian_asset::{HComputeShader, HMaterialInstance, HSkinnedMesh, Shader};
 use syrillian_macros::UniformIndex;
+use syrillian_render::rendering::mesh::BindMeshBuffers;
 use syrillian_utils::BoundingSphere;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, RenderPass};
@@ -438,7 +439,12 @@ impl SkinnedMeshSceneProxy {
 
             debug_assert_eq!(runtime.skinned_meshlets.len(), mesh.meshlets().len());
 
-            mesh.draw_with_vertex_buffers(range.clone(), &runtime.skinned_meshlets, pass);
+            mesh.draw_with_vertex_buffers(
+                range.clone(),
+                &runtime.skinned_meshlets,
+                pass,
+                BindMeshBuffers::all(),
+            );
         }
     }
 
@@ -504,7 +510,7 @@ fn draw_edges(
 
     pass.set_immediates(0, COLOR.as_bytes());
 
-    mesh.draw_all(pass);
+    mesh.draw_all(pass, BindMeshBuffers::POSITION);
 }
 
 #[cfg(debug_assertions)]
@@ -522,5 +528,5 @@ fn draw_vertex_normals(
         return;
     }
 
-    mesh.draw_all_as_instances(0..2, pass);
+    mesh.draw_all_as_instances(0..2, pass, BindMeshBuffers::POSITION_NORMAL);
 }

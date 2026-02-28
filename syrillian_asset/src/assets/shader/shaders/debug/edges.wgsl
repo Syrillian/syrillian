@@ -1,4 +1,3 @@
-#use default_vertex
 #use model
 
 
@@ -9,10 +8,10 @@ struct PushConstants {
 var<immediate> pc: PushConstants;
 
 @vertex
-fn vs_main(in: VInput) -> @builtin(position) vec4<f32> {
+fn vs_main(@location(0) pos: vec3f) -> @builtin(position) vec4<f32> {
     let model_view_mat = camera.view_proj_mat * model.transform;
 
-    var vpos = model_view_mat * vec4<f32>(in.position, 1.0);
+    var vpos = model_view_mat * vec4<f32>(pos, 1.0);
     vpos.w += 0.0001; // lil w bump so it's not z fighting :>
 
     return vpos;
