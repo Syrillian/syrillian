@@ -64,10 +64,14 @@ impl Mesh {
 
         debug_assert!(buffers.is_valid());
 
+        let bounding_sphere = Some(BoundingSphere::from_positions(
+            buffers.positions.iter().copied(),
+        ));
+
         Ok(Mesh {
             data: Arc::new(buffers),
             material_ranges,
-            bounding_sphere: None,
+            bounding_sphere,
         })
     }
 }
@@ -226,6 +230,12 @@ impl StreamableAsset for Mesh {
             tangents,
             indices,
         };
+
+        let bounding_sphere = bounding_sphere.or_else(|| {
+            Some(BoundingSphere::from_positions(
+                buffers.positions.iter().copied(),
+            ))
+        });
 
         debug_assert!(buffers.is_valid());
 

@@ -60,7 +60,7 @@ impl Component for SkinnedMeshRenderer {
             material_ranges: mesh.material_ranges.clone(),
             bone_data: BoneData::new_full_identity(),
             bones_dirty: false,
-            bounding: None,
+            bounding: mesh.bounding_sphere,
         }))
     }
 

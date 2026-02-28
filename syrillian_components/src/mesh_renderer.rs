@@ -54,7 +54,7 @@ impl Component for MeshRenderer {
             mesh: self.mesh,
             materials: self.materials.clone(),
             material_ranges: mesh.material_ranges.clone(),
-            bounding: None,
+            bounding: mesh.bounding_sphere,
         }))
     }
 
