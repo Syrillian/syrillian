@@ -20,6 +20,7 @@ zerocopy.workspace = true
 clap = { version = "4.5", features = ["derive"] }
 byte-unit = "5.1"
 block_compression = "0.8"
+mikktspace = "0.3"
 
 [[bin]]
 name = "sypack"

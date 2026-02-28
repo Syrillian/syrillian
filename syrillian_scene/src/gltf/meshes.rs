@@ -1,10 +1,11 @@
 use crate::GltfScene;
 use gltf::{Node, mesh};
+use mikktspace::{Geometry, generate_tangents};
 use std::collections::HashMap;
 use std::sync::Arc;
 use syrillian::assets::Mesh;
 use syrillian::core::Bones;
-use syrillian::math::{Vec2, Vec3, Vec4, vec2};
+use syrillian::math::{Vec2, Vec3, Vec4, vec2, vec4};
 use syrillian::tracing::warn;
 use syrillian::utils::iter::interpolate_zeros;
 use syrillian_asset::SkinnedMesh;
@@ -13,18 +14,21 @@ use syrillian_asset::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVerte
 /// Mesh and associated material indices for each sub-mesh range
 pub type MeshData = Option<(MeshLoadResult, Vec<u32>)>;
 
-pub type SkinAttributes = (Vec<[u16; 4]>, Vec<[f32; 4]>);
-
 /// Outcome of attempting to read a primitive
 pub enum PrimitiveOutcome {
     Ready(PrimitiveResult),
     Skip,
 }
 
-#[derive(Copy, Clone)]
-pub struct SkinSlices<'a> {
-    joints: &'a [[u16; 4]],
-    weights: &'a [[f32; 4]],
+pub enum MeshLoadResult {
+    Skinned(SkinnedMesh),
+    Unskinned(Mesh),
+}
+
+#[derive(Clone)]
+pub struct SkinAttributes {
+    indices: Vec<[u16; 4]>,
+    weights: Vec<[f32; 4]>,
 }
 
 #[derive(Default)]
@@ -35,16 +39,18 @@ pub struct PrimitiveBuffers {
     tangents: Vec<Vec4>,
     bone_indices: Vec<[u16; 4]>,
     bone_weights: Vec<[f32; 4]>,
+    indices: Option<Vec<u32>>,
     ranges: Vec<std::ops::Range<u32>>,
     materials: Vec<u32>,
 }
 
 pub struct VertexSources<'a> {
-    pub positions: &'a [Vec3],
-    pub normals: Option<&'a Vec<Vec3>>,
-    pub tangents: Option<&'a Vec<Vec4>>,
-    pub tex_coords: Option<&'a Vec<Vec2>>,
-    pub skin: Option<SkinSlices<'a>>,
+    pub positions: Vec<Vec3>,
+    pub uvs: Vec<Vec2>,
+    pub normals: Vec<Vec3>,
+    pub tangents: Vec<Vec4>,
+    pub skin: Option<SkinAttributes>,
+    pub indices: Option<Vec<u32>>,
     pub joint_map: &'a HashMap<usize, usize>,
 }
 
@@ -97,47 +103,24 @@ pub fn read_skin_attributes(
                     })
                     .collect(),
             };
-            Some((joints, weights))
+            Some(SkinAttributes {
+                indices: joints,
+                weights,
+            })
         }
         _ => None,
     }
 }
 
-/// Maps glTF joint indices to the corresponding engine bone indices
-pub fn map_joint_indices(
-    joints: &[u16; 4],
-    joint_node_index_of: &HashMap<usize, usize>,
-) -> [u16; 4] {
-    joints.map(|j| joint_node_index_of.get(&(j as usize)).copied().unwrap_or(0) as u16)
-}
-
-/// Normalizes the four bone weights associated with a vertex
-pub fn normalize_weights(weights: [f32; 4]) -> [f32; 4] {
-    let sum = weights.iter().copied().sum::<f32>().max(1e-8);
-    weights.map(|w| w / sum)
-}
-
-impl VertexSources<'_> {
-    pub fn vertex_position(&self, index: usize) -> Vec3 {
-        Vec3::from(self.positions[index])
-    }
-
-    pub fn vertex_normal(&self, index: usize) -> Vec3 {
-        self.normals.map_or(Vec3::ZERO, |list| list[index])
-    }
-
-    pub fn vertex_tex_coord(&self, index: usize) -> Vec2 {
-        self.tex_coords.map_or(Vec2::ZERO, |list| list[index])
-    }
-
-    pub fn vertex_tangent(&self, index: usize) -> Vec4 {
-        self.tangents.map_or(Vec4::ZERO, |list| list[index])
-    }
-}
-
 impl PrimitiveBuffers {
+    fn total_point_count(&self) -> u32 {
+        self.indices
+            .as_ref()
+            .map_or(self.positions.len() as u32, |indices| indices.len() as u32)
+    }
+
     /// Extends the buffers with data from a single primitive and records its range
-    pub fn extend(&mut self, data: PrimitiveResult, start: u32) {
+    pub fn extend(&mut self, data: PrimitiveResult) {
         let PrimitiveResult {
             positions,
             uvs,
@@ -145,19 +128,49 @@ impl PrimitiveBuffers {
             tangents,
             bone_indices,
             bone_weights,
+            indices,
             material_index,
         } = data;
 
+        let vertex_offset = self.positions.len() as u32;
         let vertex_count = positions.len() as u32;
+        let primitive_point_count = indices
+            .as_ref()
+            .map_or(vertex_count, |indices| indices.len() as u32);
+        let range_start = self.total_point_count();
+        let new_vertices_len = self.positions.len() + positions.len();
         self.positions.extend(positions);
         self.uvs.extend(uvs);
         self.normals.extend(normals);
         self.tangents.extend(tangents);
-        self.bone_indices.extend(bone_indices);
-        self.bone_weights.extend(bone_weights);
 
-        let end = start + vertex_count;
-        self.ranges.push(start..end);
+        if let Some(bone_indices) = bone_indices {
+            self.bone_indices.extend(bone_indices);
+        } else if !self.bone_indices.is_empty() {
+            self.bone_indices.resize(new_vertices_len, [0; 4]);
+        }
+
+        if let Some(bone_weights) = bone_weights {
+            self.bone_weights.extend(bone_weights);
+        }
+        self.bone_weights.resize(new_vertices_len, [0.0; 4]);
+
+        match indices {
+            Some(indices) => {
+                let all_indices = self
+                    .indices
+                    .get_or_insert_with(|| (0..vertex_offset).collect());
+                all_indices.extend(indices.into_iter().map(|i| i + vertex_offset));
+            }
+            None => {
+                if let Some(all_indices) = self.indices.as_mut() {
+                    all_indices.extend(vertex_offset..vertex_offset + vertex_count);
+                }
+            }
+        }
+
+        let range_end = range_start + primitive_point_count;
+        self.ranges.push(range_start..range_end);
         self.materials.push(material_index);
     }
 
@@ -183,6 +196,7 @@ impl PrimitiveBuffers {
             tangents,
             bone_indices,
             bone_weights,
+            indices,
             ranges,
             materials,
         } = self;
@@ -192,7 +206,7 @@ impl PrimitiveBuffers {
             uvs,
             normals,
             tangents,
-            indices: None,
+            indices,
         };
 
         let skinning_buffers = RawSkinningVertexBuffers {
@@ -218,8 +232,10 @@ impl PrimitiveBuffers {
             normals,
             tangents,
             ranges,
+            indices,
+            bone_indices: _,
+            bone_weights: _,
             materials,
-            ..
         } = self;
 
         let buffers = RawVertexBuffers {
@@ -227,7 +243,7 @@ impl PrimitiveBuffers {
             uvs,
             normals,
             tangents,
-            indices: None,
+            indices,
         };
 
         debug_assert!(buffers.is_valid());
@@ -245,21 +261,60 @@ pub struct PrimitiveResult {
     uvs: Vec<Vec2>,
     normals: Vec<Vec3>,
     tangents: Vec<Vec4>,
-    bone_indices: Vec<[u16; 4]>,
-    bone_weights: Vec<[f32; 4]>,
+    bone_indices: Option<Vec<[u16; 4]>>,
+    bone_weights: Option<Vec<[f32; 4]>>,
+    indices: Option<Vec<u32>>,
     material_index: u32,
 }
 
 impl PrimitiveResult {
     /// Creates an empty primitive result for the given material slot.
-    pub fn new(material_index: u32) -> Self {
+    pub fn new(material_index: u32, mut sources: VertexSources) -> Self {
+        let len = sources.positions.len();
+        let has_normals = !sources.normals.is_empty();
+        let has_tangents = !sources.tangents.is_empty();
+
+        sources.uvs.resize(len, Vec2::ZERO);
+        sources.normals.resize(len, Vec3::Y);
+        sources.tangents.resize(len, vec4(1.0, 0.0, 0.0, 1.0));
+
+        if !has_tangents && has_normals {
+            warn!(
+                "Model has no tangents. Tangents will be generated. You might experience artifacts"
+            );
+            if generate_tangents(&mut sources) {
+                warn!("Tangents couldn't be generated. The loaded primitive might look odd");
+            }
+        }
+
+        let mut bone_indices = None;
+        let mut bone_weights = None;
+        if let Some(skin) = &mut sources.skin
+            && !skin.indices.is_empty()
+            && !skin.weights.is_empty()
+        {
+            skin.indices.resize(len, [0; 4]);
+            skin.weights.resize(len, [0.0; 4]);
+
+            for indices in skin.indices.iter_mut() {
+                *indices = map_joint_indices(*indices, sources.joint_map);
+            }
+            for weights in skin.weights.iter_mut() {
+                *weights = normalize_weights(*weights);
+            }
+
+            bone_indices = Some(skin.indices.clone());
+            bone_weights = Some(skin.weights.clone());
+        }
+
         Self {
-            positions: Vec::new(),
-            uvs: Vec::new(),
-            normals: Vec::new(),
-            tangents: Vec::new(),
-            bone_indices: Vec::new(),
-            bone_weights: Vec::new(),
+            positions: sources.positions,
+            uvs: sources.uvs,
+            normals: sources.normals,
+            tangents: sources.tangents,
+            bone_indices,
+            bone_weights,
+            indices: sources.indices,
             material_index,
         }
     }
@@ -268,34 +323,6 @@ impl PrimitiveResult {
     pub fn vertex_count(&self) -> u32 {
         self.positions.len() as u32
     }
-
-    /// Appends a vertex with all available attributes to the primitive result.
-    pub fn push_vertex(&mut self, index: usize, sources: &VertexSources<'_>) {
-        let position = sources.vertex_position(index);
-        self.positions.push(position);
-
-        let normal = sources.vertex_normal(index);
-        self.normals.push(normal);
-
-        let tangent = sources.vertex_tangent(index);
-        self.tangents.push(tangent);
-
-        let uv = sources.vertex_tex_coord(index);
-        self.uvs.push(uv);
-
-        if let Some(skin) = sources.skin {
-            let joint = skin.joints[index];
-            let weight = skin.weights[index];
-            self.bone_indices
-                .push(map_joint_indices(&joint, sources.joint_map));
-            self.bone_weights.push(normalize_weights(weight));
-        }
-    }
-}
-
-pub enum MeshLoadResult {
-    Skinned(SkinnedMesh),
-    Unskinned(Mesh),
 }
 
 impl GltfScene {
@@ -317,27 +344,30 @@ impl GltfScene {
             .collect::<Vec<_>>();
         let normals = reader
             .read_normals()
-            .map(|it| it.map(Vec3::from_array).collect::<Vec<_>>());
+            .map(|it| it.map(Vec3::from_array).collect::<Vec<_>>())
+            .unwrap_or_default();
         let tangents = reader
             .read_tangents()
-            .map(|it| it.map(Vec4::from_array).collect::<Vec<_>>());
-        let tex_coords = reader.read_tex_coords(0).map(convert_tex_coords);
+            .map(|it| it.map(Vec4::from_array).collect::<Vec<_>>())
+            .unwrap_or_default();
+        let uvs = reader
+            .read_tex_coords(0)
+            .map(convert_tex_coords)
+            .unwrap_or_default();
         let joints_raw = reader.read_joints(0);
         let weights_raw = reader.read_weights(0);
-        let indices: Vec<u32> = if let Some(ind) = reader.read_indices() {
-            ind.into_u32().collect()
-        } else {
-            (0u32..positions.len() as u32).collect()
-        };
+        let indices = reader
+            .read_indices()
+            .map(|indices| indices.into_u32().collect::<Vec<_>>());
 
-        let skin_attributes = read_skin_attributes(joints_raw, weights_raw);
-        let skin_slices = skin_attributes.as_ref().map(SkinSlices::from);
+        let skin = read_skin_attributes(joints_raw, weights_raw);
         let sources = VertexSources {
-            positions: &positions,
-            normals: normals.as_ref(),
-            tangents: tangents.as_ref(),
-            tex_coords: tex_coords.as_ref(),
-            skin: skin_slices,
+            positions,
+            normals,
+            uvs,
+            tangents,
+            skin,
+            indices,
             joint_map: joint_node_index_of,
         };
 
@@ -347,13 +377,7 @@ impl GltfScene {
             .map(|i| i as u32)
             .unwrap_or(u32::MAX);
 
-        let mut result = PrimitiveResult::new(material_index);
-        for chunk in indices.chunks_exact(3) {
-            let triangle = [chunk[0] as usize, chunk[1] as usize, chunk[2] as usize];
-            for index in triangle {
-                result.push_vertex(index, &sources);
-            }
-        }
+        let result = PrimitiveResult::new(material_index, sources);
 
         Some(PrimitiveOutcome::Ready(result))
     }
@@ -421,15 +445,10 @@ impl GltfScene {
         joint_node_index_of: &HashMap<usize, usize>,
     ) -> Option<PrimitiveBuffers> {
         let mut buffers = PrimitiveBuffers::default();
-        let mut start_vertex = 0u32;
 
         for prim in mesh.primitives() {
             match self.extract_primitive_mesh_data(prim, joint_node_index_of) {
-                Some(PrimitiveOutcome::Ready(result)) => {
-                    let count = result.vertex_count();
-                    buffers.extend(result, start_vertex);
-                    start_vertex += count;
-                }
+                Some(PrimitiveOutcome::Ready(result)) => buffers.extend(result),
                 Some(PrimitiveOutcome::Skip) => continue,
                 None => return None,
             }
@@ -439,11 +458,64 @@ impl GltfScene {
     }
 }
 
-impl<'a> From<&'a SkinAttributes> for SkinSlices<'a> {
-    fn from(value: &'a SkinAttributes) -> Self {
-        Self {
-            joints: value.0.as_slice(),
-            weights: value.1.as_slice(),
-        }
+impl Geometry for VertexSources<'_> {
+    fn num_faces(&self) -> usize {
+        self.point_count() / 3
     }
+
+    fn num_vertices_of_face(&self, _face: usize) -> usize {
+        3
+    }
+
+    fn position(&self, face: usize, vert: usize) -> [f32; 3] {
+        let index = self.vertex_index(face, vert);
+        self.positions[index].to_array()
+    }
+
+    fn normal(&self, face: usize, vert: usize) -> [f32; 3] {
+        let index = self.vertex_index(face, vert);
+        self.normals[index].to_array()
+    }
+
+    fn tex_coord(&self, face: usize, vert: usize) -> [f32; 2] {
+        let index = self.vertex_index(face, vert);
+        self.uvs[index].to_array()
+    }
+
+    fn set_tangent_encoded(&mut self, tangent: [f32; 4], face: usize, vert: usize) {
+        let index = self.vertex_index(face, vert);
+        self.tangents[index] = Vec4::from_array(tangent);
+    }
+}
+
+impl VertexSources<'_> {
+    fn point_count(&self) -> usize {
+        self.indices
+            .as_ref()
+            .map_or(self.positions.len(), |indices| indices.len())
+    }
+
+    fn vertex_index(&self, face: usize, vert: usize) -> usize {
+        let point_index = face * 3 + vert;
+        self.indices
+            .as_ref()
+            .map_or(point_index, |indices| indices[point_index] as usize)
+    }
+}
+
+/// Maps glTF joint indices to the corresponding engine bone indices
+#[inline]
+pub fn map_joint_indices(
+    joints: [u16; 4],
+    joint_node_index_of: &HashMap<usize, usize>,
+) -> [u16; 4] {
+    joints.map(|j| joint_node_index_of.get(&(j as usize)).copied().unwrap_or(0) as u16)
+}
+
+/// Normalizes the four bone weights associated with a vertex
+#[inline]
+///
+pub fn normalize_weights(weights: [f32; 4]) -> [f32; 4] {
+    let sum = weights.iter().copied().sum::<f32>().max(1e-8);
+    weights.map(|w| w / sum)
 }
