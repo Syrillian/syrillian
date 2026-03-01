@@ -311,11 +311,10 @@ impl SceneProxy for ParticleSystemProxy {
 
         let data: &ParticleSystemGpuData = proxy_data!(binding.proxy_data());
         let shader = renderer.cache.shader(HShader::PARTICLE_SYSTEM);
-        let mut pass = ctx.pass.write();
 
-        if !shader.activate(&mut pass, ctx) {
-            return;
-        }
+        let mut pass = ctx.pass.write();
+        shader.activate(&mut pass, ctx);
+
         if let Some(idx) = shader.bind_groups().model {
             pass.set_bind_group(idx, data.render_uniform.bind_group(), &[]);
         }

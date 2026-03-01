@@ -61,6 +61,7 @@ test_custom_shader!(picking_mesh, "Mesh Picking Shader" => "picking_mesh.wgsl");
 test_custom_shader!(picking_ui, "UI Picking Shader" => "picking_ui.wgsl");
 test_custom_shader!(text2d, "Text 2D Shader" => "text2d.wgsl");
 test_custom_shader!(text3d, "Text 3D Shader" => "text3d.wgsl");
+test_custom_shader!(text3d_shadow, "Text 3D Shadow Shader" => "text3d_shadow.wgsl");
 test_custom_shader!(debug_line2d, "Debug Line 2D" => "line.wgsl");
 
 // Debug shaders

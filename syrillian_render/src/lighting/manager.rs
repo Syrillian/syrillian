@@ -5,8 +5,6 @@ use crate::rendering::render_data::RenderUniformData;
 #[cfg(debug_assertions)]
 use crate::rendering::renderer::Renderer;
 use crate::rendering::uniform::ShaderUniform;
-#[cfg(debug_assertions)]
-use crate::try_activate_shader;
 use glamx::Mat4;
 use itertools::Itertools;
 use std::sync::Arc;
@@ -337,7 +335,7 @@ impl LightManager {
         let mut pass = ctx.pass.write();
 
         let shader = renderer.cache.shader(HShader::DEBUG_LIGHT);
-        try_activate_shader!(shader, &mut pass, ctx => return);
+        shader.activate(&mut pass, ctx);
 
         let lights = self.proxies.as_slice();
         for (i, proxy) in lights.iter().enumerate().take(self.proxies.len()) {

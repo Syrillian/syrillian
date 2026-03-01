@@ -32,8 +32,8 @@ use std::fs;
 use std::path::Path;
 use syrillian_shadergen::function::{PbrShader, PostProcessPassthroughMaterial};
 use syrillian_shadergen::generator::MeshPass;
-use syrillian_shadergen::generator::{MaterialGroupOverrides, ShaderKind, assemble_shader};
-use syrillian_shadergen::{MaterialCompiler, PostProcessCompiler};
+use syrillian_shadergen::generator::{MaterialGroupOverrides, ShaderKind};
+use syrillian_shadergen::{MaterialCompiler, PostProcessCompiler, ShaderGenerator};
 use syrillian_utils::sizes::{VEC2_SIZE, VEC3_SIZE, VEC4_SIZE, WGPU_VEC4_ALIGN};
 use wgpu::{
     ColorTargetState, PolygonMode, PrimitiveTopology, VertexAttribute, VertexBufferLayout,
@@ -70,6 +70,8 @@ pub struct MaterialShaderSet {
 pub enum ShaderType {
     Default,
     Custom,
+    Picking,
+    Shadow,
     PostProcessing,
 }
 
@@ -94,13 +96,22 @@ pub struct Shader {
     color_target: &'static [Option<ColorTargetState>],
     #[builder(default = 0)]
     immediate_size: u32,
-    #[builder(default = false)]
-    shadow_transparency: bool,
+    #[builder(default = true)]
+    opaque: bool,
     #[builder(default = true)]
     depth_enabled: bool,
     shader_type: ShaderType,
     material_layout: Option<MaterialInputLayout>,
     material_groups: Option<MaterialShaderGroups>,
+}
+
+impl<S: shader_builder::State> ShaderBuilder<S>
+where
+    S::Opaque: shader_builder::IsUnset,
+{
+    pub fn transparent(self) -> ShaderBuilder<shader_builder::SetOpaque<S>> {
+        self.opaque(false)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -138,14 +149,15 @@ impl H<Shader> {
     pub const TEXT_2D_PICKER_ID: u32 = 12;
     pub const TEXT_3D_ID: u32 = 13;
     pub const TEXT_3D_PICKER_ID: u32 = 14;
-    pub const LINE_2D_ID: u32 = 15;
-    pub const DEBUG_EDGES_ID: u32 = 16;
-    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 17;
-    pub const DEBUG_LINES_ID: u32 = 18;
-    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 19;
-    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 20;
-    pub const DEBUG_LIGHT_ID: u32 = 21;
-    pub const MAX_BUILTIN_ID: u32 = 21;
+    pub const TEXT_3D_SHADOW_ID: u32 = 15;
+    pub const LINE_2D_ID: u32 = 16;
+    pub const DEBUG_EDGES_ID: u32 = 17;
+    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 18;
+    pub const DEBUG_LINES_ID: u32 = 19;
+    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 20;
+    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 21;
+    pub const DEBUG_LIGHT_ID: u32 = 22;
+    pub const MAX_BUILTIN_ID: u32 = 22;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -181,6 +193,9 @@ impl H<Shader> {
     // Default 3D Text picking shader.
     pub const TEXT_3D_PICKING: H<Shader> = H::new(Self::TEXT_3D_PICKER_ID);
 
+    // Default 3D Text shadow shader.
+    pub const TEXT_3D_SHADOW: H<Shader> = H::new(Self::TEXT_3D_SHADOW_ID);
+
     // Shader for drawing single 2D lines.
     pub const LINE_2D: H<Shader> = H::new(Self::LINE_2D_ID);
 
@@ -207,6 +222,7 @@ const SHADER_TEXT2D: &str = include_str!("shaders/text2d.wgsl");
 const SHADER_TEXT2D_PICKER: &str = include_str!("shaders/picking_text2d.wgsl");
 const SHADER_TEXT3D: &str = include_str!("shaders/text3d.wgsl");
 const SHADER_TEXT3D_PICKER: &str = include_str!("shaders/picking_text3d.wgsl");
+const SHADER_TEXT3D_SHADOW: &str = include_str!("shaders/text3d_shadow.wgsl");
 const SHADER_LINE2D: &str = include_str!("shaders/line.wgsl");
 const SHADER_POST_PROCESS_FXAA: &str = include_str!("shaders/post_process_fxaa.wgsl");
 const SHADER_SKYBOX: &str = include_str!("shaders/skybox.wgsl");
@@ -226,7 +242,7 @@ impl StoreDefaults for Shader {
             PostProcessCompiler::compile_post_process_fragment(&PostProcessPassthroughMaterial, 0);
         let mut pbr = PbrShader::default();
         let mesh3d = MaterialCompiler::compile_mesh(&mut pbr, 0, MeshPass::Base);
-        let mesh3d_picking = MaterialCompiler::compile_mesh_picking();
+        let mesh3d_picking = MaterialCompiler::compile_mesh_picking_with_material(&mut pbr, 0);
         let mesh3d_shadow = MaterialCompiler::compile_mesh(&mut pbr, 0, MeshPass::Shadow);
 
         let default_layout = Material::default_layout();
@@ -301,10 +317,11 @@ impl StoreDefaults for Shader {
             store,
             HShader::DIM3_PICKER_ID,
             Shader::builder()
-                .shader_type(ShaderType::Custom)
+                .shader_type(ShaderType::Picking)
                 .name("Default 3D Picking Shader")
                 .code(ShaderCode::Full(mesh3d_picking))
                 .immediate_size(VEC4_SIZE as u32)
+                .transparent()
                 .color_target(PICKING_COLOR_TARGET)
                 .build()
         );
@@ -313,12 +330,9 @@ impl StoreDefaults for Shader {
             store,
             HShader::DIM3_SHADOW_ID,
             Shader::builder()
-                .shader_type(ShaderType::Custom)
+                .shader_type(ShaderType::Shadow)
                 .name("Default 3D Shadow Shader")
                 .code(ShaderCode::Full(mesh3d_shadow))
-                .immediate_size(material_immediates)
-                .material_layout(default_layout.clone())
-                .material_groups(material_groups.clone())
                 .build()
         );
 
@@ -429,7 +443,7 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(SHADER_TEXT3D.to_string()))
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediate>() as u32)
-                .shadow_transparency(true)
+                .transparent()
                 .material_layout(text_atlas_layout.clone())
                 .build()
         );
@@ -443,9 +457,23 @@ impl StoreDefaults for Shader {
                 .code(ShaderCode::Full(SHADER_TEXT3D_PICKER.to_string()))
                 .vertex_buffers(TEXT_VBL)
                 .immediate_size(size_of::<TextImmediate>() as u32)
-                .shadow_transparency(true)
-                .material_layout(text_atlas_layout)
+                .transparent()
+                .material_layout(text_atlas_layout.clone())
                 .color_target(PICKING_COLOR_TARGET)
+                .build()
+        );
+
+        store_add_checked!(
+            store,
+            HShader::TEXT_3D_SHADOW_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Shadow)
+                .name("Text 3D Shadow Shader")
+                .code(ShaderCode::Full(SHADER_TEXT3D_SHADOW.to_string()))
+                .vertex_buffers(TEXT_VBL)
+                .immediate_size(size_of::<TextImmediate>() as u32)
+                .transparent()
+                .material_layout(text_atlas_layout.clone())
                 .build()
         );
 
@@ -594,6 +622,7 @@ impl StoreType for Shader {
             HShader::DIM3_SHADOW_ID => "3 Dimensional Shadow Shader",
             HShader::TEXT_2D_ID => "2D Text Shader",
             HShader::TEXT_3D_ID => "3D Text Shader",
+            HShader::TEXT_3D_SHADOW_ID => "3D Text Shadow Shader",
             HShader::POST_PROCESS_ID => "Post Process Shader",
             HShader::POST_PROCESS_FXAA_ID => "Post Process FXAA Shader",
             HShader::SKYBOX_ID => "Skybox Background Shader",
@@ -658,7 +687,7 @@ impl Shader {
             vertex_buffers: &DEFAULT_VBL,
             color_target: DEFAULT_PP_COLOR_TARGETS,
             immediate_size: 0,
-            shadow_transparency: false,
+            opaque: true,
             depth_enabled: false,
             shader_type: ShaderType::PostProcessing,
             material_layout: None,
@@ -679,7 +708,7 @@ impl Shader {
             vertex_buffers: &DEFAULT_VBL,
             color_target: SURFACE_PP_COLOR_TARGETS,
             immediate_size: 0,
-            shadow_transparency: false,
+            opaque: true,
             depth_enabled: false,
             shader_type: ShaderType::PostProcessing,
             material_layout: None,
@@ -700,7 +729,7 @@ impl Shader {
             vertex_buffers: &DEFAULT_VBL,
             color_target: DEFAULT_PP_COLOR_TARGETS,
             immediate_size: 0,
-            shadow_transparency: false,
+            opaque: true,
             depth_enabled: false,
             shader_type: ShaderType::PostProcessing,
             material_layout: None,
@@ -721,7 +750,7 @@ impl Shader {
             vertex_buffers: &DEFAULT_VBL,
             color_target: DEFAULT_COLOR_TARGETS,
             immediate_size: 0,
-            shadow_transparency: false,
+            opaque: true,
             depth_enabled: true,
             shader_type: ShaderType::Default,
             material_layout: None,
@@ -751,7 +780,7 @@ impl Shader {
             vertex_buffers: &DEFAULT_VBL,
             color_target: DEFAULT_COLOR_TARGETS,
             immediate_size: 0,
-            shadow_transparency: false,
+            opaque: true,
             depth_enabled: true,
             shader_type: ShaderType::Default,
             material_layout: None,
@@ -817,15 +846,18 @@ impl Shader {
     }
 
     pub fn is_custom(&self) -> bool {
-        self.stage() == ShaderType::Custom
+        matches!(
+            self.stage(),
+            ShaderType::Custom | ShaderType::Picking | ShaderType::Shadow
+        )
     }
 
     pub fn is_post_process(&self) -> bool {
         self.stage() == ShaderType::PostProcessing
     }
 
-    pub fn has_shadow_transparency(&self) -> bool {
-        self.shadow_transparency
+    pub fn is_opaque(&self) -> bool {
+        self.opaque
     }
 
     pub fn gen_code(&self) -> String {
@@ -837,7 +869,7 @@ impl Shader {
         let fragment_only = self.code().is_only_fragment_shader();
         let kind = match self.stage() {
             ShaderType::PostProcessing => ShaderKind::PostProcess,
-            ShaderType::Custom => ShaderKind::Custom,
+            ShaderType::Custom | ShaderType::Picking | ShaderType::Shadow => ShaderKind::Custom,
             ShaderType::Default => ShaderKind::Default,
         };
         let material_groups = self
@@ -848,7 +880,7 @@ impl Shader {
                 material_textures: groups.material_textures.as_str(),
             });
 
-        let generated = assemble_shader(
+        let generated = ShaderGenerator::assemble_shader(
             self.code().code(),
             fragment_only,
             kind,
@@ -860,10 +892,17 @@ impl Shader {
     }
 
     pub fn needs_bgl(&self, bgl: HBGL) -> bool {
-        if !self.is_custom() {
+        if self.stage() == ShaderType::Default {
             return match bgl.id() {
                 HBGL::RENDER_ID | HBGL::MODEL_ID | HBGL::MATERIAL_ID => true,
                 HBGL::LIGHT_ID | HBGL::SHADOW_ID => self.is_depth_enabled(),
+                _ => false,
+            };
+        }
+
+        if self.stage() == ShaderType::PostProcessing {
+            return match bgl.id() {
+                HBGL::RENDER_ID | HBGL::POST_PROCESS_ID => true,
                 _ => false,
             };
         }
@@ -973,6 +1012,9 @@ impl StreamableAsset for Shader {
         let root = payload.data.expect_object("shader metadata")?;
 
         let name: String = root.required_field("name")?.expect_parse("shader name")?;
+        let shader_type = root
+            .required_field("shader_type")?
+            .expect_parse("shader_type")?;
         let code_obj = root
             .required_field("code")?
             .expect_object("shader code block")?;
@@ -988,40 +1030,31 @@ impl StreamableAsset for Shader {
             other => whatever!("unsupported shader code kind '{other}'"),
         };
 
-        let shader_type = root
-            .optional_field("shader_type")
-            .expect_parse("shader_type")?
-            .unwrap_or(ShaderType::Default);
         let polygon_mode = root
             .optional_field("polygon_mode")
-            .expect_parse("shader polygon mode")?
-            .unwrap_or(PolygonMode::Fill);
+            .expect_parse("shader polygon mode")?;
         let topology = root
             .optional_field("topology")
-            .expect_parse("shader topology")?
-            .unwrap_or(PrimitiveTopology::TriangleList);
+            .expect_parse("shader topology")?;
         let immediate_size = root
             .optional_field("immediate_size")
-            .expect_parse("shader immediate_size")?
-            .unwrap_or(0);
+            .expect_parse("shader immediate_size")?;
         let depth_enabled = root
             .optional_field("depth_enabled")
-            .expect_parse("shader depth_enabled")?
-            .unwrap_or(true);
-        let shadow_transparency = root
-            .optional_field("shadow_transparency")
-            .expect_parse("shader shadow_transparency")?
-            .unwrap_or(false);
+            .expect_parse("shader depth_enabled")?;
+        let opaque = root
+            .optional_field("opaque")
+            .expect_parse("shader opaque")?;
 
         Ok(Shader::builder()
             .name(name)
             .code(code)
             .shader_type(shader_type)
-            .polygon_mode(polygon_mode)
-            .topology(topology)
-            .immediate_size(immediate_size)
-            .depth_enabled(depth_enabled)
-            .shadow_transparency(shadow_transparency)
+            .maybe_polygon_mode(polygon_mode)
+            .maybe_topology(topology)
+            .maybe_immediate_size(immediate_size)
+            .maybe_depth_enabled(depth_enabled)
+            .maybe_opaque(opaque)
             .build())
     }
 }

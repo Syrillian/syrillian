@@ -4,9 +4,8 @@ use wgpu::{BindGroupLayout, Device, PipelineLayout, PipelineLayoutDescriptor};
 
 pub trait ShaderBindings {
     fn collect_bgls(&self, cache: &AssetCache) -> Vec<BindGroupLayout>;
-    fn solid_layout(&self, device: &Device, cache: &AssetCache) -> PipelineLayout;
-    fn shadow_layout(&self, device: &Device, cache: &AssetCache) -> Option<PipelineLayout>;
-    fn layout_with(
+    fn pipeline_layout(&self, device: &Device, cache: &AssetCache) -> PipelineLayout;
+    fn pipeline_layout_with(
         &self,
         device: &Device,
         layout_name: &str,
@@ -51,27 +50,15 @@ impl ShaderBindings for Shader {
         out
     }
 
-    fn solid_layout(&self, device: &Device, cache: &AssetCache) -> PipelineLayout {
+    fn pipeline_layout(&self, device: &Device, cache: &AssetCache) -> PipelineLayout {
         let layout_name = format!("{} Pipeline Layout", self.name());
         let layouts = self.collect_bgls(cache);
         let refs: Vec<&BindGroupLayout> = layouts.iter().collect();
 
-        self.layout_with(device, &layout_name, &refs)
+        self.pipeline_layout_with(device, &layout_name, &refs)
     }
 
-    fn shadow_layout(&self, device: &Device, cache: &AssetCache) -> Option<PipelineLayout> {
-        if self.is_post_process() {
-            return None;
-        }
-
-        let layout_name = format!("{} Shadow Pipeline Layout", self.name());
-        let layouts = self.collect_bgls(cache);
-        let refs: Vec<&BindGroupLayout> = layouts.iter().collect();
-
-        Some(self.layout_with(device, &layout_name, &refs))
-    }
-
-    fn layout_with(
+    fn pipeline_layout_with(
         &self,
         device: &Device,
         layout_name: &str,

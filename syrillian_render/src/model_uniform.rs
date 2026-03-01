@@ -8,9 +8,10 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub struct ModelUniform {
     pub transform: Mat4,
     pub normal: Mat3A,
+    pub object_hash: [f32; 4],
 }
 
-ensure_aligned!(ModelUniform { transform, normal }, align <= 16 * 7 => size);
+ensure_aligned!(ModelUniform { transform, normal, object_hash }, align <= 16 * 8 => size);
 
 impl ModelUniform {
     pub fn empty() -> Self {
@@ -30,6 +31,7 @@ impl ModelUniform {
         ModelUniform {
             transform: *full_trs,
             normal: normal_matrix(full_trs),
+            object_hash: [0.0; 4],
         }
     }
 

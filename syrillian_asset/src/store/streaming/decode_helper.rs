@@ -354,6 +354,8 @@ impl ParseDecode<ShaderType> for Value {
         match name {
             "Default" => Ok(ShaderType::Default),
             "Custom" => Ok(ShaderType::Custom),
+            "Picking" => Ok(ShaderType::Picking),
+            "Shadow" => Ok(ShaderType::Shadow),
             "PostProcessing" => Ok(ShaderType::PostProcessing),
             other => whatever!("unsupported shader type '{other}'"),
         }

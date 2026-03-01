@@ -177,6 +177,8 @@ impl ReflectSerialize for ShaderType {
         let value = match this {
             ShaderType::Default => "Default",
             ShaderType::Custom => "Custom",
+            ShaderType::Picking => "Picking",
+            ShaderType::Shadow => "Shadow",
             ShaderType::PostProcessing => "PostProcessing",
         };
         Value::String(value.to_string())
@@ -208,10 +210,7 @@ impl ReflectSerialize for Shader {
                 "depth_enabled".to_string(),
                 Value::Bool(this.is_depth_enabled()),
             ),
-            (
-                "shadow_transparency".to_string(),
-                Value::Bool(this.has_shadow_transparency()),
-            ),
+            ("opaque".to_string(), Value::Bool(this.is_opaque())),
         ]))
     }
 }
