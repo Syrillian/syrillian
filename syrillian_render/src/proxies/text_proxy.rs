@@ -12,7 +12,7 @@ use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::viewport::ViewportId;
 use crate::rendering::{CPUDrawCtx, GPUDrawCtx, RenderPassType};
 use crate::strobe::TextAlignment;
-use crate::{must_pipeline, proxy_data, proxy_data_mut, try_activate_shader};
+use crate::{proxy_data, proxy_data_mut};
 use delegate::delegate;
 use etagere::euclid::approxeq::ApproxEq;
 use glamx::Affine3A;
@@ -254,12 +254,10 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         let groups = shader.bind_groups();
 
         let mut pass = pass.write();
-        must_pipeline!(pipeline = shader, ctx.pass_type => return);
+        shader.activate(&mut pass, ctx);
 
-        pass.set_pipeline(pipeline);
         pass.set_vertex_buffer(0, data.glyph_vbo.slice(..));
         pass.set_immediates(0, self.pc.as_bytes());
-        pass.set_bind_group(groups.render, ctx.render_bind_group, &[]);
         if let Some(idx) = groups.model {
             pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
         }
@@ -273,7 +271,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
         #[cfg(debug_assertions)]
         if DebugRenderer::text_geometry() {
-            self.draw_debug_edges(cache, &mut pass, ctx.pass_type, ctx, &data.uniform);
+            self.draw_debug_edges(cache, &mut pass, ctx, &data.uniform);
         }
     }
 
@@ -282,16 +280,13 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         &self,
         cache: &AssetCache,
         pass: &mut RenderPass,
-        pass_type: RenderPassType,
         ctx: &GPUDrawCtx,
         uniform: &ShaderUniform<MeshUniformIndex>,
     ) {
         let shader = cache.shader(DIM::debug_shader());
         let groups = shader.bind_groups();
-        must_pipeline!(pipeline = shader, pass_type => return);
 
-        pass.set_pipeline(pipeline);
-        pass.set_bind_group(groups.render, ctx.render_bind_group, &[]);
+        shader.activate(pass, ctx);
         if let Some(idx) = groups.model {
             pass.set_bind_group(idx, uniform.bind_group(), &[]);
         }
@@ -440,9 +435,35 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
     }
 
     fn render_shadows(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
-        if D == 3 {
-            SceneProxy::render(self, renderer, ctx, binding);
+        if D != 3 {
+            return;
         }
+
+        let data: &TextRenderData = proxy_data!(binding.proxy_data());
+        if data.glyph_vbo.size() == 0 || self.text.is_empty() {
+            return;
+        }
+
+        let shader = renderer.cache.shader(HShader::TEXT_3D_SHADOW);
+        let font = renderer.cache.font(self.font);
+        let atlas_binding = font.atlas_binding();
+        let groups = shader.bind_groups();
+
+        let mut pass = ctx.pass.write();
+        shader.activate(&mut pass, ctx);
+
+        pass.set_vertex_buffer(0, data.glyph_vbo.slice(..));
+        pass.set_immediates(0, self.pc.as_bytes());
+        if let Some(idx) = groups.model {
+            pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
+        }
+        let Some(material) = groups.material else {
+            debug_panic!("Text shadow shader is missing material bind group mapping");
+            return;
+        };
+        pass.set_bind_group(material, &atlas_binding, &[]);
+
+        pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
     }
 
     fn render_picking(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
@@ -463,7 +484,7 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         };
 
         let mut pass = ctx.pass.write();
-        try_activate_shader!(shader, &mut pass, ctx => return);
+        shader.activate(&mut pass, ctx);
 
         let font = renderer.cache.font(self.font);
         let atlas_binding = font.atlas_binding();

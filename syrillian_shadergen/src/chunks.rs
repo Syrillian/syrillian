@@ -536,7 +536,7 @@ impl NodeChunk for PickColorNode {
     }
 
     fn expr(&self, _id: NodeId, _ctx: &EmitCtx) -> String {
-        "pick.color".to_string()
+        "model.pick_color".to_string()
     }
 }
 

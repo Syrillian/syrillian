@@ -1,6 +1,6 @@
+use syrillian_asset::Shader;
 use syrillian_asset::shader::ShaderType;
-use syrillian_asset::shader::defaults::DEFAULT_VBL;
-use syrillian_asset::{HBGL, Shader};
+use syrillian_asset::shader::defaults::{DEFAULT_VBL, PICKING_COLOR_TARGET};
 use wgpu::{
     ColorTargetState, CompareFunction, DepthBiasState, DepthStencilState, Device, Face,
     FragmentState, MultisampleState, PipelineCompilationOptions, PipelineLayout, PolygonMode,
@@ -54,7 +54,7 @@ pub struct RenderPipelineBuilder<'a> {
     pub topology: PrimitiveTopology,
     pub vertex_buffers: &'a [VertexBufferLayout<'a>],
     pub is_custom: bool,
-    pub has_shadow_transparency: bool,
+    pub is_opaque: bool,
     pub color_target: &'a [Option<ColorTargetState>],
 }
 
@@ -68,12 +68,28 @@ impl<'a> RenderPipelineBuilder<'a> {
     }
 
     pub fn cull_mode(&self) -> Option<Face> {
-        (!self.has_shadow_transparency && !self.is_post_process).then_some(Face::Back)
+        (self.is_opaque && !self.is_post_process).then_some(Face::Back)
     }
 
     pub fn desc(&'a self) -> RenderPipelineDescriptor<'a> {
         let depth_stencil =
             (!self.is_post_process && self.has_depth).then_some(DEFAULT_DEPTH_STENCIL);
+
+        let fragment = if self.color_target.is_empty() {
+            (!self.is_post_process && self.has_depth && !self.is_opaque).then(|| FragmentState {
+                module: self.module,
+                entry_point: None,
+                compilation_options: PipelineCompilationOptions::default(),
+                targets: &[],
+            })
+        } else {
+            Some(FragmentState {
+                module: self.module,
+                entry_point: None,
+                compilation_options: PipelineCompilationOptions::default(),
+                targets: self.color_target,
+            })
+        };
 
         RenderPipelineDescriptor {
             label: Some(&self.label),
@@ -93,12 +109,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             },
             depth_stencil,
             multisample: MultisampleState::default(),
-            fragment: Some(FragmentState {
-                module: self.module,
-                entry_point: None,
-                compilation_options: PipelineCompilationOptions::default(),
-                targets: self.color_target,
-            }),
+            fragment,
             multiview_mask: None,
             cache: None,
         }
@@ -109,7 +120,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             return None;
         }
 
-        let fragment = self.has_shadow_transparency.then(|| FragmentState {
+        let fragment = (!self.is_opaque).then(|| FragmentState {
             module: self.module,
             entry_point: None,
             compilation_options: PipelineCompilationOptions::default(),
@@ -150,25 +161,29 @@ impl<'a> RenderPipelineBuilder<'a> {
         let topology = shader.topology();
         let is_post_process = shader.is_post_process();
         let is_custom = shader.is_custom();
-        let has_shadow_transparency = shader.has_shadow_transparency();
+        let is_opaque = shader.is_opaque();
         let has_depth = shader.is_depth_enabled();
-        let color_target = shader.color_target();
-
-        debug_assert!(
-            !has_shadow_transparency || !shader.needs_bgl(HBGL::SHADOW),
-            "Cannot render shadow transparency while relying on shadows for rendering"
-        );
 
         let label = match shader.stage() {
             ShaderType::Default => format!("{name} Pipeline"),
+            ShaderType::Picking => format!("{name} Picking Pipeline"),
+            ShaderType::Shadow => format!("{name} Shadow Pipeline"),
             ShaderType::PostProcessing => format!("{name} Post Process Pipeline"),
             ShaderType::Custom => format!("{name} Custom Pipeline"),
         };
 
         let vertex_buffers = match shader.stage() {
             ShaderType::Default => &DEFAULT_VBL,
+            ShaderType::Picking | ShaderType::Shadow if shader.is_opaque() => &DEFAULT_VBL[0..1],
+            ShaderType::Picking | ShaderType::Shadow => shader.vertex_buffers(),
             ShaderType::Custom => shader.vertex_buffers(),
             ShaderType::PostProcessing => &[],
+        };
+
+        let color_target = match shader.stage() {
+            ShaderType::Picking => PICKING_COLOR_TARGET,
+            ShaderType::Shadow => &[],
+            _ => shader.color_target(),
         };
 
         RenderPipelineBuilder {
@@ -178,7 +193,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             is_post_process,
             has_depth,
             is_custom,
-            has_shadow_transparency,
+            is_opaque,
             polygon_mode,
             topology,
             vertex_buffers,

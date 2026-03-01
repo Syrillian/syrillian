@@ -198,7 +198,7 @@ impl MaterialCompiler {
 
     pub fn compile_shader_set<M: MaterialExpression>(material: &mut M) -> MaterialShaderSetCode {
         let base = Self::compile_mesh(material, 0, MeshPass::Base);
-        let picking = Self::compile_mesh_picking();
+        let picking = Self::compile_mesh_picking_with_material(material, 0);
         let shadow = Self::compile_mesh(material, 0, MeshPass::Shadow);
         MaterialShaderSetCode {
             base,
@@ -216,14 +216,31 @@ impl MaterialCompiler {
         material.bind_inputs(&mut compiler);
         let output = material.compile(&mut compiler, output_index);
         let compiled = compiler.compile_output(output);
-        ShaderGenerator::build_mesh_shader(&compiled, pass)
+        let position_only = pass != MeshPass::Base;
+        ShaderGenerator::build_mesh_shader(&compiled, pass, position_only)
     }
 
     pub fn compile_mesh_picking() -> String {
         let mut compiler = Self::new();
         let output = compiler.pick_color();
         let compiled = compiler.compile_output(output);
-        ShaderGenerator::build_mesh_shader(&compiled, MeshPass::Picking)
+        ShaderGenerator::build_mesh_shader(&compiled, MeshPass::Picking, true)
+    }
+
+    pub fn compile_mesh_picking_with_material<M: MaterialExpression>(
+        material: &mut M,
+        output_index: u32,
+    ) -> String {
+        let mut compiler = Self::new();
+        material.bind_inputs(&mut compiler);
+
+        let material_output = material.compile(&mut compiler, output_index);
+        let pick_output = compiler.pick_color();
+
+        let compiled_material = compiler.compile_output(material_output);
+        let compiled_pick = compiler.compile_output(pick_output);
+
+        ShaderGenerator::build_mesh_picking_shader(&compiled_pick, &compiled_material, false)
     }
 
     fn compile_output(&self, output: NodeId) -> ShaderCompilationOutput {

@@ -1,7 +1,8 @@
 use crate::cache::generic_cache::CacheType;
 use crate::cache::shader::bindings::ShaderBindings;
 use crate::cache::{AssetCache, RenderPipelineBuilder};
-use crate::rendering::{GPUDrawCtx, RenderPassType};
+use crate::rendering::GPUDrawCtx;
+use crate::strobe::UiDrawContext;
 use std::borrow::Cow;
 use std::sync::Arc;
 use syrillian_asset::Shader;
@@ -16,10 +17,10 @@ pub struct RuntimeShader {
     name: String,
     pub module: ShaderModule,
     pipeline: RenderPipeline,
-    shadow_pipeline: Option<RenderPipeline>,
     pub immediate_size: u32,
     bind_groups: BindGroupMap,
     pub shader_type: ShaderType,
+    opaque: bool,
 }
 
 impl CacheType for Shader {
@@ -32,10 +33,11 @@ impl CacheType for Shader {
         let code = this.gen_code_with_map(&bind_groups);
 
         debug_assert!(
-            code.contains("@fragment"),
-            "No fragment entry point in shader {:?}: \n{code}",
+            code.contains("@fragment") || this.stage() == ShaderType::Shadow,
+            "No fragment entry point in non-shadow shader {:?}: \n{code}",
             this.name()
         );
+
         debug_assert!(
             code.contains("@vertex"),
             "No vertex entry point in shader {:?}: \n{code}",
@@ -48,22 +50,18 @@ impl CacheType for Shader {
         });
         let name = this.name().to_string();
 
-        let solid_layout = this.solid_layout(device, cache);
+        let solid_layout = this.pipeline_layout(device, cache);
         let solid_builder = RenderPipelineBuilder::builder(&this, &solid_layout, &module);
         let pipeline = solid_builder.build(device);
-        let shadow_pipeline = this.shadow_layout(device, cache).and_then(|layout| {
-            let shadow_builder = RenderPipelineBuilder::builder(&this, &layout, &module);
-            shadow_builder.build_shadow(device)
-        });
 
         Arc::new(RuntimeShader {
             name,
             module,
             pipeline,
-            shadow_pipeline,
             immediate_size: this.immediate_size(),
             bind_groups,
             shader_type: this.stage(),
+            opaque: this.is_opaque(),
         })
     }
 }
@@ -73,28 +71,16 @@ impl RuntimeShader {
         &self.pipeline
     }
 
-    pub fn shadow_pipeline(&self) -> Option<&RenderPipeline> {
-        self.shadow_pipeline.as_ref()
-    }
-
-    pub fn pipeline(&self, stage: RenderPassType) -> Option<&RenderPipeline> {
-        match stage {
-            RenderPassType::Color
-            | RenderPassType::Color2D
-            | RenderPassType::Picking
-            | RenderPassType::PickingUi => Some(&self.pipeline),
-            RenderPassType::Shadow => self.shadow_pipeline.as_ref(),
-        }
-    }
-
     pub fn bind_groups(&self) -> &BindGroupMap {
         &self.bind_groups
     }
 
-    pub fn activate(&self, pass: &mut RenderPass, ctx: &GPUDrawCtx) -> bool {
-        crate::must_pipeline!(pipeline = self, ctx.pass_type => return false);
+    pub fn is_opaque(&self) -> bool {
+        self.opaque
+    }
 
-        pass.set_pipeline(pipeline);
+    pub fn activate(&self, pass: &mut RenderPass, ctx: &GPUDrawCtx) {
+        pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(self.bind_groups.render, ctx.render_bind_group, &[]);
         if let Some(light) = self.bind_groups.light {
             pass.set_bind_group(light, ctx.light_bind_group, &[]);
@@ -102,47 +88,14 @@ impl RuntimeShader {
         if let Some(shadow) = self.bind_groups.shadow {
             pass.set_bind_group(shadow, ctx.shadow_bind_group, &[]);
         }
+    }
 
-        true
+    pub fn activate_ui(&self, pass: &mut RenderPass, ctx: &UiDrawContext) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(self.bind_groups.render, ctx.render_bind_group(), &[]);
     }
 
     pub fn name(&self) -> &str {
         &self.name
     }
-}
-
-#[macro_export]
-macro_rules! activate_shader {
-    ($shader:expr, $pass:expr, $ctx:expr => $( $exit_strat:tt )*) => {
-        if !$shader.activate($pass, $ctx) {
-            ::syrillian_utils::debug_panic!(
-                "Invalid pipeline for specified shader. Cannot activate shader."
-            );
-            ::tracing::error!("A pipeline for the specified shader could not be found for the current render pass");
-            $( $exit_strat )*;
-        };
-    };
-}
-
-#[macro_export]
-macro_rules! try_activate_shader {
-    ($shader:expr, $pass:expr, $ctx:expr => $( $exit_strat:tt )*) => {
-        if !$shader.activate($pass, $ctx) {
-            ::tracing::debug!("Tried to activate shader {:?}, but pipeline was not found for the specified render pass of type {:?}", $shader.name(), $ctx.pass_type);
-            $( $exit_strat )*;
-        };
-    };
-}
-
-#[macro_export]
-macro_rules! must_pipeline {
-    ($name:ident = $shader:expr, $pass_type:expr => $( $exit_strat:tt )*) => {
-        let Some($name) = $shader.pipeline($pass_type) else {
-            ::syrillian_utils::debug_panic!(
-                "A 3D Shader was instantiated without a Shadow Pipeline Variant"
-            );
-            ::tracing::error!("A 3D Shader was instantiated without a Shadow Pipeline Variant");
-            $( $exit_strat )*;
-        };
-    };
 }

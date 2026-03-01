@@ -3,7 +3,7 @@ use crate::cache::generic_cache::CacheType;
 use std::borrow::Cow;
 use std::sync::Arc;
 use syrillian_asset::ComputeShader;
-use syrillian_shadergen::generator::assemble_compute_shader;
+use syrillian_shadergen::ShaderGenerator;
 use wgpu::{
     ComputePipeline, ComputePipelineDescriptor, Device, PipelineCompilationOptions, Queue,
     ShaderModule, ShaderModuleDescriptor, ShaderSource,
@@ -22,7 +22,7 @@ impl CacheType for ComputeShader {
 
     #[profiling::function]
     fn upload(this: Self, device: &Device, _queue: &Queue, cache: &AssetCache) -> Self::Hot {
-        let code = assemble_compute_shader(this.code());
+        let code = ShaderGenerator::assemble_compute_shader(this.code());
         let module = device.create_shader_module(ShaderModuleDescriptor {
             label: Some(this.name()),
             source: ShaderSource::Wgsl(Cow::Owned(code)),

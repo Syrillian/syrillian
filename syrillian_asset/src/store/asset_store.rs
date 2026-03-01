@@ -17,6 +17,7 @@ use std::sync::Arc;
 use syrillian_shadergen::MaterialCompiler;
 use syrillian_shadergen::function::MaterialExpression;
 use syrillian_shadergen::generator::MaterialShaderSetCode;
+use syrillian_utils::sizes::VEC4_SIZE;
 
 pub struct AssetStore {
     pub meshes: Arc<Store<Mesh>>,
@@ -165,18 +166,17 @@ impl AssetStore {
 
         let picking = Shader::builder()
             .name(format!("{} (Picking)", base_name))
-            .shader_type(ShaderType::Custom)
+            .shader_type(ShaderType::Picking)
             .code(ShaderCode::Full(set.picking))
+            .immediate_size(VEC4_SIZE as u32)
+            .transparent()
             .build()
             .store(self);
 
         let shadow = Shader::builder()
             .name(format!("{} (Shadow)", base_name))
-            .shader_type(ShaderType::Custom)
+            .shader_type(ShaderType::Shadow)
             .code(ShaderCode::Full(set.shadow))
-            .material_layout(layout.clone())
-            .material_groups(groups)
-            .immediate_size(imm_size)
             .build()
             .store(self);
 

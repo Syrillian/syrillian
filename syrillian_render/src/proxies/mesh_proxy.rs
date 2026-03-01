@@ -12,11 +12,12 @@ use crate::rendering::picking::hash_to_rgba;
 use crate::rendering::renderer::Renderer;
 use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::{GPUDrawCtx, RenderPassType};
-use crate::{proxy_data, proxy_data_mut, try_activate_shader};
+use crate::{proxy_data, proxy_data_mut};
 use glamx::Affine3A;
 use parking_lot::RwLockWriteGuard;
 use std::any::Any;
 use std::ops::Range;
+use syrillian_asset::shader::ShaderType;
 use syrillian_asset::store::H;
 use syrillian_asset::{HMaterialInstance, HMesh, Shader};
 use syrillian_macros::UniformIndex;
@@ -47,19 +48,12 @@ pub struct MeshSceneProxy {
 }
 
 impl RenderMeshData {
-    pub fn activate_shader(
-        &self,
-        shader: &RuntimeShader,
-        ctx: &GPUDrawCtx,
-        pass: &mut RenderPass,
-    ) -> bool {
-        try_activate_shader!(shader, pass, ctx => return false);
+    pub fn activate_shader(&self, shader: &RuntimeShader, ctx: &GPUDrawCtx, pass: &mut RenderPass) {
+        shader.activate(pass, ctx);
 
         if let Some(idx) = shader.bind_groups().model {
             pass.set_bind_group(idx, self.uniform.bind_group(), &[]);
         }
-
-        true
     }
 }
 
@@ -122,7 +116,6 @@ impl SceneProxy for MeshSceneProxy {
         self.draw_mesh_shadow(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
 
-    // TODO: Make shaders more modular so picking and (shadow) shaders can be generated from just a vertex shader
     fn render_picking(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
         debug_assert_ne!(ctx.pass_type, RenderPassType::Shadow);
 
@@ -132,10 +125,15 @@ impl SceneProxy for MeshSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write();
+        let mut picking_uniform = data.mesh_data;
+        picking_uniform.object_hash = hash_to_rgba(binding.object_hash);
+        renderer.state.queue.write_buffer(
+            data.uniform.buffer(MeshUniformIndex::MeshData),
+            0,
+            picking_uniform.as_bytes(),
+        );
 
-        let color = hash_to_rgba(binding.object_hash);
-        pass.set_immediates(0, color.as_bytes());
+        let mut pass = ctx.pass.write();
 
         self.draw_mesh_picking(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
@@ -248,9 +246,7 @@ impl MeshSceneProxy {
             let shader = cache.shader(target_shader);
 
             if current_shader != Some(target_shader) {
-                if !runtime.activate_shader(&shader, ctx, pass) {
-                    return;
-                }
+                runtime.activate_shader(&shader, ctx, pass);
                 current_shader = Some(target_shader);
             }
 
@@ -270,7 +266,14 @@ impl MeshSceneProxy {
                 pass.set_immediates(0, &material.immediates);
             }
 
-            mesh.draw(range.clone(), pass, BindMeshBuffers::all());
+            let mesh_buffers = match shader.shader_type {
+                ShaderType::Picking | ShaderType::Shadow if shader.is_opaque() => {
+                    BindMeshBuffers::POSITION
+                }
+                _ => BindMeshBuffers::all(),
+            };
+
+            mesh.draw(range.clone(), pass, mesh_buffers);
         }
     }
 
@@ -305,9 +308,7 @@ fn draw_edges(
     const COLOR: Vec4 = Vec4::new(1.0, 0.0, 1.0, 1.0);
 
     let shader = cache.shader(HShader::DEBUG_EDGES);
-    if !runtime.activate_shader(&shader, ctx, pass) {
-        return;
-    }
+    runtime.activate_shader(&shader, ctx, pass);
 
     pass.set_immediates(0, COLOR.as_bytes());
 
@@ -325,9 +326,7 @@ fn draw_vertex_normals(
     use syrillian_asset::HShader;
 
     let shader = cache.shader(HShader::DEBUG_VERTEX_NORMALS);
-    if !runtime.activate_shader(&shader, ctx, pass) {
-        return;
-    }
+    runtime.activate_shader(&shader, ctx, pass);
 
     mesh.draw_all_as_instances(0..2, pass, BindMeshBuffers::POSITION_NORMAL);
 }

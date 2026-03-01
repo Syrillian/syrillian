@@ -6,7 +6,7 @@ use crate::proxies::{PROXY_PRIORITY_SOLID, SceneProxy, SceneProxyBinding};
 use crate::rendering::GPUDrawCtx;
 use crate::rendering::renderer::Renderer;
 use crate::rendering::uniform::ShaderUniform;
-use crate::{must_pipeline, proxy_data, proxy_data_mut, try_activate_shader};
+use crate::{proxy_data, proxy_data_mut};
 use glamx::{Affine3A, Vec3, Vec4};
 use std::any::Any;
 use syrillian_asset::{HMesh, HShader};
@@ -214,9 +214,10 @@ impl DebugSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write();
         let shader = cache.shader(HShader::DEBUG_LINES);
-        try_activate_shader!(shader, &mut pass, ctx => return);
+
+        let mut pass = ctx.pass.write();
+        shader.activate(&mut pass, ctx);
 
         pass.set_vertex_buffer(0, line_buffer.slice(..));
         let vertices = self.lines.len() as u32 * 2;
@@ -241,13 +242,11 @@ impl DebugSceneProxy {
 
             let shader = cache.shader(HShader::DEBUG_EDGES);
             let groups = shader.bind_groups();
-            must_pipeline!(pipeline = shader, ctx.pass_type => return);
 
             let mut pass = ctx.pass.write();
+            shader.activate(&mut pass, ctx);
 
-            pass.set_pipeline(pipeline);
             pass.set_immediates(0, self.color.as_bytes());
-            pass.set_bind_group(groups.render, ctx.render_bind_group, &[]);
             if let Some(idx) = groups.model {
                 pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
             }

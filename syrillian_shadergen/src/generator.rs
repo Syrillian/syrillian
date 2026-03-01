@@ -1,6 +1,9 @@
 const POST_PROCESS_VERTEX: &str = include_str!("functions/vertex_postprocess_quad.wgsl");
 const MESH3D_GROUP: &str = include_str!("groups/mesh3d.wgsl");
+const MESH3D_POSITION_ONLY_GROUP: &str = include_str!("groups/mesh3d_position_only.wgsl");
 const MESH3D_VERTEX: &str = include_str!("functions/vertex_mesh3d.wgsl");
+const MESH3D_POSITION_ONLY_VERTEX: &str =
+    include_str!("functions/vertex_mesh3d_position_only.wgsl");
 const MATH_HELPERS: &str = include_str!("functions/helpers/math.wgsl");
 const MESH3D_PBR: &str = include_str!("functions/pbr_mesh3d.wgsl");
 
@@ -11,7 +14,7 @@ const MATERIAL_GROUP: &str = include_str!("groups/material.wgsl");
 const MATERIAL_TEXTURES_GROUP: &str = include_str!("groups/material_textures.wgsl");
 const LIGHT_GROUP: &str = include_str!("groups/light.wgsl");
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MeshPass {
     Base,
     Picking,
@@ -81,7 +84,7 @@ impl ShaderGenerator {
             ShaderKind::Default => {
                 out.push_str(RENDER_GROUP);
                 out.push('\n');
-                push_default_mesh_groups(&mut out);
+                out.push_str(MESH3D_GROUP);
                 out.push('\n');
                 out.push_str(MODEL_GROUP);
                 out.push('\n');
@@ -159,42 +162,57 @@ impl ShaderGenerator {
         }
     }
 
-    pub fn build_mesh_shader(compiled: &ShaderCompilationOutput, pass: MeshPass) -> String {
+    pub fn assemble_compute_shader(source: &str) -> String {
+        ShaderGenerator::assemble_shader(source, false, ShaderKind::Compute, false, None)
+    }
+
+    pub fn build_mesh_shader(
+        compiled: &ShaderCompilationOutput,
+        pass: MeshPass,
+        position_only: bool,
+    ) -> String {
+        debug_assert!(
+            !(position_only && pass == MeshPass::Base),
+            "Base mesh shaders require full vertex attributes"
+        );
+
         let mut out = String::new();
 
-        out.push_str(MESH3D_GROUP);
-        out.push('\n');
+        let needs_pbr = pass == MeshPass::Base || (pass == MeshPass::Shadow && !position_only);
+        if needs_pbr {
+            out.push_str("#use material\n");
+            out.push_str("#use material_textures\n");
+            out.push_str("#use light\n");
+        }
 
         out.push_str(RENDER_GROUP);
         out.push('\n');
-        out.push_str(MODEL_GROUP);
-        out.push('\n');
 
-        match pass {
-            MeshPass::Base | MeshPass::Shadow => {
-                out.push_str("#use material\n");
-                out.push_str("#use material_textures\n");
-                out.push_str("#use light\n");
-            }
-            MeshPass::Picking => {}
+        if position_only {
+            out.push_str(MESH3D_POSITION_ONLY_GROUP);
+        } else {
+            out.push_str(MESH3D_GROUP);
         }
         out.push('\n');
 
-        if matches!(pass, MeshPass::Base | MeshPass::Shadow) {
+        out.push_str(MODEL_GROUP);
+        out.push('\n');
+
+        if needs_pbr {
             out.push_str(MESH3D_PBR);
             out.push('\n');
         }
 
-        if matches!(pass, MeshPass::Picking) {
-            out.push_str("struct PickColor {\n    color: vec4<f32>,\n};\n\n");
-            out.push_str("var<immediate> pick: PickColor;\n\n");
+        if position_only {
+            out.push_str(MESH3D_POSITION_ONLY_VERTEX);
+        } else {
+            out.push_str(MESH3D_VERTEX);
         }
-
-        out.push_str(MESH3D_VERTEX);
         out.push('\n');
 
         let ret = match pass {
             MeshPass::Picking => "@location(0) vec4f",
+            MeshPass::Shadow if position_only => return out,
             MeshPass::Base | MeshPass::Shadow => "FOutput",
         };
 
@@ -202,6 +220,60 @@ impl ShaderGenerator {
         out.push_str(ret);
         out.push_str(" {\n");
         append_compilation_output(&mut out, compiled);
+        out.push_str("}\n");
+
+        out
+    }
+
+    pub fn build_mesh_picking_shader(
+        pick: &ShaderCompilationOutput,
+        material: &ShaderCompilationOutput,
+        position_only: bool,
+    ) -> String {
+        let mut out = String::new();
+
+        out.push_str("#use material\n");
+        out.push_str("#use material_textures\n");
+        out.push_str("#use light\n");
+
+        out.push_str(RENDER_GROUP);
+        out.push('\n');
+
+        if position_only {
+            out.push_str(MESH3D_POSITION_ONLY_GROUP);
+        } else {
+            out.push_str(MESH3D_GROUP);
+        }
+        out.push('\n');
+
+        out.push_str(MODEL_GROUP);
+        out.push('\n');
+        out.push_str(MESH3D_PBR);
+        out.push('\n');
+
+        if position_only {
+            out.push_str(MESH3D_POSITION_ONLY_VERTEX);
+        } else {
+            out.push_str(MESH3D_VERTEX);
+        }
+        out.push('\n');
+
+        out.push_str("@fragment\nfn fs_main(in: FInput) -> @location(0) vec4f {\n");
+        for stmt in &material.lines {
+            for line in stmt.lines() {
+                out.push_str("    ");
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+        out.push_str("    let material_out = ");
+        out.push_str(&material.result_expr);
+        out.push_str(";\n");
+        out.push_str("    if (material_out.out_color.a <= 0.01) {\n");
+        out.push_str("        discard;\n");
+        out.push_str("    }\n");
+
+        append_compilation_output(&mut out, pick);
         out.push_str("}\n");
 
         out
@@ -226,25 +298,6 @@ impl ShaderGenerator {
         out.push_str("}\n");
         out
     }
-}
-
-pub fn assemble_shader(
-    source: &str,
-    fragment_only: bool,
-    kind: ShaderKind,
-    depth_enabled: bool,
-    material_groups: Option<MaterialGroupOverrides<'_>>,
-) -> String {
-    ShaderGenerator::assemble_shader(source, fragment_only, kind, depth_enabled, material_groups)
-}
-
-pub fn assemble_compute_shader(source: &str) -> String {
-    ShaderGenerator::assemble_shader(source, false, ShaderKind::Compute, false, None)
-}
-
-fn push_default_mesh_groups(out: &mut String) {
-    out.push_str(MESH3D_GROUP);
-    out.push('\n');
 }
 
 #[derive(Debug, Default)]
@@ -323,7 +376,8 @@ fn append_use_group(
         "post_process" => append_block_once(out, &mut imported.post_process, POST_PROCESS_GROUP),
         "default_vertex" if allow_default_vertex => {
             if !imported.default_vertex {
-                push_default_mesh_groups(out);
+                out.push_str(MESH3D_GROUP);
+                out.push('\n');
                 imported.default_vertex = true;
             }
         }

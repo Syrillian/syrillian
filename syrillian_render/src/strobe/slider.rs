@@ -82,9 +82,6 @@ impl UiElement for UiSlider {
     }
 
     fn render(&self, ctx: &mut UiDrawContext, rect: Rect) {
-        let shader = ctx.cache().shader(HShader::LINE_2D);
-        crate::must_pipeline!(pipeline = shader, ctx.gpu_ctx().pass_type => return);
-
         let left = rect.position.x;
         let right = rect.position.x + rect.size.x.max(1.0);
         let center_y = rect.position.y + rect.size.y * 0.5;
@@ -106,13 +103,11 @@ impl UiElement for UiSlider {
         let track_thickness = self.track_thickness.min(rect.size.y.max(1.0));
         let knob_thickness = self.knob_thickness.min(rect.size.x.max(1.0));
 
+        let shader = ctx.cache().shader(HShader::LINE_2D);
+
         let mut pass = ctx.gpu_ctx().pass.write();
-        pass.set_pipeline(pipeline);
-        pass.set_bind_group(
-            shader.bind_groups().render,
-            ctx.gpu_ctx().render_bind_group,
-            &[],
-        );
+
+        shader.activate_ui(&mut pass, ctx);
 
         emit_line(
             &mut pass,

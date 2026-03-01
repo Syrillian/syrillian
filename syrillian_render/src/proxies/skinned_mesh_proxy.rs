@@ -13,13 +13,14 @@ use crate::rendering::picking::hash_to_rgba;
 use crate::rendering::renderer::Renderer;
 use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::{GPUDrawCtx, RenderPassType};
-use crate::{proxy_data, proxy_data_mut, try_activate_shader};
+use crate::{proxy_data, proxy_data_mut};
 use glamx::Affine3A;
 use parking_lot::RwLockWriteGuard;
 use static_assertions::const_assert_eq;
 use std::any::Any;
 use std::ops::Range;
 use syrillian_asset::mesh::bone::BoneData;
+use syrillian_asset::shader::ShaderType;
 use syrillian_asset::store::H;
 use syrillian_asset::{HComputeShader, HMaterialInstance, HSkinnedMesh, Shader};
 use syrillian_macros::UniformIndex;
@@ -88,7 +89,7 @@ impl RenderSkinnedMeshData {
         ctx: &GPUDrawCtx,
         pass: &mut RenderPass,
     ) -> bool {
-        try_activate_shader!(shader, pass, ctx => return false);
+        shader.activate(pass, ctx);
 
         if let Some(idx) = shader.bind_groups().model {
             pass.set_bind_group(idx, self.mesh_uniform.bind_group(), &[]);
@@ -292,7 +293,6 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         self.draw_mesh_shadow(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
 
-    // TODO: Make shaders more modular so picking and (shadow) shaders can be generated from just a vertex shader
     fn render_picking(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
         debug_assert_ne!(ctx.pass_type, RenderPassType::Shadow);
 
@@ -302,10 +302,16 @@ impl SceneProxy for SkinnedMeshSceneProxy {
             return;
         };
 
-        let mut pass = ctx.pass.write();
-
         let color = hash_to_rgba(binding.object_hash);
-        pass.set_immediates(0, color.as_bytes());
+        let mut picking_uniform = data.mesh_data;
+        picking_uniform.object_hash = color;
+        renderer.state.queue.write_buffer(
+            data.mesh_uniform.buffer(MeshUniformIndex::MeshData),
+            0,
+            picking_uniform.as_bytes(),
+        );
+
+        let mut pass = ctx.pass.write();
 
         self.draw_mesh_picking(ctx, &renderer.cache, &mesh, data, &mut pass);
     }
@@ -439,11 +445,18 @@ impl SkinnedMeshSceneProxy {
 
             debug_assert_eq!(runtime.skinned_meshlets.len(), mesh.meshlets().len());
 
+            let mesh_buffers = match shader.shader_type {
+                ShaderType::Picking | ShaderType::Shadow if shader.is_opaque() => {
+                    BindMeshBuffers::POSITION
+                }
+                _ => BindMeshBuffers::all(),
+            };
+
             mesh.draw_with_vertex_buffers(
                 range.clone(),
                 &runtime.skinned_meshlets,
                 pass,
-                BindMeshBuffers::all(),
+                mesh_buffers,
             );
         }
     }

@@ -81,14 +81,8 @@ impl UiElement for UiLine {
         }
 
         let mut pass = ctx.gpu_ctx().pass.write();
-        crate::must_pipeline!(pipeline = shader, ctx.gpu_ctx().pass_type => return);
 
-        pass.set_pipeline(pipeline);
-        pass.set_bind_group(
-            shader.bind_groups().render,
-            ctx.gpu_ctx().render_bind_group,
-            &[],
-        );
+        shader.activate_ui(&mut pass, ctx);
 
         pass.set_immediates(0, pc.as_bytes());
         pass.draw(0..6, 0..1);
