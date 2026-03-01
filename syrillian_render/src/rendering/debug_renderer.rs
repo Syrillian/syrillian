@@ -5,6 +5,7 @@ static DEBUG_RENDERER: RwLock<DebugRenderer> = RwLock::new(DebugRenderer::defaul
 #[derive(Default, Debug, Clone)]
 pub struct DebugRenderer {
     pub mesh_edges: bool,
+    pub mesh_bounds: bool,
     pub vertex_normals: bool,
     pub rays: bool,
     pub colliders_edges: bool,
@@ -16,6 +17,7 @@ impl DebugRenderer {
     const fn default_const() -> Self {
         DebugRenderer {
             mesh_edges: false,
+            mesh_bounds: false,
             colliders_edges: false,
             vertex_normals: false,
             rays: false,
@@ -38,6 +40,11 @@ impl DebugRenderer {
     pub fn collider_mesh() -> bool {
         let inner = DEBUG_RENDERER.read();
         inner.colliders_edges
+    }
+
+    pub fn mesh_bounds() -> bool {
+        let inner = DEBUG_RENDERER.read();
+        inner.mesh_bounds
     }
 
     pub fn mesh_vertex_normals() -> bool {
@@ -73,16 +80,18 @@ impl DebugRenderer {
     fn _mode(&self) -> u32 {
         if self.mesh_edges {
             1
-        } else if self.vertex_normals {
+        } else if self.mesh_bounds {
             2
-        } else if self.rays {
+        } else if self.vertex_normals {
             3
-        } else if self.colliders_edges {
+        } else if self.rays {
             4
-        } else if self.text_geometry {
+        } else if self.colliders_edges {
             5
-        } else if self.light {
+        } else if self.text_geometry {
             6
+        } else if self.light {
+            7
         } else {
             0
         }
@@ -97,11 +106,12 @@ impl DebugRenderer {
         self._off();
         match mode {
             1 => self.mesh_edges = true,
-            2 => self.vertex_normals = true,
-            3 => self.rays = true,
-            4 => self.colliders_edges = true,
-            5 => self.text_geometry = true,
-            6 => self.light = true,
+            2 => self.mesh_bounds = true,
+            3 => self.vertex_normals = true,
+            4 => self.rays = true,
+            5 => self.colliders_edges = true,
+            6 => self.text_geometry = true,
+            7 => self.light = true,
             _ => return 0,
         }
         mode
@@ -109,6 +119,7 @@ impl DebugRenderer {
 
     fn _off(&mut self) {
         self.mesh_edges = false;
+        self.mesh_bounds = false;
         self.colliders_edges = false;
         self.vertex_normals = false;
         self.rays = false;

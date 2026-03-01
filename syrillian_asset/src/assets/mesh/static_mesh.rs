@@ -1,6 +1,6 @@
 use crate::mesh::buffer::UNIT_SQUARE_VERT;
 use crate::mesh::static_mesh_data::{RawVertexBuffers, VertexBufferExt};
-use crate::mesh::{CUBE_OBJ, DEBUG_ARROW, MeshError, PartialMesh, SPHERE};
+use crate::mesh::{BOUNDS_GIZMO, CUBE_OBJ, DEBUG_ARROW, MeshError, PartialMesh, SPHERE};
 use crate::store::streaming::asset_store::{
     AssetType, StreamingAssetBlobKind, StreamingAssetFile, StreamingAssetPayload,
 };
@@ -13,6 +13,7 @@ use crate::store::{
 };
 use crate::{HMesh, store_add_checked};
 use crossbeam_channel::Sender;
+use glamx::Vec3;
 use obj::IndexTuple;
 use std::ops::Range;
 use std::sync::Arc;
@@ -74,6 +75,87 @@ impl Mesh {
             bounding_sphere,
         })
     }
+
+    pub fn load_from_line_obj_slice(data: &[u8]) -> Result<Mesh, MeshError> {
+        let source = String::from_utf8_lossy(data);
+        let mut positions: Vec<Vec3> = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
+
+        for line in source.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+
+            let mut parts = line.split_whitespace();
+            match parts.next() {
+                Some("v") => {
+                    let Some(x) = parts.next().and_then(|v| v.parse::<f32>().ok()) else {
+                        continue;
+                    };
+                    let Some(y) = parts.next().and_then(|v| v.parse::<f32>().ok()) else {
+                        continue;
+                    };
+                    let Some(z) = parts.next().and_then(|v| v.parse::<f32>().ok()) else {
+                        continue;
+                    };
+                    positions.push(Vec3::new(x, y, z));
+                }
+                Some("l") => {
+                    let line_points: Vec<isize> = parts
+                        .filter_map(|p| p.split('/').next())
+                        .filter_map(|idx| idx.parse::<isize>().ok())
+                        .collect();
+
+                    for segment in line_points.windows(2) {
+                        let Some(start) = Self::resolve_obj_index(segment[0], positions.len())
+                        else {
+                            continue;
+                        };
+                        let Some(end) = Self::resolve_obj_index(segment[1], positions.len()) else {
+                            continue;
+                        };
+
+                        indices.push(start as u32);
+                        indices.push(end as u32);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if positions.is_empty() || indices.is_empty() {
+            return Err(MeshError::LinesMissing);
+        }
+
+        let buffers = RawVertexBuffers::from_positions(positions, Some(indices));
+
+        debug_assert!(buffers.is_valid());
+
+        let bounding_sphere = Some(BoundingSphere::from_positions(
+            buffers.positions.iter().copied(),
+        ));
+
+        Ok(Mesh {
+            data: Arc::new(buffers),
+            material_ranges: vec![],
+            bounding_sphere,
+        })
+    }
+
+    fn resolve_obj_index(index: isize, len: usize) -> Option<usize> {
+        if index > 0 {
+            let idx = index as usize - 1;
+            return (idx < len).then_some(idx);
+        }
+
+        if index < 0 {
+            let idx = len as isize + index;
+            return (idx >= 0 && (idx as usize) < len).then_some(idx as usize);
+        }
+
+        None
+    }
 }
 
 impl PartialMesh for Mesh {
@@ -87,12 +169,14 @@ impl H<Mesh> {
     const UNIT_CUBE_ID: u32 = 1;
     const DEBUG_ARROW_ID: u32 = 2;
     const SPHERE_ID: u32 = 3;
-    const MAX_BUILTIN_ID: u32 = 3;
+    const BOUNDS_GIZMO_ID: u32 = 4;
+    const MAX_BUILTIN_ID: u32 = 4;
 
     pub const UNIT_SQUARE: HMesh = H::new(Self::UNIT_SQUARE_ID);
     pub const UNIT_CUBE: HMesh = H::new(Self::UNIT_CUBE_ID);
     pub const DEBUG_ARROW: HMesh = H::new(Self::DEBUG_ARROW_ID);
     pub const SPHERE: HMesh = H::new(Self::SPHERE_ID);
+    pub const BOUNDS_GIZMO: HMesh = H::new(Self::BOUNDS_GIZMO_ID);
 }
 
 impl StoreDefaults for Mesh {
@@ -111,6 +195,10 @@ impl StoreDefaults for Mesh {
 
         let sphere = Mesh::load_from_obj_slice(SPHERE).expect("Sphere Mesh load failed");
         store_add_checked!(store, HMesh::SPHERE_ID, sphere);
+
+        let bounds_gizmo =
+            Mesh::load_from_line_obj_slice(BOUNDS_GIZMO).expect("Bounds Gizmo Mesh load failed");
+        store_add_checked!(store, HMesh::BOUNDS_GIZMO_ID, bounds_gizmo);
     }
 }
 
@@ -124,6 +212,7 @@ impl StoreType for Mesh {
             HMesh::UNIT_CUBE_ID => HandleName::Static("Unit Cube"),
             HMesh::DEBUG_ARROW_ID => HandleName::Static("Debug Arrow"),
             HMesh::SPHERE_ID => HandleName::Static("Sphere"),
+            HMesh::BOUNDS_GIZMO_ID => HandleName::Static("Bounds Gizmo"),
             _ => HandleName::Id(handle),
         }
     }

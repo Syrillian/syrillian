@@ -152,12 +152,13 @@ impl H<Shader> {
     pub const TEXT_3D_SHADOW_ID: u32 = 15;
     pub const LINE_2D_ID: u32 = 16;
     pub const DEBUG_EDGES_ID: u32 = 17;
-    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 18;
-    pub const DEBUG_LINES_ID: u32 = 19;
-    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 20;
-    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 21;
-    pub const DEBUG_LIGHT_ID: u32 = 22;
-    pub const MAX_BUILTIN_ID: u32 = 22;
+    pub const DEBUG_MESH_BOUNDS_ID: u32 = 18;
+    pub const DEBUG_VERTEX_NORMALS_ID: u32 = 19;
+    pub const DEBUG_LINES_ID: u32 = 20;
+    pub const DEBUG_TEXT2D_GEOMETRY_ID: u32 = 21;
+    pub const DEBUG_TEXT3D_GEOMETRY_ID: u32 = 22;
+    pub const DEBUG_LIGHT_ID: u32 = 23;
+    pub const MAX_BUILTIN_ID: u32 = 23;
 
     // The fallback shader if a pipeline fails
     pub const FALLBACK: H<Shader> = H::new(Self::FALLBACK_ID);
@@ -210,6 +211,7 @@ impl H<Shader> {
     pub const DEBUG_TEXT2D_GEOMETRY: H<Shader> = H::new(Self::DEBUG_TEXT2D_GEOMETRY_ID);
     pub const DEBUG_TEXT3D_GEOMETRY: H<Shader> = H::new(Self::DEBUG_TEXT3D_GEOMETRY_ID);
     pub const DEBUG_LIGHT: H<Shader> = H::new(Self::DEBUG_LIGHT_ID);
+    pub const DEBUG_MESH_BOUNDS: H<Shader> = H::new(Self::DEBUG_MESH_BOUNDS_ID);
     pub const SKYBOX: H<Shader> = H::new(Self::SKYBOX_ID);
     pub const SKYBOX_PROCEDURAL: H<Shader> = H::new(Self::SKYBOX_PROCEDURAL_ID);
     pub const PARTICLE_SYSTEM: H<Shader> = H::new(Self::PARTICLE_SYSTEM_ID);
@@ -230,6 +232,7 @@ const SHADER_SKYBOX_PROCEDURAL: &str = include_str!("shaders/skybox_procedural.w
 const SHADER_PARTICLE_SYSTEM: &str = include_str!("shaders/particle_system_render.wgsl");
 
 const DEBUG_EDGES_SHADER: &str = include_str!("shaders/debug/edges.wgsl");
+const DEBUG_MESH_BOUNDS_SHADER: &str = include_str!("shaders/debug/edges.wgsl");
 const DEBUG_VERTEX_NORMAL_SHADER: &str = include_str!("shaders/debug/vertex_normals.wgsl");
 const DEBUG_LINES_SHADER: &str = include_str!("shaders/debug/lines.wgsl");
 const DEBUG_TEXT2D_GEOMETRY: &str = include_str!("shaders/debug/text2d_geometry.wgsl");
@@ -507,6 +510,19 @@ impl StoreDefaults for Shader {
 
         store_add_checked!(
             store,
+            HShader::DEBUG_MESH_BOUNDS_ID,
+            Shader::builder()
+                .shader_type(ShaderType::Custom)
+                .name("Mesh Debug Bounds Shader")
+                .code(ShaderCode::Full(DEBUG_MESH_BOUNDS_SHADER.to_string()))
+                .topology(PrimitiveTopology::LineList)
+                .immediate_size(WGPU_VEC4_ALIGN as u32)
+                .vertex_buffers(&DEFAULT_VBL[0..1])
+                .build()
+        );
+
+        store_add_checked!(
+            store,
             HShader::DEBUG_VERTEX_NORMALS_ID,
             Shader::builder()
                 .shader_type(ShaderType::Custom)
@@ -634,6 +650,7 @@ impl StoreType for Shader {
             HShader::DEBUG_TEXT2D_GEOMETRY_ID => "Debug Text 2D Geometry Shader",
             HShader::DEBUG_TEXT3D_GEOMETRY_ID => "Debug Text 3D Geometry Shader",
             HShader::DEBUG_LIGHT_ID => "Debug Lights Shader",
+            HShader::DEBUG_MESH_BOUNDS_ID => "Debug Mesh Bounds Shader",
 
             _ => return HandleName::Id(handle),
         };
