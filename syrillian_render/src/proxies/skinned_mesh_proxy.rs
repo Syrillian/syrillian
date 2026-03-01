@@ -43,6 +43,8 @@ pub struct RenderSkinnedMeshData {
     // TODO: Consider having a uniform like that, for every Transform by default in some way, or
     //       lazy-make / provide one by default.
     pub mesh_uniform: ShaderUniform<MeshUniformIndex>,
+    #[cfg(debug_assertions)]
+    pub bounds_uniform: Option<ShaderUniform<MeshUniformIndex>>,
     pub skinning_uniform: ShaderUniform<SkinnedMeshUniformIndex>,
     pub skinned_meshlets: Vec<RenderVertexBuffers>,
     pub skinning_uniforms: Vec<ShaderUniform<MeshSkinningComputeUniformIndex>>,
@@ -227,6 +229,17 @@ impl SceneProxy for SkinnedMeshSceneProxy {
             0,
             data.mesh_data.as_bytes(),
         );
+
+        #[cfg(debug_assertions)]
+        if let Some(bounds_uniform) = &data.bounds_uniform
+            && let Some(bounds_data) = self.bounds_model_uniform(local_to_world)
+        {
+            renderer.state.queue.write_buffer(
+                bounds_uniform.buffer(MeshUniformIndex::MeshData),
+                0,
+                bounds_data.as_bytes(),
+            );
+        }
     }
 
     fn update_render(
@@ -279,6 +292,11 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         #[cfg(debug_assertions)]
         if !ctx.transparency_pass && DebugRenderer::mesh_vertex_normals() {
             draw_vertex_normals(ctx, &renderer.cache, &mesh, data, &mut pass);
+        }
+
+        #[cfg(debug_assertions)]
+        if !ctx.transparency_pass && DebugRenderer::mesh_bounds() {
+            draw_bounds(ctx, &renderer.cache, data, &mut pass);
         }
     }
 
@@ -477,9 +495,18 @@ impl SkinnedMeshSceneProxy {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let mesh_uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
+        let mesh_uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
             .with_buffer(mesh_buffer.clone())
             .build(device);
+
+        #[cfg(debug_assertions)]
+        let bounds_uniform = self
+            .bounds_model_uniform(local_to_world)
+            .map(|bounds_data| {
+                ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
+                    .with_buffer_data(&bounds_data)
+                    .build(device)
+            });
 
         let skinning_uniform =
             ShaderUniform::<SkinnedMeshUniformIndex>::builder(skinning_model_bgl)
@@ -490,6 +517,8 @@ impl SkinnedMeshSceneProxy {
         let mut data = RenderSkinnedMeshData {
             mesh_data,
             mesh_uniform,
+            #[cfg(debug_assertions)]
+            bounds_uniform,
             skinning_uniform,
             skinned_meshlets: Vec::new(),
             skinning_uniforms: Vec::new(),
@@ -500,6 +529,20 @@ impl SkinnedMeshSceneProxy {
         self.bones_dirty = data.ensure_skinning_runtime(renderer, self.mesh);
 
         data
+    }
+
+    #[cfg(debug_assertions)]
+    fn bounds_model_uniform(&self, local_to_world: &Affine3A) -> Option<ModelUniform> {
+        let bounds = self
+            .bounding
+            .map(|b| b.transformed(&(*local_to_world).into()))?;
+        let radius = bounds.radius.abs().max(f32::EPSILON);
+        let transform = glamx::Mat4::from_scale_rotation_translation(
+            glamx::Vec3::splat(radius),
+            glamx::Quat::IDENTITY,
+            bounds.center,
+        );
+        Some(ModelUniform::from_matrix(&transform))
     }
 }
 
@@ -542,4 +585,37 @@ fn draw_vertex_normals(
     }
 
     mesh.draw_all_as_instances(0..2, pass, BindMeshBuffers::POSITION_NORMAL);
+}
+
+#[cfg(debug_assertions)]
+fn draw_bounds(
+    ctx: &GPUDrawCtx,
+    cache: &AssetCache,
+    runtime: &RenderSkinnedMeshData,
+    pass: &mut RenderPass,
+) {
+    use glamx::Vec4;
+    use syrillian_asset::{HMesh, HShader};
+
+    const COLOR: Vec4 = Vec4::new(0.2, 1.0, 1.0, 1.0);
+
+    let Some(bounds_uniform) = &runtime.bounds_uniform else {
+        return;
+    };
+    let Some(bounds_mesh) = cache.mesh(HMesh::BOUNDS_GIZMO) else {
+        return;
+    };
+
+    let shader = cache.shader(HShader::DEBUG_MESH_BOUNDS);
+    if !runtime.activate_shader(&shader, ctx, pass) {
+        return;
+    }
+
+    pass.set_immediates(0, COLOR.as_bytes());
+
+    if let Some(idx) = shader.bind_groups().model {
+        pass.set_bind_group(idx, bounds_uniform.bind_group(), &[]);
+    }
+
+    bounds_mesh.draw_all(pass, BindMeshBuffers::POSITION);
 }

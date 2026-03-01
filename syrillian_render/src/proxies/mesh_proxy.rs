@@ -37,6 +37,8 @@ pub struct RenderMeshData {
     // TODO: Consider having a uniform like that, for every Transform by default in some way, or
     //       lazy-make / provide one by default.
     pub uniform: ShaderUniform<MeshUniformIndex>,
+    #[cfg(debug_assertions)]
+    pub bounds_uniform: Option<ShaderUniform<MeshUniformIndex>>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +84,17 @@ impl SceneProxy for MeshSceneProxy {
             0,
             data.mesh_data.as_bytes(),
         );
+
+        #[cfg(debug_assertions)]
+        if let Some(bounds_uniform) = &data.bounds_uniform
+            && let Some(bounds_data) = self.bounds_model_uniform(local_to_world)
+        {
+            renderer.state.queue.write_buffer(
+                bounds_uniform.buffer(MeshUniformIndex::MeshData),
+                0,
+                bounds_data.as_bytes(),
+            );
+        }
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
@@ -102,6 +115,11 @@ impl SceneProxy for MeshSceneProxy {
         #[cfg(debug_assertions)]
         if !ctx.transparency_pass && DebugRenderer::mesh_vertex_normals() {
             draw_vertex_normals(ctx, &renderer.cache, &mesh, data, &mut pass);
+        }
+
+        #[cfg(debug_assertions)]
+        if !ctx.transparency_pass && DebugRenderer::mesh_bounds() {
+            draw_bounds(ctx, &renderer.cache, data, &mut pass);
         }
     }
 
@@ -286,11 +304,39 @@ impl MeshSceneProxy {
         let model_bgl = renderer.cache.bgl_model();
         let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
 
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
+        let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
             .with_buffer_data(&mesh_data)
             .build(device);
 
-        RenderMeshData { mesh_data, uniform }
+        #[cfg(debug_assertions)]
+        let bounds_uniform = self
+            .bounds_model_uniform(local_to_world)
+            .map(|bounds_data| {
+                ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
+                    .with_buffer_data(&bounds_data)
+                    .build(device)
+            });
+
+        RenderMeshData {
+            mesh_data,
+            uniform,
+            #[cfg(debug_assertions)]
+            bounds_uniform,
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn bounds_model_uniform(&self, local_to_world: &Affine3A) -> Option<ModelUniform> {
+        let bounds = self
+            .bounding
+            .map(|b| b.transformed(&(*local_to_world).into()))?;
+        let radius = bounds.radius.abs().max(f32::EPSILON);
+        let transform = glamx::Mat4::from_scale_rotation_translation(
+            glamx::Vec3::splat(radius),
+            glamx::Quat::IDENTITY,
+            bounds.center,
+        );
+        Some(ModelUniform::from_matrix(&transform))
     }
 }
 
@@ -329,4 +375,34 @@ fn draw_vertex_normals(
     runtime.activate_shader(&shader, ctx, pass);
 
     mesh.draw_all_as_instances(0..2, pass, BindMeshBuffers::POSITION_NORMAL);
+}
+
+#[cfg(debug_assertions)]
+fn draw_bounds(
+    ctx: &GPUDrawCtx,
+    cache: &AssetCache,
+    runtime: &RenderMeshData,
+    pass: &mut RenderPass,
+) {
+    use glamx::Vec4;
+    use syrillian_asset::{HMesh, HShader};
+
+    const COLOR: Vec4 = Vec4::new(0.2, 1.0, 1.0, 1.0);
+
+    let Some(bounds_uniform) = &runtime.bounds_uniform else {
+        return;
+    };
+    let Some(bounds_mesh) = cache.mesh(HMesh::BOUNDS_GIZMO) else {
+        return;
+    };
+
+    let shader = cache.shader(HShader::DEBUG_MESH_BOUNDS);
+    runtime.activate_shader(&shader, ctx, pass);
+    pass.set_immediates(0, COLOR.as_bytes());
+
+    if let Some(idx) = shader.bind_groups().model {
+        pass.set_bind_group(idx, bounds_uniform.bind_group(), &[]);
+    }
+
+    bounds_mesh.draw_all(pass, BindMeshBuffers::POSITION);
 }

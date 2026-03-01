@@ -25,6 +25,7 @@ use syrillian_utils::BoundingBox;
 
 const CUBE_OBJ: &[u8] = include_bytes!("preset_meshes/cube.obj");
 const DEBUG_ARROW: &[u8] = include_bytes!("preset_meshes/debug_arrow.obj");
+const BOUNDS_GIZMO: &[u8] = include_bytes!("preset_meshes/bounds_gizmo.obj");
 const SPHERE: &[u8] = include_bytes!("preset_meshes/small_sphere.obj");
 
 #[derive(Debug, Snafu)]
@@ -35,6 +36,8 @@ pub enum MeshError {
     UVMissing,
     #[snafu(display("The loaded mesh was not previously triangulated"))]
     NonTriangulated,
+    #[snafu(display("The loaded mesh did not contain any valid line segments"))]
+    LinesMissing,
     #[snafu(transparent)]
     Obj { source: ObjError },
 }

@@ -165,7 +165,12 @@ impl DebugSceneProxy {
             .with_buffer_data(&mesh_data)
             .build(device);
 
-        Some(RenderMeshData { mesh_data, uniform })
+        Some(RenderMeshData {
+            mesh_data,
+            uniform,
+            #[cfg(debug_assertions)]
+            bounds_uniform: None,
+        })
     }
 
     fn update_mesh_buffer(
