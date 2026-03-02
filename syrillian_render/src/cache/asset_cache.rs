@@ -267,7 +267,7 @@ impl AssetCache {
     pub fn refresh_dirty(&self) {
         for msg in self.assets_rx.try_iter() {
             match msg {
-                AssetRefreshMessage::Updated(key, msg) => match msg {
+                AssetRefreshMessage::Updated(key, msg) => match *msg {
                     UpdateAssetMessage::UpdateMesh(mesh) => {
                         self.meshes.refresh_item(key, mesh, self)
                     }

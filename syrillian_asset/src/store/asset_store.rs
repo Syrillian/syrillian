@@ -44,8 +44,14 @@ pub struct AssetStore {
 }
 
 pub enum AssetRefreshMessage {
-    Updated(AssetKey, UpdateAssetMessage),
+    Updated(AssetKey, Box<UpdateAssetMessage>),
     Deleted(AssetKey, AssetType),
+}
+
+impl AssetRefreshMessage {
+    pub fn updated(key: AssetKey, message: UpdateAssetMessage) -> Self {
+        Self::Updated(key, Box::new(message))
+    }
 }
 
 pub enum UpdateAssetMessage {

@@ -226,7 +226,7 @@ impl StoreType for ComputeShader {
 
     fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send(AssetRefreshMessage::Updated(
+            .send(AssetRefreshMessage::updated(
                 key,
                 UpdateAssetMessage::UpdateComputeShader(self.clone()),
             ))

@@ -47,7 +47,7 @@ impl StoreType for SkinnedMesh {
         }
 
         assets_tx
-            .send(AssetRefreshMessage::Updated(
+            .send(AssetRefreshMessage::updated(
                 key,
                 UpdateAssetMessage::UpdateSkinnedMesh(self.clone()),
             ))

@@ -80,6 +80,14 @@ pub struct RenderTargets {
     pub size: PhysicalSize<u32>,
 }
 
+pub type FreshWorldChannels = (
+    Box<World>,
+    Receiver<RenderMsg>,
+    Receiver<GameAppEvent>,
+    Receiver<AssetRefreshMessage>,
+    Sender<PickResult>,
+);
+
 #[derive(Clone)]
 pub struct WorldChannels {
     pub render_tx: Sender<RenderMsg>,
@@ -260,13 +268,7 @@ impl World {
 
     /// View [`World::new`]. This function will just set up data structures around the world
     /// needed for initialization. Mostly useful for tests.
-    pub fn fresh() -> (
-        Box<World>,
-        Receiver<RenderMsg>,
-        Receiver<GameAppEvent>,
-        Receiver<AssetRefreshMessage>,
-        Sender<PickResult>,
-    ) {
+    pub fn fresh() -> FreshWorldChannels {
         let (tx1, rx1) = unbounded();
         let (tx2, rx2) = unbounded();
         let (pick_tx, pick_rx) = unbounded();
@@ -900,7 +902,7 @@ impl World {
             for comp in obj.components.iter() {
                 command_batch.push(RenderMsg::UpdateTransform(
                     comp.typed_id(),
-                    render_affine.unwrap_or_else(|| world_affine),
+                    render_affine.unwrap_or(world_affine),
                     render_affine.map(|_| world_affine),
                 ));
             }
@@ -962,7 +964,7 @@ impl World {
                         cid,
                         comp.parent().object_hash(),
                         proxy,
-                        render_affine.unwrap_or_else(|| world_affine),
+                        render_affine.unwrap_or(world_affine),
                         render_affine.map(|_| world_affine),
                     ))
                     .unwrap();

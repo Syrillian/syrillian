@@ -20,7 +20,7 @@ impl StoreType for RenderCubemap {
 
     fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send(AssetRefreshMessage::Updated(
+            .send(AssetRefreshMessage::updated(
                 key,
                 UpdateAssetMessage::UpdateRenderCubemap(self.clone()),
             ))

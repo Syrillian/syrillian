@@ -223,7 +223,7 @@ impl StoreType for Mesh {
         }
 
         assets_tx
-            .send(AssetRefreshMessage::Updated(
+            .send(AssetRefreshMessage::updated(
                 key,
                 UpdateAssetMessage::UpdateMesh(self.clone()),
             ))

@@ -102,7 +102,7 @@ impl CacheType for MaterialInstance {
         for tex in &textures {
             entries.push(BindGroupEntry {
                 binding,
-                resource: BindingResource::TextureView(&tex.view()),
+                resource: BindingResource::TextureView(tex.view()),
             });
             binding += 1;
             entries.push(BindGroupEntry {

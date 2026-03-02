@@ -660,7 +660,7 @@ impl StoreType for Shader {
 
     fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send(AssetRefreshMessage::Updated(
+            .send(AssetRefreshMessage::updated(
                 key,
                 UpdateAssetMessage::UpdateShader(self.clone()),
             ))
@@ -918,10 +918,7 @@ impl Shader {
         }
 
         if self.stage() == ShaderType::PostProcessing {
-            return match bgl.id() {
-                HBGL::RENDER_ID | HBGL::POST_PROCESS_ID => true,
-                _ => false,
-            };
+            return matches!(bgl.id(), HBGL::RENDER_ID | HBGL::POST_PROCESS_ID);
         }
 
         let use_name = match bgl.id() {

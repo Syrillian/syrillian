@@ -202,7 +202,7 @@ impl GltfLoader {
                 MeshLoadResult::Skinned(mesh) => {
                     skinned_meshes_out.push(PackagedSkinnedMeshAsset {
                         virtual_path,
-                        asset: mesh,
+                        asset: *mesh,
                     })
                 }
             }

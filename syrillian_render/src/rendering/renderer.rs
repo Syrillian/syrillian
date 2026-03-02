@@ -509,7 +509,7 @@ impl Renderer {
             return;
         };
 
-        let pass = self.prepare_shadow_pass(encoder, &layer_view);
+        let pass = self.prepare_shadow_pass(encoder, layer_view);
 
         self.render_scene(
             ctx,
