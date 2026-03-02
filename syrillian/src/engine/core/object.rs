@@ -13,6 +13,7 @@ use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::ptr::null_mut;
 use syrillian_macros::Reflect;
+use syrillian_render::rendering::message::RenderMsg;
 use syrillian_utils::{TypedComponentId, debug_panic};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -302,6 +303,9 @@ pub struct GameObject {
     /// Whether the object components will be called or the object is inactive
     #[reflect]
     pub(crate) enabled: Cell<bool>,
+    /// Whether the object itself is explicitly disabled or not
+    #[reflect]
+    pub(crate) self_disabled: Cell<bool>,
     /// Game objects that are direct children of this object.
     #[reflect]
     pub(crate) children: Vec<GameObjectId>,
@@ -327,11 +331,67 @@ pub struct GameObject {
 
 impl GameObject {
     pub fn enable(&self) {
-        self.enabled.set(true);
+        if self.enabled.get() {
+            return;
+        }
+
+        let world = self.world();
+        let mut enable_batch = Vec::new();
+
+        self.self_disabled.set(false);
+
+        self._enable(&mut enable_batch);
+
+        _ = world
+            .channels
+            .render_tx
+            .send(RenderMsg::CommandBatch(enable_batch));
+    }
+
+    fn _enable(&self, msg_batch: &mut Vec<RenderMsg>) {
+        if !self.self_disabled.get() {
+            self.enabled.set(true);
+
+            self.components.iter().for_each(|c| {
+                msg_batch.push(RenderMsg::ProxyState(c.ctx.tid, true));
+                c.ctx.enabled.set(true)
+            });
+        }
+
+        for &child in &self.children {
+            child._enable(msg_batch);
+        }
     }
 
     pub fn disable(&self) {
+        if !self.enabled.get() {
+            return;
+        }
+
+        let world = self.world();
+        let mut disable_batch = Vec::new();
+
+        self.self_disabled.set(true);
+
+        self._disable(&mut disable_batch);
+
+        _ = world
+            .channels
+            .render_tx
+            .send(RenderMsg::CommandBatch(disable_batch));
+    }
+
+    fn _disable(&self, msg_batch: &mut Vec<RenderMsg>) {
         self.enabled.set(false);
+
+        self.components.iter().for_each(|c| {
+            msg_batch.push(RenderMsg::ProxyState(c.ctx.tid, false));
+            c.ctx.enabled.set(false)
+        });
+
+        for &child in &self.children {
+            child._disable(msg_batch);
+        }
     }
 
     pub fn is_enabled(&self) -> bool {
