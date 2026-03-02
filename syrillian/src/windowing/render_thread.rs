@@ -58,6 +58,7 @@ impl RenderThreadInner {
                     if !self.handle_render_msg(msg) {
                         break;
                     }
+                    self.renderer.cache.refresh_dirty();
                 }
                 recv(control_rx) -> msg => {
                     let Ok(msg) = msg else { break; };
@@ -117,7 +118,6 @@ impl RenderThreadInner {
                 profiling::finish_frame!();
             }
             msg => {
-                self.renderer.cache.refresh_dirty();
                 self.renderer.handle_message(msg);
             }
         }
