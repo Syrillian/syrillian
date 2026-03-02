@@ -210,7 +210,7 @@ fn assert_all_deleted(ids: &[GameObjectId]) {
 
 #[test]
 fn new_object_add_find_delete() {
-    let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
     let id = world.new_object("TestObject");
     world.add_child(id);
     assert!(world.find_object_by_name("TestObject").is_some());
@@ -223,7 +223,7 @@ fn new_object_add_find_delete() {
 
 #[test]
 fn delta_time_advances() {
-    let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
     std::thread::sleep(Duration::from_millis(1));
     world.update();
     world.next_frame();
@@ -232,7 +232,7 @@ fn delta_time_advances() {
 
 #[test]
 fn strong_refs_keep_objects_alive_until_drop() {
-    let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
     let id = world.new_object("KeepAlive");
     let handle = world.get_object_ref(id).expect("object should exist");
 
@@ -253,7 +253,7 @@ fn strong_refs_keep_objects_alive_until_drop() {
 
 #[test]
 fn weak_refs_upgrade_only_when_alive() {
-    let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
     let id = world.new_object("WeakSubject");
     let weak = id.downgrade();
 
@@ -267,7 +267,7 @@ fn weak_refs_upgrade_only_when_alive() {
 
 #[test]
 fn shutdown_cleans_world_state() {
-    let (mut world, _rx1, _rx2, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
     let id = world.new_object("ToDelete");
     world.add_child(id);
     world.shutdown();
@@ -301,7 +301,7 @@ fn click_registration_toggles() {
 
 #[test]
 fn lifecycle_parent_deletion_across_loops() {
-    let (mut world, _render_rx, _event_rx, _pick_tx) = World::fresh();
+    let (mut world, _render_rx, _event_rx, _assets_rx, _pick_tx) = World::fresh();
     let mut objects = Vec::with_capacity(100);
 
     for index in 0..100 {
@@ -404,7 +404,7 @@ fn lifecycle_parent_deletion_across_loops() {
 
 #[test]
 fn repro_delete_during_component_iteration() {
-    let (mut world, _render_rx, _event_rx, _pick_tx) = World::fresh();
+    let (mut world, _render_rx, _event_rx, _assets_rx, _pick_tx) = World::fresh();
     reset_touch_parent_updates();
 
     let mut victim = world.new_object("Victim");

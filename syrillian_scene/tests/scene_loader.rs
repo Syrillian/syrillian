@@ -57,7 +57,7 @@ fn load_scene_from_buffer_spawns_world_objects() {
     ))
     .expect("failed to read test model");
 
-    let (mut world, _render_rx, _event_rx, _pick_tx) = World::fresh();
+    let (mut world, _render_rx, _event_rx, _assets_rx, _pick_tx) = World::fresh();
 
     let root =
         GltfLoader::load_buffer(world.as_mut(), &bytes).expect("scene should load into the world");

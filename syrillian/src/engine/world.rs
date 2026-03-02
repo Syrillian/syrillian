@@ -744,14 +744,28 @@ impl World {
     {
         self.begin_component_phase();
 
+        let scheduled = self
+            .objects
+            .values()
+            .filter(|obj| obj.is_alive())
+            .flat_map(|obj| obj.components.iter().map(|component| component.typed_id()))
+            .collect::<Vec<_>>();
+
         let world = self as *mut World;
-        for (ctx, component) in self.components.iter_soft_refs_mut() {
-            if !ctx.is_enabled() || self.pending_component_removals.contains(&ctx.tid) {
+        for tid in scheduled {
+            if self.pending_component_removals.contains(&tid) {
+                continue;
+            }
+
+            let Some(component) = self.components.get_dyn(tid) else {
+                continue;
+            };
+            if !component.ctx.is_enabled() {
                 continue;
             }
 
             unsafe {
-                func(component, &mut *world);
+                func(component.get_mut(), &mut *world);
             }
         }
 
