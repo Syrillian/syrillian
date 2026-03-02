@@ -321,7 +321,7 @@ impl MeshSceneProxy {
     ) -> RenderMeshData {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
-        let visible_mesh_data = ModelUniform::from_affine(&(render_affine.into()));
+        let visible_mesh_data = ModelUniform::from_affine(&render_affine);
 
         let visible_uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
             .with_buffer_data(&visible_mesh_data)
@@ -333,7 +333,7 @@ impl MeshSceneProxy {
         let mut real_uniform = None;
         #[cfg(debug_assertions)]
         if let Some(real_affine) = real_affine {
-            let mesh_data = ModelUniform::from_affine(&(real_affine.into()));
+            let mesh_data = ModelUniform::from_affine(&real_affine);
             real_uniform = Some(
                 ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
                     .with_buffer_data(&mesh_data)
@@ -394,7 +394,7 @@ impl MeshSceneProxy {
         world_affine: Option<&Affine3A>,
     ) {
         if let Some(world_affine) = world_affine {
-            let mesh_data = ModelUniform::from_affine(&(*world_affine).into());
+            let mesh_data = ModelUniform::from_affine(world_affine);
             if let Some(real_uniform) = data.real_uniform.as_mut() {
                 real_uniform.write_buffer(
                     MeshUniformIndex::MeshData,

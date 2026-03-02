@@ -156,7 +156,7 @@ impl StoreType for Cubemap {
 
     fn refresh_dirty(&self, key: AssetKey, assets_tx: &Sender<AssetRefreshMessage>) -> bool {
         assets_tx
-            .send(AssetRefreshMessage::Updated(
+            .send(AssetRefreshMessage::updated(
                 key,
                 UpdateAssetMessage::UpdateCubemap(self.clone()),
             ))
@@ -216,11 +216,7 @@ impl StreamableAsset for Cubemap {
         let mut blobs = Vec::new();
 
         if let Some(data) = self.data.as_deref() {
-            PackedBlob::maybe_pack_data_into(
-                StreamingAssetBlobKind::TextureData,
-                &data,
-                &mut blobs,
-            );
+            PackedBlob::maybe_pack_data_into(StreamingAssetBlobKind::TextureData, data, &mut blobs);
         }
 
         BuiltPayload {

@@ -23,7 +23,7 @@ pub enum PrimitiveOutcome {
 }
 
 pub enum MeshLoadResult {
-    Skinned(SkinnedMesh),
+    Skinned(Box<SkinnedMesh>),
     Unskinned(Mesh),
 }
 
@@ -423,7 +423,7 @@ impl GltfScene {
             }
             Some(bones) => {
                 let res = buffers.build_skinned_mesh(bones);
-                Some((MeshLoadResult::Skinned(res.0), res.1))
+                Some((MeshLoadResult::Skinned(Box::new(res.0)), res.1))
             }
         }
     }

@@ -486,7 +486,7 @@ impl SkinnedMeshSceneProxy {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
         let skinning_model_bgl = renderer.cache.bgl_model_skinning();
-        let mesh_data = ModelUniform::from_affine(&(*render_affine).into());
+        let mesh_data = ModelUniform::from_affine(render_affine);
 
         let mesh_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Skinned Mesh Buffer"),

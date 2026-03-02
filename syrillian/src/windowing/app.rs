@@ -314,11 +314,9 @@ impl<S: AppState> App<S> {
 impl<S: AppState> ApplicationHandler for App<S> {
     #[instrument(skip_all)]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-        if !matches!(cause, StartCause::Init) {
-            if !self.handle_all_game_events(event_loop) {
-                event_loop.exit();
-                return;
-            }
+        if !matches!(cause, StartCause::Init) && !self.handle_all_game_events(event_loop) {
+            event_loop.exit();
+            return;
         }
 
         match cause {

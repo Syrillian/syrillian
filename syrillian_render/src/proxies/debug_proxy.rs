@@ -160,7 +160,7 @@ impl DebugSceneProxy {
         }
 
         let bgl = cache.bgl_model();
-        let mesh_data = ModelUniform::from_affine(&model_mat);
+        let mesh_data = ModelUniform::from_affine(model_mat);
         let uniform = ShaderUniform::builder(bgl)
             .with_buffer_data(&mesh_data)
             .build(device);
@@ -192,7 +192,7 @@ impl DebugSceneProxy {
         let model_uniform = match data.model_uniform.take() {
             None => self.new_mesh_buffer(cache, device, model_mat),
             Some(mut model_uniform) => {
-                model_uniform.visible_mesh_data.update(&model_mat);
+                model_uniform.visible_mesh_data.update(model_mat);
                 let mesh_buffer = model_uniform
                     .visible_uniform
                     .buffer(MeshUniformIndex::MeshData);

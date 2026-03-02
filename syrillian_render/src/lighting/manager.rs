@@ -152,7 +152,7 @@ impl LightManager {
         cmd(proxy);
     }
 
-    pub fn shadow_array<'a>(&self) -> &GpuTexture {
+    pub fn shadow_array(&self) -> &GpuTexture {
         &self.shadow_texture
     }
 
