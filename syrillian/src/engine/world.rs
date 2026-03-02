@@ -921,10 +921,14 @@ impl World {
             if !obj.is_alive() || !obj.transform.is_dirty() {
                 continue;
             }
+
+            let world_affine = obj.transform.affine();
+            let render_affine = obj.transform.render_affine();
             for comp in obj.components.iter() {
                 command_batch.push(RenderMsg::UpdateTransform(
                     comp.typed_id(),
-                    obj.transform.affine(),
+                    render_affine.unwrap_or_else(|| world_affine),
+                    render_affine.map(|_| world_affine),
                 ));
             }
         }
@@ -976,7 +980,8 @@ impl World {
                 continue;
             };
 
-            let local_to_world = comp.parent().transform.affine();
+            let world_affine = comp.parent().transform.affine();
+            let render_affine = comp.parent().transform.render_affine();
             if let Some(proxy) = comp.create_render_proxy(self) {
                 self.channels
                     .render_tx
@@ -984,7 +989,8 @@ impl World {
                         cid,
                         comp.parent().object_hash(),
                         proxy,
-                        local_to_world,
+                        render_affine.unwrap_or_else(|| world_affine),
+                        render_affine.map(|_| world_affine),
                     ))
                     .unwrap();
             }

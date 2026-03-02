@@ -751,14 +751,16 @@ impl Renderer {
     #[instrument(skip_all)]
     pub fn handle_message(&mut self, msg: RenderMsg) {
         match msg {
-            RenderMsg::RegisterProxy(cid, object_hash, proxy, local_to_world) => {
-                self.register_proxy(cid, object_hash, proxy, &local_to_world)
+            RenderMsg::RegisterProxy(cid, object_hash, proxy, world_affine, render_affine) => {
+                self.register_proxy(cid, object_hash, proxy, world_affine, render_affine)
             }
             RenderMsg::RegisterLightProxy(cid, proxy) => {
                 self.lights.add_proxy(cid, *proxy);
             }
             RenderMsg::RemoveProxy(cid) => self.remove_proxy(&cid),
-            RenderMsg::UpdateTransform(cid, ltw) => self.update_proxy_transform(&cid, ltw),
+            RenderMsg::UpdateTransform(cid, ltw, render_affine) => {
+                self.update_proxy_transform(&cid, ltw, render_affine)
+            }
             RenderMsg::ProxyUpdate(cid, command) => self.update_proxy(&cid, command),
             RenderMsg::LightProxyUpdate(cid, command) => {
                 self.lights.execute_light_command(cid, command)
@@ -771,6 +773,10 @@ impl Renderer {
             }
             RenderMsg::ProxyState(cid, enabled) => {
                 if let Some(binding) = self.proxies.get_mut(&cid) {
+                    trace!(
+                        "Changing proxy state of {:?}: {enabled}",
+                        cid.component_id()
+                    );
                     binding.enabled = enabled;
                 }
             }
@@ -836,9 +842,14 @@ impl Renderer {
         }
     }
 
-    fn update_proxy_transform(&mut self, cid: &TypedComponentId, ltw: Affine3A) {
+    fn update_proxy_transform(
+        &mut self,
+        cid: &TypedComponentId,
+        ltw: Affine3A,
+        render_affine: Option<Affine3A>,
+    ) {
         if let Some(cid) = self.proxies.get_mut(cid) {
-            cid.update_transform(ltw);
+            cid.update_transform(ltw, render_affine);
         }
     }
 
@@ -852,11 +863,13 @@ impl Renderer {
         cid: TypedComponentId,
         object_hash: ObjectHash,
         mut proxy: Box<dyn SceneProxy>,
-        local_to_world: &Affine3A,
+        local_to_world: Affine3A,
+        render_affine: Option<Affine3A>,
     ) {
         trace!("Registered Proxy for #{:?}", cid.type_id());
-        let data = proxy.setup_render(self, local_to_world);
-        let binding = SceneProxyBinding::new(cid, object_hash, *local_to_world, data, proxy);
+        let data = proxy.setup_render(self, local_to_world, render_affine);
+        let binding =
+            SceneProxyBinding::new(cid, object_hash, local_to_world, render_affine, data, proxy);
         self.proxies.insert(cid, binding);
     }
 
@@ -1032,7 +1045,12 @@ mod tests {
     }
 
     impl SceneProxy for TestProxy {
-        fn setup_render(&mut self, _: &Renderer, _: &Affine3A) -> Box<dyn Any + Send> {
+        fn setup_render(
+            &mut self,
+            _: &Renderer,
+            _: Affine3A,
+            _: Option<Affine3A>,
+        ) -> Box<dyn Any + Send> {
             Box::new(())
         }
 
@@ -1040,7 +1058,8 @@ mod tests {
             &mut self,
             _renderer: &Renderer,
             _data: &mut (dyn Any + Send),
-            _local_to_world: &Affine3A,
+            _world_affine: Affine3A,
+            _render_affine: Option<Affine3A>,
         ) {
         }
 
@@ -1092,6 +1111,7 @@ mod tests {
             tid,
             1,
             Affine3A::IDENTITY,
+            None,
             Box::new(()),
             Box::new(TestProxy { priority }),
         );

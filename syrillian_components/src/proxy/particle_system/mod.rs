@@ -175,7 +175,8 @@ impl SceneProxy for ParticleSystemProxy {
     fn setup_render(
         &mut self,
         renderer: &Renderer,
-        _local_to_world: &Affine3A,
+        _render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) -> Box<dyn Any + Send> {
         let settings = ParticleSystemUniform::new(&self.settings, self.particle_count);
         let runtime = ParticleRuntimeUniform::const_default();
@@ -250,16 +251,12 @@ impl SceneProxy for ParticleSystemProxy {
         &mut self,
         _renderer: &Renderer,
         _data: &mut (dyn Any + Send),
-        _local_to_world: &Affine3A,
+        _render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) {
     }
 
-    fn update_render(
-        &mut self,
-        renderer: &Renderer,
-        data: &mut (dyn Any + Send),
-        _local_to_world: &Affine3A,
-    ) {
+    fn update_render(&mut self, renderer: &Renderer, data: &mut (dyn Any + Send)) {
         let data: &mut ParticleSystemGpuData = proxy_data_mut!(data);
         let settings = ParticleSystemUniform::new(&self.settings, self.particle_count);
         data.render_uniform.write_buffer(

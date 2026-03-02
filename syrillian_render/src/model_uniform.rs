@@ -1,4 +1,4 @@
-use glamx::{Mat3A, Mat4, Vec3};
+use glamx::{Affine3A, Mat3A, Mat4, Vec3};
 use std::fmt::Debug;
 use syrillian_asset::ensure_aligned;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -15,7 +15,7 @@ ensure_aligned!(ModelUniform { transform, normal, object_hash }, align <= 16 * 8
 
 impl ModelUniform {
     pub fn empty() -> Self {
-        Self::from_matrix(&Mat4::IDENTITY)
+        Self::from_affine(&Affine3A::IDENTITY)
     }
 
     #[inline]
@@ -24,20 +24,25 @@ impl ModelUniform {
     }
 
     pub fn new_at_vec(pos: Vec3) -> Self {
-        Self::from_matrix(&Mat4::from_translation(pos))
+        Self::from_affine(&Affine3A::from_translation(pos))
+    }
+
+    pub fn from_affine(render_affine: &Affine3A) -> Self {
+        Self::from_matrix(&(*render_affine).into())
     }
 
     pub fn from_matrix(full_trs: &Mat4) -> Self {
         ModelUniform {
-            transform: *full_trs,
             normal: normal_matrix(full_trs),
+            transform: *full_trs,
             object_hash: [0.0; 4],
         }
     }
 
-    pub fn update(&mut self, full_trs: &Mat4) {
-        self.transform = *full_trs;
-        self.normal = normal_matrix(full_trs);
+    pub fn update(&mut self, full_trs: &Affine3A) {
+        let full_trs = (*full_trs).into();
+        self.normal = normal_matrix(&full_trs);
+        self.transform = full_trs;
     }
 }
 

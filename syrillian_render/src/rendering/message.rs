@@ -24,10 +24,16 @@ pub type LightProxyCommand = Box<dyn FnOnce(&mut LightProxy) + Send>;
 pub type CameraUpdateCommand = Box<dyn FnOnce(&mut CameraUniform) + Send>;
 
 pub enum RenderMsg {
-    RegisterProxy(TypedComponentId, ObjectHash, Box<dyn SceneProxy>, Affine3A),
+    RegisterProxy(
+        TypedComponentId,
+        ObjectHash,
+        Box<dyn SceneProxy>,
+        Affine3A,
+        Option<Affine3A>,
+    ),
     RegisterLightProxy(TypedComponentId, Box<LightProxy>),
     RemoveProxy(TypedComponentId),
-    UpdateTransform(TypedComponentId, Affine3A),
+    UpdateTransform(TypedComponentId, Affine3A, Option<Affine3A>),
     ProxyUpdate(TypedComponentId, ProxyUpdateCommand),
     LightProxyUpdate(TypedComponentId, LightProxyCommand),
     UpdateActiveCamera(ViewportId, CameraUpdateCommand),

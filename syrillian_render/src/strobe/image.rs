@@ -88,7 +88,7 @@ impl UiImage {
         let cached_image = ctx.ui_image_data(&model_matrix).clone();
         let model_uniform = crate::model_uniform::ModelUniform::from_matrix(&model_matrix);
 
-        cached_image.uniform.write_buffer(
+        cached_image.visible_uniform.write_buffer(
             MeshUniformIndex::MeshData,
             &model_uniform,
             &ctx.state().queue,
@@ -98,7 +98,7 @@ impl UiImage {
 
         shader.activate_ui(&mut pass, ctx);
         if let Some(idx) = shader.bind_groups().model {
-            pass.set_bind_group(idx, cached_image.uniform.bind_group(), &[]);
+            pass.set_bind_group(idx, cached_image.visible_uniform.bind_group(), &[]);
         }
 
         match ctx.pass_type() {

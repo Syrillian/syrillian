@@ -50,11 +50,17 @@ impl Component for MeshRenderer {
             return None;
         };
 
+        let model_bounding = mesh.bounding_sphere.map(|bounds| {
+            let full_trs = self.parent().transform.active_render_affine();
+            bounds.transformed(&(full_trs.into()))
+        });
+
         Some(Box::new(MeshSceneProxy {
             mesh: self.mesh,
             materials: self.materials.clone(),
             material_ranges: mesh.material_ranges.clone(),
             bounding: mesh.bounding_sphere,
+            model_bounding,
         }))
     }
 

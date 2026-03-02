@@ -54,6 +54,11 @@ impl Component for SkinnedMeshRenderer {
             return None;
         };
 
+        let model_bounding = mesh.bounding_sphere.map(|bounds| {
+            let full_trs = self.parent().transform.active_render_affine();
+            bounds.transformed(&(full_trs.into()))
+        });
+
         Some(Box::new(SkinnedMeshSceneProxy {
             mesh: self.mesh,
             materials: self.materials.clone(),
@@ -61,6 +66,7 @@ impl Component for SkinnedMeshRenderer {
             bone_data: BoneData::new_full_identity(),
             bones_dirty: false,
             bounding: mesh.bounding_sphere,
+            model_bounding,
         }))
     }
 

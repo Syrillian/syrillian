@@ -20,6 +20,7 @@ pub struct Transform {
     rot: Quat,
     scale: Vec3,
     compound_mat: Affine3A,
+    render_affine: Option<Affine3A>,
     invert_position: bool,
 
     #[dont_reflect]
@@ -40,6 +41,7 @@ impl Transform {
             rot: Quat::IDENTITY,
             scale: Vec3::ONE,
             compound_mat: Affine3A::IDENTITY,
+            render_affine: None,
             invert_position: false,
 
             is_dirty: true,
@@ -54,6 +56,7 @@ impl Transform {
             rot: self.rot,
             scale: self.scale,
             compound_mat: self.compound_mat,
+            render_affine: self.render_affine,
             invert_position: self.invert_position,
 
             is_dirty: self.is_dirty,
@@ -101,12 +104,16 @@ impl Transform {
 
     /// Global rigid transform (rotation+translation only), ignoring scale.
     pub fn rigid_global_isometry(&self) -> Pose {
-        let (_, r, t) = self.affine().to_scale_rotation_translation();
+        let mut affine = self.affine();
+        if let Some(render_affine) = self.render_affine() {
+            affine.translation = render_affine.translation;
+        };
+        let (_, r, t) = affine.to_scale_rotation_translation();
         Pose::from_parts(t, r)
     }
 
     /// View matrix for cameras/lights: inverse of the rigid global isometry.
-    pub fn view_matrix_rigid(&self) -> Pose {
+    pub fn rigid_view_matrix(&self) -> Pose {
         self.rigid_global_isometry().inverse()
     }
 
@@ -303,6 +310,25 @@ impl Transform {
         self.compound_mat = Affine3A::from_scale_rotation_translation(self.scale, self.rot, pos);
 
         self.set_dirty();
+    }
+
+    pub fn set_render_affine(&mut self, affine: Option<Affine3A>) {
+        self.render_affine = affine;
+        self.set_dirty();
+
+        for mut child in self.owner().children().iter().copied() {
+            let affine = affine.map(|affine| affine * child.transform.compound_mat);
+
+            child.transform.set_render_affine(affine);
+        }
+    }
+
+    pub fn render_affine(&self) -> Option<Affine3A> {
+        self.render_affine
+    }
+
+    pub fn active_render_affine(&self) -> Affine3A {
+        self.render_affine.unwrap_or_else(|| self.affine())
     }
 
     pub fn local_translation(&self) -> Vec3 {

@@ -88,21 +88,17 @@ pub trait SceneProxy: Send + Any + Debug {
     fn setup_render(
         &mut self,
         renderer: &Renderer,
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        world_affine: Option<Affine3A>,
     ) -> Box<dyn Any + Send>;
     fn refresh_transform(
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        world_affine: Option<Affine3A>,
     );
-    fn update_render(
-        &mut self,
-        _renderer: &Renderer,
-        _data: &mut (dyn Any + Send),
-        _local_to_world: &Affine3A,
-    ) {
-    }
+    fn update_render(&mut self, _renderer: &Renderer, _data: &mut (dyn Any + Send)) {}
     fn render(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding);
 
     fn render_shadows(
@@ -123,7 +119,7 @@ pub trait SceneProxy: Send + Any + Debug {
 
     fn priority(&self, cache: Option<&AssetCache>) -> u32;
 
-    fn bounds(&self, _local_to_world: &Affine3A) -> Option<BoundingSphere> {
+    fn bounds(&self) -> Option<BoundingSphere> {
         None
     }
 }
@@ -131,7 +127,8 @@ pub trait SceneProxy: Send + Any + Debug {
 pub struct SceneProxyBinding {
     pub component_id: TypedComponentId,
     pub object_hash: ObjectHash,
-    pub local_to_world: Affine3A,
+    pub world_affine: Affine3A,
+    pub render_affine: Option<Affine3A>,
     transform_dirty: bool,
     proxy_data: Box<dyn Any + Send>,
     pub proxy: Box<dyn SceneProxy>,
@@ -142,14 +139,16 @@ impl SceneProxyBinding {
     pub fn new(
         component_id: TypedComponentId,
         object_hash: ObjectHash,
-        local_to_world: Affine3A,
+        world_affine: Affine3A,
+        render_affine: Option<Affine3A>,
         proxy_data: Box<dyn Any + Send>,
         proxy: Box<dyn SceneProxy>,
     ) -> Self {
         Self {
             component_id,
             object_hash,
-            local_to_world,
+            world_affine,
+            render_affine,
             transform_dirty: false,
             proxy_data,
             proxy,
@@ -161,26 +160,34 @@ impl SceneProxyBinding {
         self.proxy_data.as_ref()
     }
 
-    pub fn update_transform(&mut self, local_to_world: Affine3A) {
-        self.local_to_world = local_to_world;
+    pub fn active_render_affine(&self) -> Affine3A {
+        self.render_affine.unwrap_or(self.world_affine)
+    }
+
+    pub fn update_transform(&mut self, world_affine: Affine3A, render_affine: Option<Affine3A>) {
+        self.world_affine = world_affine;
+        self.render_affine = render_affine;
         self.transform_dirty = true;
     }
 
     pub fn ensure_fresh_transform(&mut self, renderer: &Renderer) {
         if self.transform_dirty {
-            self.proxy
-                .refresh_transform(renderer, self.proxy_data.as_mut(), &self.local_to_world);
+            self.proxy.refresh_transform(
+                renderer,
+                self.proxy_data.as_mut(),
+                self.world_affine,
+                self.render_affine,
+            );
             self.transform_dirty = false;
         }
     }
 
     pub fn update(&mut self, renderer: &Renderer) {
-        self.proxy
-            .update_render(renderer, self.proxy_data.as_mut(), &self.local_to_world);
+        self.proxy.update_render(renderer, self.proxy_data.as_mut());
     }
 
     pub fn bounds(&self) -> Option<BoundingSphere> {
-        self.proxy.bounds(&self.local_to_world)
+        self.proxy.bounds()
     }
 
     pub fn render(&self, renderer: &Renderer, ctx: &GPUDrawCtx) {

@@ -113,12 +113,7 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
                 .with_buffer_data(&mesh_data)
                 .build(&self.state.device);
 
-            RenderMeshData {
-                mesh_data,
-                uniform,
-                #[cfg(debug_assertions)]
-                bounds_uniform: None,
-            }
+            RenderMeshData::new(mesh_data, uniform)
         })
     }
 }
