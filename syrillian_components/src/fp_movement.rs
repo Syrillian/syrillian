@@ -50,7 +50,7 @@ impl Component for FirstPersonMovementController {
         if let Some(rigid) = &mut rigid
             && let Some(rigid) = rigid.body_mut()
         {
-            rigid.set_locked_axes(LockedAxes::ROTATION_LOCKED, false);
+            rigid.lock_rotations(true, true);
             rigid.enable_ccd(true);
         }
         self.rigid_body = rigid.map(CRef::downgrade).unwrap_or_default();
