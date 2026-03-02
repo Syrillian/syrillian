@@ -33,10 +33,16 @@ pub enum MeshUniformIndex {
 
 #[derive(Debug, Clone)]
 pub struct RenderMeshData {
-    pub mesh_data: ModelUniform,
+    pub visible_mesh_data: ModelUniform,
     // TODO: Consider having a uniform like that, for every Transform by default in some way, or
     //       lazy-make / provide one by default.
-    pub uniform: ShaderUniform<MeshUniformIndex>,
+    pub visible_uniform: ShaderUniform<MeshUniformIndex>,
+
+    #[cfg(debug_assertions)]
+    pub real_mesh_data: Option<ModelUniform>,
+    #[cfg(debug_assertions)]
+    pub real_uniform: Option<ShaderUniform<MeshUniformIndex>>,
+
     #[cfg(debug_assertions)]
     pub bounds_uniform: Option<ShaderUniform<MeshUniformIndex>>,
 }
@@ -47,14 +53,30 @@ pub struct MeshSceneProxy {
     pub materials: Vec<HMaterialInstance>,
     pub material_ranges: Vec<Range<u32>>,
     pub bounding: Option<BoundingSphere>,
+    pub model_bounding: Option<BoundingSphere>,
 }
 
 impl RenderMeshData {
+    pub fn new(
+        visible_mesh_data: ModelUniform,
+        visible_uniform: ShaderUniform<MeshUniformIndex>,
+    ) -> Self {
+        Self {
+            visible_mesh_data,
+            visible_uniform,
+            #[cfg(debug_assertions)]
+            real_mesh_data: None,
+            #[cfg(debug_assertions)]
+            real_uniform: None,
+            #[cfg(debug_assertions)]
+            bounds_uniform: None,
+        }
+    }
     pub fn activate_shader(&self, shader: &RuntimeShader, ctx: &GPUDrawCtx, pass: &mut RenderPass) {
         shader.activate(pass, ctx);
 
         if let Some(idx) = shader.bind_groups().model {
-            pass.set_bind_group(idx, self.uniform.bind_group(), &[]);
+            pass.set_bind_group(idx, self.visible_uniform.bind_group(), &[]);
         }
     }
 }
@@ -63,38 +85,35 @@ impl SceneProxy for MeshSceneProxy {
     fn setup_render(
         &mut self,
         renderer: &Renderer,
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        world_affine: Option<Affine3A>,
     ) -> Box<dyn Any + Send> {
-        Box::new(self.setup_mesh_data(renderer, local_to_world))
+        self.update_model_bounds(&render_affine);
+
+        Box::new(self.setup_mesh_data(renderer, render_affine, world_affine))
     }
 
     fn refresh_transform(
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) {
         let data: &mut RenderMeshData = proxy_data_mut!(data);
 
-        let model_mat: glamx::Mat4 = (*local_to_world).into();
-        data.mesh_data.update(&model_mat);
+        data.visible_mesh_data.update(&render_affine);
 
         renderer.state.queue.write_buffer(
-            data.uniform.buffer(MeshUniformIndex::MeshData),
+            data.visible_uniform.buffer(MeshUniformIndex::MeshData),
             0,
-            data.mesh_data.as_bytes(),
+            data.visible_mesh_data.as_bytes(),
         );
 
+        self.update_model_bounds(&render_affine);
+
         #[cfg(debug_assertions)]
-        if let Some(bounds_uniform) = &data.bounds_uniform
-            && let Some(bounds_data) = self.bounds_model_uniform(local_to_world)
-        {
-            renderer.state.queue.write_buffer(
-                bounds_uniform.buffer(MeshUniformIndex::MeshData),
-                0,
-                bounds_data.as_bytes(),
-            );
-        }
+        self.refresh_transform_debug(data, renderer, &render_affine, _world_affine.as_ref());
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {
@@ -143,10 +162,10 @@ impl SceneProxy for MeshSceneProxy {
             return;
         };
 
-        let mut picking_uniform = data.mesh_data;
+        let mut picking_uniform = data.visible_mesh_data;
         picking_uniform.object_hash = hash_to_rgba(binding.object_hash);
         renderer.state.queue.write_buffer(
-            data.uniform.buffer(MeshUniformIndex::MeshData),
+            data.visible_uniform.buffer(MeshUniformIndex::MeshData),
             0,
             picking_uniform.as_bytes(),
         );
@@ -173,9 +192,8 @@ impl SceneProxy for MeshSceneProxy {
         }
     }
 
-    fn bounds(&self, local_to_world: &Affine3A) -> Option<BoundingSphere> {
-        self.bounding
-            .map(|b| b.transformed(&(*local_to_world).into()))
+    fn bounds(&self) -> Option<BoundingSphere> {
+        self.model_bounding
     }
 }
 
@@ -298,19 +316,35 @@ impl MeshSceneProxy {
     fn setup_mesh_data(
         &mut self,
         renderer: &Renderer,
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        real_affine: Option<Affine3A>,
     ) -> RenderMeshData {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
-        let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
+        let visible_mesh_data = ModelUniform::from_affine(&(render_affine.into()));
 
-        let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
-            .with_buffer_data(&mesh_data)
+        let visible_uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
+            .with_buffer_data(&visible_mesh_data)
             .build(device);
 
         #[cfg(debug_assertions)]
+        let mut real_mesh_data = None;
+        #[cfg(debug_assertions)]
+        let mut real_uniform = None;
+        #[cfg(debug_assertions)]
+        if let Some(real_affine) = real_affine {
+            let mesh_data = ModelUniform::from_affine(&(real_affine.into()));
+            real_uniform = Some(
+                ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
+                    .with_buffer_data(&mesh_data)
+                    .build(device),
+            );
+            real_mesh_data = Some(mesh_data);
+        }
+
+        #[cfg(debug_assertions)]
         let bounds_uniform = self
-            .bounds_model_uniform(local_to_world)
+            .bounds_model_uniform(&render_affine)
             .map(|bounds_data| {
                 ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
                     .with_buffer_data(&bounds_data)
@@ -318,11 +352,23 @@ impl MeshSceneProxy {
             });
 
         RenderMeshData {
-            mesh_data,
-            uniform,
+            visible_mesh_data,
+            visible_uniform,
             #[cfg(debug_assertions)]
             bounds_uniform,
+            #[cfg(debug_assertions)]
+            real_mesh_data,
+            #[cfg(debug_assertions)]
+            real_uniform,
         }
+    }
+
+    fn update_model_bounds(&mut self, render_affine: &Affine3A) {
+        let new_bounds = self
+            .bounding
+            .map(|b| b.transformed(&(*render_affine).into()));
+
+        self.model_bounding = new_bounds;
     }
 
     #[cfg(debug_assertions)]
@@ -338,6 +384,46 @@ impl MeshSceneProxy {
         );
         Some(ModelUniform::from_matrix(&transform))
     }
+
+    #[cfg(debug_assertions)]
+    fn refresh_transform_debug(
+        &self,
+        data: &mut RenderMeshData,
+        renderer: &Renderer,
+        render_affine: &Affine3A,
+        world_affine: Option<&Affine3A>,
+    ) {
+        if let Some(world_affine) = world_affine {
+            let mesh_data = ModelUniform::from_affine(&(*world_affine).into());
+            if let Some(real_uniform) = data.real_uniform.as_mut() {
+                real_uniform.write_buffer(
+                    MeshUniformIndex::MeshData,
+                    &mesh_data,
+                    &renderer.state.queue,
+                );
+            } else {
+                data.real_uniform = Some(
+                    ShaderUniform::<MeshUniformIndex>::builder(renderer.cache.bgl_model().clone())
+                        .with_buffer_data(&mesh_data)
+                        .build(&renderer.state.device),
+                );
+            };
+            data.real_mesh_data = Some(mesh_data);
+        } else {
+            data.real_uniform = None;
+            data.real_mesh_data = None;
+        }
+
+        if let Some(bounds_uniform) = &data.bounds_uniform
+            && let Some(bounds_data) = self.bounds_model_uniform(render_affine)
+        {
+            bounds_uniform.write_buffer(
+                MeshUniformIndex::MeshData,
+                &bounds_data,
+                &renderer.state.queue,
+            );
+        }
+    }
 }
 
 #[cfg(debug_assertions)]
@@ -352,13 +438,23 @@ fn draw_edges(
     use syrillian_asset::HShader;
 
     const COLOR: Vec4 = Vec4::new(1.0, 0.0, 1.0, 1.0);
+    const REAL_COLOR: Vec4 = Vec4::new(1.0, 0.2, 0.2, 1.0);
 
     let shader = cache.shader(HShader::DEBUG_EDGES);
     runtime.activate_shader(&shader, ctx, pass);
 
     pass.set_immediates(0, COLOR.as_bytes());
-
     mesh.draw_all(pass, BindMeshBuffers::POSITION);
+
+    if let Some(real_uniform) = &runtime.real_uniform {
+        pass.set_immediates(0, REAL_COLOR.as_bytes());
+
+        if let Some(model) = shader.bind_groups().model {
+            pass.set_bind_group(model, real_uniform.bind_group(), &[]);
+        }
+
+        mesh.draw_all(pass, BindMeshBuffers::POSITION);
+    }
 }
 
 #[cfg(debug_assertions)]

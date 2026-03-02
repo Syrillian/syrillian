@@ -192,12 +192,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         }
     }
 
-    pub fn update_render_thread(
-        &mut self,
-        renderer: &Renderer,
-        data: &mut TextRenderData,
-        _local_to_world: &Affine3A,
-    ) {
+    pub fn update_render_thread(&mut self, renderer: &Renderer, data: &mut TextRenderData) {
         let hot_font = renderer.cache.font(self.font);
         let glyphs_ready = hot_font.pump(&renderer.state.queue, 10);
 
@@ -381,7 +376,8 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
     fn setup_render(
         &mut self,
         renderer: &Renderer,
-        _local_to_world: &Affine3A,
+        _render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) -> Box<dyn Any + Send> {
         self.regenerate_geometry(renderer);
 
@@ -405,12 +401,13 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) {
         let data: &mut TextRenderData = proxy_data_mut!(data);
 
         let mesh_buffer = data.uniform.buffer(MeshUniformIndex::MeshData);
-        self.translation.update(&(*local_to_world).into());
+        self.translation.update(&render_affine);
 
         renderer
             .state
@@ -418,15 +415,10 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
             .write_buffer(mesh_buffer, 0, self.translation.as_bytes());
     }
 
-    fn update_render(
-        &mut self,
-        renderer: &Renderer,
-        data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
-    ) {
+    fn update_render(&mut self, renderer: &Renderer, data: &mut (dyn Any + Send)) {
         let data: &mut TextRenderData = proxy_data_mut!(data);
 
-        self.update_render_thread(renderer, data, local_to_world);
+        self.update_render_thread(renderer, data);
     }
 
     fn render<'a>(&self, renderer: &Renderer, ctx: &GPUDrawCtx, binding: &SceneProxyBinding) {

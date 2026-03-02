@@ -107,7 +107,7 @@ impl CameraComponent {
     pub fn click_ray(&self, x: f32, y: f32) -> Ray {
         let eye = self.mouse_eye_dir(x, y);
 
-        let cam_to_world = self.parent().transform.view_matrix_rigid().to_mat4();
+        let cam_to_world = self.parent().transform.rigid_view_matrix().to_mat4();
 
         let origin = cam_to_world.transform_point3(Vec3::ZERO);
         let dir_world = (cam_to_world * eye).xyz().normalize();
@@ -167,8 +167,9 @@ impl CameraComponent {
             return None;
         }
 
-        let pos = obj.transform.position();
-        let view_mat = obj.transform.view_matrix_rigid().to_mat4();
+        let rigid_view = obj.transform.rigid_global_isometry();
+        let pos = rigid_view.translation;
+        let view_mat = rigid_view.inverse().to_mat4();
         Some(RenderMsg::UpdateActiveCamera(
             target_id,
             Box::new(move |cam| {

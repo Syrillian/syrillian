@@ -64,9 +64,14 @@ pub struct DebugSceneProxy {
 }
 
 impl SceneProxy for DebugSceneProxy {
-    fn setup_render(&mut self, renderer: &Renderer, model_mat: &Affine3A) -> Box<dyn Any + Send> {
+    fn setup_render(
+        &mut self,
+        renderer: &Renderer,
+        render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
+    ) -> Box<dyn Any + Send> {
         let line_data = self.new_line_buffer(&renderer.state.device);
-        let transform = self.override_transform.unwrap_or(*model_mat);
+        let transform = self.override_transform.unwrap_or(render_affine);
         let model_uniform =
             self.new_mesh_buffer(&renderer.cache, &renderer.state.device, &transform);
 
@@ -80,11 +85,12 @@ impl SceneProxy for DebugSceneProxy {
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) {
         let data: &mut GPUDebugProxyData = proxy_data_mut!(data);
 
-        let transform = self.override_transform.unwrap_or(*local_to_world);
+        let transform = self.override_transform.unwrap_or(render_affine);
         self.update_mesh_buffer(
             data,
             &renderer.cache,
@@ -94,12 +100,7 @@ impl SceneProxy for DebugSceneProxy {
         );
     }
 
-    fn update_render(
-        &mut self,
-        renderer: &Renderer,
-        data: &mut (dyn Any + Send),
-        _local_to_world: &Affine3A,
-    ) {
+    fn update_render(&mut self, renderer: &Renderer, data: &mut (dyn Any + Send)) {
         let data: &mut GPUDebugProxyData = proxy_data_mut!(data);
 
         // TODO: Reuse or Resize buffer
@@ -159,15 +160,18 @@ impl DebugSceneProxy {
         }
 
         let bgl = cache.bgl_model();
-        let model_mat: glamx::Mat4 = (*model_mat).into();
-        let mesh_data = ModelUniform::from_matrix(&model_mat);
+        let mesh_data = ModelUniform::from_affine(&model_mat);
         let uniform = ShaderUniform::builder(bgl)
             .with_buffer_data(&mesh_data)
             .build(device);
 
         Some(RenderMeshData {
-            mesh_data,
-            uniform,
+            visible_mesh_data: mesh_data,
+            visible_uniform: uniform,
+            #[cfg(debug_assertions)]
+            real_mesh_data: None,
+            #[cfg(debug_assertions)]
+            real_uniform: None,
             #[cfg(debug_assertions)]
             bounds_uniform: None,
         })
@@ -188,10 +192,11 @@ impl DebugSceneProxy {
         let model_uniform = match data.model_uniform.take() {
             None => self.new_mesh_buffer(cache, device, model_mat),
             Some(mut model_uniform) => {
-                let model_mat: glamx::Mat4 = (*model_mat).into();
-                model_uniform.mesh_data.update(&model_mat);
-                let mesh_buffer = model_uniform.uniform.buffer(MeshUniformIndex::MeshData);
-                queue.write_buffer(mesh_buffer, 0, model_uniform.mesh_data.as_bytes());
+                model_uniform.visible_mesh_data.update(&model_mat);
+                let mesh_buffer = model_uniform
+                    .visible_uniform
+                    .buffer(MeshUniformIndex::MeshData);
+                queue.write_buffer(mesh_buffer, 0, model_uniform.visible_mesh_data.as_bytes());
                 Some(model_uniform)
             }
         };
@@ -253,7 +258,7 @@ impl DebugSceneProxy {
 
             pass.set_immediates(0, self.color.as_bytes());
             if let Some(idx) = groups.model {
-                pass.set_bind_group(idx, data.uniform.bind_group(), &[]);
+                pass.set_bind_group(idx, data.visible_uniform.bind_group(), &[]);
             }
 
             runtime_mesh.draw_all(&mut pass, BindMeshBuffers::POSITION);

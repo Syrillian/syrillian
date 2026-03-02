@@ -82,6 +82,7 @@ pub struct SkinnedMeshSceneProxy {
     pub bone_data: BoneData,
     pub bones_dirty: bool,
     pub bounding: Option<BoundingSphere>,
+    pub model_bounding: Option<BoundingSphere>,
 }
 
 impl RenderSkinnedMeshData {
@@ -207,21 +208,23 @@ impl SceneProxy for SkinnedMeshSceneProxy {
     fn setup_render(
         &mut self,
         renderer: &Renderer,
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) -> Box<dyn Any + Send> {
-        Box::new(self.setup_mesh_data(renderer, local_to_world))
+        self.update_model_bounds(&render_affine);
+        Box::new(self.setup_mesh_data(renderer, &render_affine))
     }
 
     fn refresh_transform(
         &mut self,
         renderer: &Renderer,
         data: &mut (dyn Any + Send),
-        local_to_world: &Affine3A,
+        render_affine: Affine3A,
+        _world_affine: Option<Affine3A>,
     ) {
         let data: &mut RenderSkinnedMeshData = proxy_data_mut!(data);
 
-        let model_mat: glamx::Mat4 = (*local_to_world).into();
-        data.mesh_data.update(&model_mat);
+        data.mesh_data.update(&render_affine);
 
         renderer.state.queue.write_buffer(
             data.skinning_uniform
@@ -230,9 +233,11 @@ impl SceneProxy for SkinnedMeshSceneProxy {
             data.mesh_data.as_bytes(),
         );
 
+        self.update_model_bounds(&render_affine);
+
         #[cfg(debug_assertions)]
         if let Some(bounds_uniform) = &data.bounds_uniform
-            && let Some(bounds_data) = self.bounds_model_uniform(local_to_world)
+            && let Some(bounds_data) = self.bounds_model_uniform()
         {
             renderer.state.queue.write_buffer(
                 bounds_uniform.buffer(MeshUniformIndex::MeshData),
@@ -242,12 +247,7 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         }
     }
 
-    fn update_render(
-        &mut self,
-        renderer: &Renderer,
-        data: &mut (dyn Any + Send),
-        _local_to_world: &Affine3A,
-    ) {
+    fn update_render(&mut self, renderer: &Renderer, data: &mut (dyn Any + Send)) {
         let data: &mut RenderSkinnedMeshData = proxy_data_mut!(data);
 
         // TODO: Consider Rigid Body render isometry interpolation for mesh local to world
@@ -351,9 +351,8 @@ impl SceneProxy for SkinnedMeshSceneProxy {
         }
     }
 
-    fn bounds(&self, local_to_world: &Affine3A) -> Option<BoundingSphere> {
-        self.bounding
-            .map(|b| b.transformed(&(*local_to_world).into()))
+    fn bounds(&self) -> Option<BoundingSphere> {
+        self.model_bounding
     }
 }
 
@@ -482,12 +481,12 @@ impl SkinnedMeshSceneProxy {
     fn setup_mesh_data(
         &mut self,
         renderer: &Renderer,
-        local_to_world: &Affine3A,
+        render_affine: &Affine3A,
     ) -> RenderSkinnedMeshData {
         let device = &renderer.state.device;
         let model_bgl = renderer.cache.bgl_model();
         let skinning_model_bgl = renderer.cache.bgl_model_skinning();
-        let mesh_data = ModelUniform::from_matrix(&(*local_to_world).into());
+        let mesh_data = ModelUniform::from_affine(&(*render_affine).into());
 
         let mesh_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Skinned Mesh Buffer"),
@@ -500,13 +499,11 @@ impl SkinnedMeshSceneProxy {
             .build(device);
 
         #[cfg(debug_assertions)]
-        let bounds_uniform = self
-            .bounds_model_uniform(local_to_world)
-            .map(|bounds_data| {
-                ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
-                    .with_buffer_data(&bounds_data)
-                    .build(device)
-            });
+        let bounds_uniform = self.bounds_model_uniform().map(|bounds_data| {
+            ShaderUniform::<MeshUniformIndex>::builder(model_bgl.clone())
+                .with_buffer_data(&bounds_data)
+                .build(device)
+        });
 
         let skinning_uniform =
             ShaderUniform::<SkinnedMeshUniformIndex>::builder(skinning_model_bgl)
@@ -531,18 +528,25 @@ impl SkinnedMeshSceneProxy {
         data
     }
 
-    #[cfg(debug_assertions)]
-    fn bounds_model_uniform(&self, local_to_world: &Affine3A) -> Option<ModelUniform> {
-        let bounds = self
+    fn update_model_bounds(&mut self, render_affine: &Affine3A) {
+        let new_bounds = self
             .bounding
-            .map(|b| b.transformed(&(*local_to_world).into()))?;
+            .map(|b| b.transformed(&(*render_affine).into()));
+
+        self.model_bounding = new_bounds;
+    }
+
+    #[cfg(debug_assertions)]
+    fn bounds_model_uniform(&self) -> Option<ModelUniform> {
+        let bounds = self.model_bounding.as_ref()?;
+
         let radius = bounds.radius.abs().max(f32::EPSILON);
-        let transform = glamx::Mat4::from_scale_rotation_translation(
+        let transform = Affine3A::from_scale_rotation_translation(
             glamx::Vec3::splat(radius),
             glamx::Quat::IDENTITY,
             bounds.center,
         );
-        Some(ModelUniform::from_matrix(&transform))
+        Some(ModelUniform::from_affine(&transform))
     }
 }
 
