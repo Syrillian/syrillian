@@ -2,6 +2,7 @@ use argh::FromArgs;
 use glamx::UVec2;
 use std::cmp::Ordering;
 use std::sync::LazyLock;
+use std::time::Duration;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
 pub enum AntiAliasingMode {
@@ -90,6 +91,8 @@ pub struct EngineArgs {
     #[argh(option, hidden_help)]
     pub max_frames_in_flight: Option<u32>,
     #[argh(option, hidden_help)]
+    pub max_fps: Option<u32>,
+    #[argh(option, hidden_help)]
     pub physics_timestep: Option<f64>,
 
     #[argh(option, hidden_help, from_str_fn(present_mode))]
@@ -134,6 +137,14 @@ impl EngineArgs {
             .window_size
             .flatten()
             .unwrap_or(UVec2::new(800, 600))
+    }
+
+    pub fn max_fps() -> Option<u32> {
+        EngineArgs::get().max_fps.filter(|&fps| fps > 0)
+    }
+
+    pub fn max_frame_interval() -> Option<Duration> {
+        Self::max_fps().map(|fps| Duration::from_secs_f32(1.0 / fps as f32))
     }
 
     pub fn aa_mode() -> AntiAliasingMode {
