@@ -53,7 +53,7 @@ macro_rules! test_custom_shader {
 }
 
 // Fundamental Shaders
-test_shader!(shader_2d, "Shader 2D" => "shader2d.wgsl");
+test_custom_shader!(shader_2d, "Shader 2D" => "shader2d.wgsl");
 test_shader!(fallback_shader3d, "Fallback Shader 3D" => "fallback_shader3d.wgsl");
 test_custom_shader!(picking_text_2d, "Text 2D Picking Shader" => "picking_text2d.wgsl");
 test_custom_shader!(picking_text_3d, "Text 3D Picking Shader" => "picking_text3d.wgsl");

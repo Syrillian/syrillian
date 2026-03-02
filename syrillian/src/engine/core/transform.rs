@@ -313,6 +313,12 @@ impl Transform {
     }
 
     pub fn set_render_affine(&mut self, affine: Option<Affine3A>) {
+        let affine = affine.or_else(|| {
+            (*self.owner().parent())
+                .and_then(|parent| parent.transform.render_affine())
+                .map(|parent_affine| parent_affine * self.compound_mat)
+        });
+
         self.render_affine = affine;
         self.set_dirty();
 

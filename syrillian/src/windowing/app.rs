@@ -79,9 +79,8 @@ impl<S: AppState> App<S> {
             return;
         };
 
-        let now = Instant::now();
         if self.last_primary_redraw.elapsed() < frame_interval {
-            let next = now + frame_interval;
+            let next = self.last_primary_redraw + frame_interval;
             event_loop.set_control_flow(ControlFlow::WaitUntil(next));
         } else {
             self.request_primary_redraw();
@@ -93,17 +92,11 @@ impl<S: AppState> App<S> {
             && let Some(window) = presenter.window(ViewportId::PRIMARY)
         {
             window.request_redraw();
-            self.last_primary_redraw = Instant::now();
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(mut self, event_loop: EventLoop<()>) -> Result<(), Box<dyn Error>> {
-        // let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
-        // let _puffin_server = puffin_http::Server::new(&server_addr)?;
-        // warn!("Serving profile data on {server_addr}. Run `puffin_viewer` to view it.");
-        // profiling::puffin::set_scopes_on(true);
-
         profiling::register_thread!("window");
 
         event_loop.run_app(&mut self)?;
@@ -357,17 +350,23 @@ impl<S: AppState> ApplicationHandler for App<S> {
         let Some(game_thread) = self.game_thread.as_ref() else {
             return;
         };
+
+        let target_id = self
+            .presenter
+            .as_ref()
+            .and_then(|presenter| presenter.find_render_target_id(&window_id))
+            .expect("runtime missing for window");
+        let drives_update = target_id.is_primary();
+        if drives_update && matches!(event, WindowEvent::RedrawRequested) {
+            self.last_primary_redraw = Instant::now();
+        }
+
         let Some(presenter) = self.presenter.as_mut() else {
             return;
         };
         let Some(render_thread) = self.render_thread.as_mut() else {
             return;
         };
-
-        let target_id = presenter
-            .find_render_target_id(&window_id)
-            .expect("runtime missing for window");
-        let drives_update = target_id.is_primary();
 
         match event {
             WindowEvent::RedrawRequested => {

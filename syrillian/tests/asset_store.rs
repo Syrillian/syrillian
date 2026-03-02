@@ -1,13 +1,44 @@
-use syrillian::math::{Vec2, Vec3};
-use syrillian_asset::mesh::{Bones, PartialMesh, SkinnedVertex3D, UnskinnedVertex3D};
+use std::sync::Arc;
+use syrillian::math::{Vec2, Vec3, Vec4};
+use syrillian_asset::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVertexBuffers};
+use syrillian_asset::mesh::{Bones, PartialMesh};
 use syrillian_asset::{
     AssetStore, Font, HMaterial, HMaterialInstance, HMesh, HShader, HTexture2D, MaterialInstance,
     Mesh, Shader, SkinnedMesh, Sound, Texture2D,
 };
 
+fn sample_raw_mesh() -> Arc<RawVertexBuffers> {
+    Arc::new(RawVertexBuffers {
+        positions: vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ],
+        uvs: vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(0.0, 1.0),
+        ],
+        normals: vec![
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ],
+        tangents: vec![Vec4::X, Vec4::X, Vec4::X],
+        indices: None,
+    })
+}
+
+fn sample_raw_skinning() -> Arc<RawSkinningVertexBuffers> {
+    Arc::new(RawSkinningVertexBuffers {
+        bone_indices: vec![[0, 0, 0, 0]; 3],
+        bone_weights: vec![[1.0, 0.0, 0.0, 0.0]; 3],
+    })
+}
+
 #[test]
 fn test_predefined_meshes() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
 
     store.meshes.try_get(HMesh::UNIT_SQUARE).unwrap();
     store.meshes.try_get(HMesh::UNIT_CUBE).unwrap();
@@ -17,39 +48,18 @@ fn test_predefined_meshes() {
 
 #[test]
 fn test_mesh_store() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
 
-    let vertices = vec![
-        UnskinnedVertex3D::new(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec2::new(0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-        ),
-        UnskinnedVertex3D::new(
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec2::new(1.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-        ),
-        UnskinnedVertex3D::new(
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec2::new(0.0, 1.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-        ),
-    ];
-
-    let mesh = Mesh::builder().data(vertices, None).build();
+    let mesh = Mesh::builder().data(sample_raw_mesh()).build();
     let handle = store.meshes.add(mesh);
     let retrieved_mesh = store.meshes.try_get(handle);
     assert!(retrieved_mesh.is_some());
-    assert_eq!(retrieved_mesh.unwrap().vertex_count(), 3);
+    assert_eq!(retrieved_mesh.unwrap().len(), 3);
 }
 
 #[test]
 fn test_shader_store() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
     let shader = Shader::new_default("Test Shader", "// Test shader code");
     let handle = store.shaders.add(shader);
     let retrieved_shader = store.shaders.try_get(handle);
@@ -59,7 +69,7 @@ fn test_shader_store() {
 
 #[test]
 fn test_texture_store() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
     let pixels = vec![255, 0, 0, 255];
     let texture = Texture2D::load_pixels(pixels, 1, 1, wgpu::TextureFormat::Rgba8UnormSrgb);
     let handle = store.textures.add(texture);
@@ -72,7 +82,7 @@ fn test_texture_store() {
 
 #[test]
 fn test_material_store() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
     let material = MaterialInstance::builder().name("Test Material").build();
     let handle = store.material_instances.add(material);
     let retrieved_material = store.material_instances.try_get(handle);
@@ -83,7 +93,7 @@ fn test_material_store() {
 #[test]
 #[ignore]
 fn test_font_store() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
     let font = Font::new("Noto Sans", None).expect("default font not found");
     let handle = store.fonts.add(font);
     let retrieved_font = store.fonts.try_get(handle);
@@ -93,7 +103,7 @@ fn test_font_store() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_sound_store() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
     let sound = Sound::load_sound("../syrillian_examples/examples/assets/pop.wav")
         .expect("Failed to load sound");
     let handle = store.sounds.add(sound);
@@ -104,14 +114,14 @@ fn test_sound_store() {
 #[test]
 #[ignore]
 fn test_find_font() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
     let font = store.fonts.find("Noto Sans");
     assert!(font.is_some());
 }
 
 #[test]
 fn test_predefined_materials() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
 
     store.materials.try_get(HMaterial::FALLBACK).unwrap();
     store.materials.try_get(HMaterial::DEFAULT).unwrap();
@@ -127,7 +137,7 @@ fn test_predefined_materials() {
 
 #[test]
 fn test_predefined_shaders() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
 
     store.shaders.try_get(HShader::FALLBACK).unwrap();
     store.shaders.try_get(HShader::DIM2).unwrap();
@@ -157,7 +167,7 @@ fn test_predefined_shaders() {
 
 #[test]
 fn test_predefined_textures() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
 
     let _ = store.textures.try_get(HTexture2D::FALLBACK_DIFFUSE);
     let _ = store.textures.try_get(HTexture2D::FALLBACK_NORMAL);
@@ -166,20 +176,12 @@ fn test_predefined_textures() {
 
 #[test]
 fn test_remove_asset() {
-    let store = AssetStore::new();
-
-    let vertices = vec![SkinnedVertex3D::new(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec2::new(0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        &[0u32],
-        &[0.0f32],
-    )];
+    let (store, _assets_rx) = AssetStore::new();
 
     let mesh = SkinnedMesh::builder()
         .bones(Bones::new())
-        .data(vertices, None)
+        .data(sample_raw_mesh())
+        .skinning_data(sample_raw_skinning())
         .build();
     let mesh2 = mesh.clone();
 
@@ -197,18 +199,11 @@ fn test_remove_asset() {
 
 #[test]
 fn test_iterate_assets() {
-    let store = AssetStore::new();
+    let (store, _assets_rx) = AssetStore::new();
 
-    let vertices = vec![UnskinnedVertex3D::new(
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec2::new(0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-    )];
-
-    let mesh1 = Mesh::builder().data(vertices.clone(), None).build();
-    let mesh2 = Mesh::builder().data(vertices.clone(), None).build();
-    let mesh3 = Mesh::builder().data(vertices.clone(), None).build();
+    let mesh1 = Mesh::builder().data(sample_raw_mesh()).build();
+    let mesh2 = Mesh::builder().data(sample_raw_mesh()).build();
+    let mesh3 = Mesh::builder().data(sample_raw_mesh()).build();
 
     store.meshes.add(mesh1);
     store.meshes.add(mesh2);

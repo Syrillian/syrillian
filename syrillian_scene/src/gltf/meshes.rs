@@ -9,6 +9,7 @@ use syrillian::math::{Vec2, Vec3, Vec4, vec2, vec4};
 use syrillian::tracing::warn;
 use syrillian::utils::iter::interpolate_zeros;
 use syrillian_asset::SkinnedMesh;
+use syrillian_asset::mesh::PartialMesh;
 use syrillian_asset::mesh::static_mesh_data::{RawSkinningVertexBuffers, RawVertexBuffers};
 use syrillian_utils::BoundingSphere;
 
@@ -503,6 +504,23 @@ impl VertexSources<'_> {
         self.indices
             .as_ref()
             .map_or(point_index, |indices| indices[point_index] as usize)
+    }
+}
+
+impl MeshLoadResult {
+    pub fn vertex_count(&self) -> usize {
+        match self {
+            MeshLoadResult::Unskinned(mesh) => mesh.position_count(),
+            MeshLoadResult::Skinned(mesh) => mesh.position_count(),
+        }
+    }
+
+    pub fn is_unskinned(&self) -> bool {
+        matches!(self, MeshLoadResult::Unskinned(_))
+    }
+
+    pub fn is_skinned(&self) -> bool {
+        matches!(self, MeshLoadResult::Skinned(_))
     }
 }
 
