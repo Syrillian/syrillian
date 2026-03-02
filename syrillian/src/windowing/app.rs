@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use syrillian_asset::AssetStore;
 use syrillian_render::rendering::renderer::RenderedFrame;
 use syrillian_render::rendering::state::State;
@@ -30,6 +31,8 @@ pub struct App<S: AppState> {
     render_thread: Option<RenderThread>,
     game_thread: Option<GameThread<S>>,
     pending_frames: HashMap<ViewportId, RenderedFrame>,
+    frame_interval: Option<Duration>,
+    last_primary_redraw: Instant,
 }
 
 pub struct AppSettings<S: AppState> {
@@ -50,6 +53,9 @@ impl<S: AppState> AppSettings<S> {
             }
             e => e?,
         };
+
+        let frame_interval = EngineArgs::max_frame_interval();
+
         event_loop.set_control_flow(ControlFlow::Poll);
 
         let app = App {
@@ -58,6 +64,8 @@ impl<S: AppState> AppSettings<S> {
             render_thread: None,
             game_thread: None,
             pending_frames: HashMap::new(),
+            frame_interval,
+            last_primary_redraw: Instant::now(),
         };
 
         Ok((event_loop, app))
@@ -65,6 +73,30 @@ impl<S: AppState> AppSettings<S> {
 }
 
 impl<S: AppState> App<S> {
+    fn schedule_primary_redraw(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(frame_interval) = self.frame_interval else {
+            self.request_primary_redraw();
+            return;
+        };
+
+        let now = Instant::now();
+        if self.last_primary_redraw.elapsed() < frame_interval {
+            let next = now + frame_interval;
+            event_loop.set_control_flow(ControlFlow::WaitUntil(next));
+        } else {
+            self.request_primary_redraw();
+        }
+    }
+
+    fn request_primary_redraw(&mut self) {
+        if let Some(presenter) = self.presenter.as_ref()
+            && let Some(window) = presenter.window(ViewportId::PRIMARY)
+        {
+            window.request_redraw();
+            self.last_primary_redraw = Instant::now();
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(mut self, event_loop: EventLoop<()>) -> Result<(), Box<dyn Error>> {
         // let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
@@ -289,15 +321,19 @@ impl<S: AppState> App<S> {
 impl<S: AppState> ApplicationHandler for App<S> {
     #[instrument(skip_all)]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-        match cause {
-            StartCause::Poll => {
-                if !self.handle_all_game_events(event_loop) {
-                    event_loop.exit();
-                }
+        if !matches!(cause, StartCause::Init) {
+            if !self.handle_all_game_events(event_loop) {
+                event_loop.exit();
+                return;
             }
+        }
+
+        match cause {
             StartCause::Init => self.init(event_loop),
-            StartCause::ResumeTimeReached { .. } => (),
-            StartCause::WaitCancelled { .. } => (),
+            StartCause::ResumeTimeReached { .. } => {
+                self.request_primary_redraw();
+            }
+            StartCause::WaitCancelled { .. } | StartCause::Poll => {}
         }
     }
 
@@ -315,11 +351,6 @@ impl<S: AppState> ApplicationHandler for App<S> {
         event: WindowEvent,
     ) {
         if event_loop.exiting() {
-            return;
-        }
-
-        if !self.handle_all_game_events(event_loop) {
-            event_loop.exit();
             return;
         }
 
@@ -363,7 +394,9 @@ impl<S: AppState> ApplicationHandler for App<S> {
                     return;
                 }
 
-                if let Some(window) = presenter.window(target_id) {
+                if drives_update {
+                    self.schedule_primary_redraw(event_loop);
+                } else if let Some(window) = presenter.window(target_id) {
                     window.request_redraw();
                 }
             }
