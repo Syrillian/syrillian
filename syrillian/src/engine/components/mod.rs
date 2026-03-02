@@ -56,6 +56,7 @@ use delegate::delegate;
 use slotmap::Key;
 use std::any::{Any, TypeId};
 use std::borrow::Borrow;
+use std::cell::Cell;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -71,18 +72,28 @@ use syrillian_utils::{ComponentId, TypedComponentId};
 pub struct ComponentContext {
     pub(crate) tid: TypedComponentId,
     pub(crate) parent: GameObjectId,
+    pub(crate) enabled: Cell<bool>,
 }
 
 impl ComponentContext {
     pub(crate) fn new(tid: TypedComponentId, parent: GameObjectId) -> Self {
-        Self { tid, parent }
+        Self {
+            tid,
+            parent,
+            enabled: Cell::new(parent.enabled.get()),
+        }
     }
 
     pub(crate) unsafe fn null() -> Self {
         ComponentContext {
             tid: TypedComponentId::null::<dyn Component>(),
             parent: GameObjectId::null(),
+            enabled: Cell::new(false),
         }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
     }
 
     pub fn parent(&self) -> GameObjectId {

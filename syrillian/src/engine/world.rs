@@ -549,6 +549,7 @@ impl World {
             name: name.into(),
             alive: Cell::new(true),
             enabled: Cell::new(true),
+            self_disabled: Cell::new(false),
             children: vec![],
             parent: None,
             owning_world: self,
@@ -743,56 +744,14 @@ impl World {
     {
         self.begin_component_phase();
 
-        let object_ids: Vec<_> = self
-            .objects
-            .iter()
-            .filter_map(|(id, object)| (object.is_alive() && object.enabled.get()).then_some(id))
-            .collect();
-
         let world = self as *mut World;
-        for object_id in object_ids {
-            let Some(object) = self.objects.get(object_id) else {
-                continue;
-            };
-            if !object.is_alive() || !object.is_enabled() {
+        for (ctx, component) in self.components.iter_soft_refs_mut() {
+            if !ctx.is_enabled() || self.pending_component_removals.contains(&ctx.tid) {
                 continue;
             }
 
-            let phase_end_len = object.components.len();
-            let mut idx = 0usize;
-
-            while idx < phase_end_len {
-                let current = {
-                    let Some(object) = self.objects.get(object_id) else {
-                        break;
-                    };
-
-                    if idx >= object.components.len() {
-                        break;
-                    }
-
-                    object.components[idx].clone()
-                };
-
-                let current_tid = current.typed_id();
-                if !self.pending_component_removals.contains(&current_tid) {
-                    unsafe {
-                        func(current.get_mut(), &mut *world);
-                    }
-                }
-
-                let same_component_in_slot = {
-                    match self.objects.get(object_id) {
-                        Some(object) if idx < object.components.len() => {
-                            object.components[idx].typed_id() == current_tid
-                        }
-                        _ => false,
-                    }
-                };
-
-                if same_component_in_slot {
-                    idx += 1;
-                }
+            unsafe {
+                func(component, &mut *world);
             }
         }
 

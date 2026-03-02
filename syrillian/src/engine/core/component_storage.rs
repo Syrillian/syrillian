@@ -1,4 +1,4 @@
-use crate::components::{CRef, Component};
+use crate::components::{CRef, Component, ComponentContext};
 use crate::core::GameObjectId;
 use crate::core::component_context_inference::ComponentContextInference;
 use crate::utils::TypedComponentHelper;
@@ -19,6 +19,12 @@ where
     fn as_dyn(&self) -> &dyn Any;
     fn as_dyn_mut(&mut self) -> &mut dyn Any;
     fn iter_refs<'a>(&'a self) -> Box<(dyn Iterator<Item = CRef<dyn Component>> + 'a)>;
+    fn iter_soft_refs<'a>(
+        &'a self,
+    ) -> Box<(dyn Iterator<Item = (&'a ComponentContext, &'a dyn Component)> + 'a)>;
+    fn iter_soft_refs_mut<'a>(
+        &'a mut self,
+    ) -> Box<(dyn Iterator<Item = (&'a ComponentContext, &'a mut dyn Component)> + 'a)>;
     fn iter_comps<'a>(&'a self) -> Box<dyn Iterator<Item = &'a dyn Component> + 'a>;
     fn iter_comps_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut dyn Component> + 'a>;
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (K, &'a dyn Component)> + 'a>;
@@ -43,6 +49,25 @@ where
 
     fn iter_refs<'a>(&'a self) -> Box<dyn Iterator<Item = CRef<dyn Component>> + 'a> {
         Box::new(self.values().map(|v| v.as_dyn()))
+    }
+
+    fn iter_soft_refs<'a>(
+        &'a self,
+    ) -> Box<dyn Iterator<Item = (&'a ComponentContext, &'a dyn Component)> + 'a> {
+        Box::new(
+            self.values()
+                .map(|v| (v.ctx.as_ref(), &**v as &dyn Component)),
+        )
+    }
+
+    fn iter_soft_refs_mut<'a>(
+        &'a mut self,
+    ) -> Box<dyn Iterator<Item = (&'a ComponentContext, &'a mut dyn Component)> + 'a> {
+        Box::new(self.values_mut().map(|v| {
+            let ctx = &v.ctx;
+            let comp = v.get_mut() as &mut dyn Component;
+            (ctx.as_ref(), comp)
+        }))
     }
 
     fn iter_comps<'a>(&'a self) -> Box<dyn Iterator<Item = &'a dyn Component> + 'a> {
@@ -167,6 +192,18 @@ impl ComponentStorage {
 
     pub fn iter_refs(&self) -> impl Iterator<Item = CRef<dyn Component>> {
         self.inner.values().flat_map(|store| store.iter_refs())
+    }
+
+    pub fn iter_soft_refs(&self) -> impl Iterator<Item = (&ComponentContext, &dyn Component)> {
+        self.inner.values().flat_map(|store| store.iter_soft_refs())
+    }
+
+    pub fn iter_soft_refs_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (&ComponentContext, &mut dyn Component)> {
+        self.inner
+            .values_mut()
+            .flat_map(|store| store.iter_soft_refs_mut())
     }
 
     pub fn values(&self) -> impl Iterator<Item = &dyn Component> {
