@@ -64,13 +64,26 @@ impl GltfScene {
         let image_data = &self.images[index];
 
         let (width, height) = (image_data.width, image_data.height);
+        let can_use_block_compression = width % 4 == 0 && height % 4 == 0;
         let original_format = image_data.format;
 
         let mut format = match original_format {
             Format::R8 => TextureFormat::R8Unorm,
             Format::R8G8 => TextureFormat::Rg8Unorm,
-            Format::R8G8B8 => TextureFormat::Bc1RgbaUnorm,
-            Format::R8G8B8A8 => TextureFormat::Bc3RgbaUnorm,
+            Format::R8G8B8 => {
+                if can_use_block_compression {
+                    TextureFormat::Bc1RgbaUnorm
+                } else {
+                    TextureFormat::Rgba8Unorm
+                }
+            }
+            Format::R8G8B8A8 => {
+                if can_use_block_compression {
+                    TextureFormat::Bc3RgbaUnorm
+                } else {
+                    TextureFormat::Rgba8Unorm
+                }
+            }
             Format::R16 => TextureFormat::R16Unorm,
             Format::R16G16 => TextureFormat::Rg16Snorm,
             Format::R16G16B16 => {
@@ -97,29 +110,19 @@ impl GltfScene {
                 data.push(255);
             }
 
-            // TODO: Switch to Compute GPU Compression
-            let mut new_data = vec![0u8; CompressionVariant::BC1.blocks_byte_size(width, height)];
-            compress_rgba8(
-                CompressionVariant::BC1,
-                &data,
-                &mut new_data,
-                width,
-                height,
-                width * 4,
-            );
-            new_data
+            if can_use_block_compression {
+                // TODO: Switch to Compute GPU Compression
+                compress_rgba_blocks(CompressionVariant::BC1, &data, width, height)
+            } else {
+                data
+            }
         } else if original_format == Format::R8G8B8A8 {
-            // TODO: Switch to Compute GPU Compression
-            let mut new_data = vec![0u8; CompressionVariant::BC3.blocks_byte_size(width, height)];
-            compress_rgba8(
-                CompressionVariant::BC3,
-                pixels,
-                &mut new_data,
-                width,
-                height,
-                width * 4,
-            );
-            new_data
+            if can_use_block_compression {
+                // TODO: Switch to Compute GPU Compression
+                compress_rgba_blocks(CompressionVariant::BC3, pixels, width, height)
+            } else {
+                pixels.to_vec()
+            }
         } else {
             pixels.to_vec()
         };
@@ -138,6 +141,31 @@ impl GltfScene {
 
         Some(Texture2D::load_pixels(data, width, height, format))
     }
+}
+
+fn compress_rgba_blocks(
+    variant: CompressionVariant,
+    rgba_pixels: &[u8],
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
+    debug_assert_eq!(width % 4, 0, "BC compression requires width multiple of 4");
+    debug_assert_eq!(
+        height % 4,
+        0,
+        "BC compression requires height multiple of 4"
+    );
+
+    let mut compressed = vec![0u8; variant.blocks_byte_size(width, height)];
+    compress_rgba8(
+        variant,
+        rgba_pixels,
+        &mut compressed,
+        width,
+        height,
+        width * 4,
+    );
+    compressed
 }
 
 pub(super) fn collect_material_texture_usage(
