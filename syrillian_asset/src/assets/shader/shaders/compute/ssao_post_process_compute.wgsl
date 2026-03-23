@@ -9,7 +9,7 @@
 const TAU: f32 = 6.283185307179586;
 const GOLDEN_ANGLE: f32 = 2.39996322972865332;
 
-const SAMPLE_COUNT: u32 = 24u;
+const SAMPLE_COUNT: u32 = 32u;
 
 const DEPTH_GRAD_REF: f32 = 0.0025;
 const SLOPE_BIAS_SCALE: f32 = 8.0;
@@ -20,8 +20,6 @@ const SELF_NDOT_END:   f32 = 0.997;
 const SELF_DEPTH_EPS_REL: f32 = 0.20;
 
 const TEMPORAL_BLEND: f32 = 0.0;
-
-const NOISE_WORLD_SCALE: f32 = 1.25;
 
 fn clamp_pixel(p: vec2i, size: vec2i) -> vec2i {
     return clamp(p, vec2i(0), size - vec2i(1));
@@ -48,11 +46,8 @@ fn linear_view_depth(depth_ndc: f32) -> f32 {
     return (n * f) / max(denom, 1e-6);
 }
 
-fn hash23_world(p: vec3f) -> vec2f {
-    let q = p * NOISE_WORLD_SCALE;
-    let h1 = dot(q, vec3f(127.1, 311.7,  74.7));
-    let h2 = dot(q, vec3f(269.5, 183.3, 246.1));
-    return fract(sin(vec2f(h1, h2)) * 43758.5453123);
+fn interleaved_gradient_noise(pixel: vec2f) -> f32 {
+    return fract(52.9829189 * fract(0.06711056 * pixel.x + 0.00583715 * pixel.y));
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -79,7 +74,10 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
     let world_pos = reconstruct_world(uv, depth_ndc);
     let center_depth = linear_view_depth(depth_ndc);
 
-    let radius = mix(0.12, 0.85, saturate(center_depth / 25.0));
+    let base_radius = mix(0.12, 0.85, saturate(center_depth / 25.0));
+    let view_dir = normalize(camera.position - world_pos);
+    let ndot_v = saturate(abs(dot(normal_ws, view_dir)));
+    let radius = base_radius * mix(0.20, 1.0, ndot_v);
 
     let dC = depth_ndc;
     let dR = textureLoad(postDepth, clamp_pixel(pixel_i + vec2i( 1, 0), size_i), 0);
@@ -96,16 +94,16 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
     let bias_slope = 1.0 + slope * SLOPE_BIAS_SCALE;
     let thick_slope = 1.0 + slope * SLOPE_THICKNESS_SCALE;
 
-    let intensity = 1.30;
-    let power = 1.55;
+    let intensity = 1.45;
+    let power = 1.40;
 
     let up = select(vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), abs(normal_ws.z) > 0.999);
     let t0 = normalize(cross(up, normal_ws));
     let b0 = cross(normal_ws, t0);
 
-    let n2 = hash23_world(world_pos);
-    let base_angle = n2.x * TAU;
-    let jitter = n2.y - 0.5; // [-0.5, 0.5)
+    let ign = interleaved_gradient_noise(vec2f(gid.xy));
+    let base_angle = ign * TAU;
+    let jitter = fract(ign * 7.3281) - 0.5;
 
     var dir2 = vec2f(cos(base_angle), sin(base_angle));
     let step_c = cos(GOLDEN_ANGLE);

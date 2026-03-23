@@ -4,13 +4,14 @@
 @group(0) @binding(3) var aoInput: texture_2d<f32>;
 @group(0) @binding(4) var aoOutput: texture_storage_2d<r32float, write>;
 
-const R: i32 = 4;
-const GAUSS: array<f32, 5> = array<f32, 5>(
-    0.20416369, // 0
-    0.18017382, // 1
-    0.12383154, // 2
-    0.06628225, // 3
-    0.02763055  // 4
+const R: i32 = 5;
+const GAUSS: array<f32, 6> = array<f32, 6>(
+    0.15957691, // 0
+    0.14714990, // 1
+    0.11543351, // 2
+    0.07702304, // 3
+    0.04372828, // 4
+    0.02112151  // 5
 );
 
 fn pixel_clamp(p: vec2i, size: vec2i) -> vec2i {
