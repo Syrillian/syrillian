@@ -1,11 +1,12 @@
 pub mod frame;
 pub mod image;
+pub mod input;
 pub mod layout;
 pub mod line;
 pub mod renderer;
 pub mod slider;
 pub mod spacing;
-mod style;
+pub mod style;
 pub mod text;
 pub mod ui_element;
 

@@ -33,7 +33,11 @@ impl UiContext {
         };
 
         let mut root = StrobeNode::default();
-        let mut builder = UiBuilder::new(&mut root, vec2(size.width as f32, size.height as f32));
+        let mut builder = UiBuilder::new_with_input(
+            &mut root,
+            vec2(size.width as f32, size.height as f32),
+            &world.strobe_input,
+        );
         ui(&mut builder);
 
         if root.children.is_empty() && root.element.is_none() {

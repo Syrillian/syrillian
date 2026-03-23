@@ -16,7 +16,7 @@ impl Component for MyComponent {
 
 #[test]
 fn component() {
-    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx, _hit_rect_tx) = World::fresh();
     let mut obj = world.new_object("Test");
 
     let comp = obj.add_component::<MyComponent>();
@@ -60,7 +60,7 @@ fn component() {
 
 #[test]
 fn check_typed() {
-    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx, _hit_rect_tx) = World::fresh();
     let mut obj = world.new_object("Test");
 
     let comp = obj.add_component::<MyComponent>();
@@ -81,7 +81,7 @@ fn component_reflection() {
     assert_eq!(info_pre.full_path, std::any::type_name::<MyComponent>());
     assert_eq!(info_pre.name, "MyComponent");
 
-    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx) = World::fresh();
+    let (mut world, _rx1, _rx2, _assets_rx, _pick_tx, _hit_rect_tx) = World::fresh();
     let mut obj = world.new_object("Test");
 
     let comp = obj.add_component::<MyComponent>();

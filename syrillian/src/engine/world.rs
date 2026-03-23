@@ -26,6 +26,7 @@ use syrillian_asset::{
     RenderTexture2DArray, Shader, Sound, Texture2D, Texture2DArray,
 };
 use syrillian_render::strobe::StrobeFrame;
+use syrillian_render::strobe::input::{HitRect, StrobeInputState};
 use tracing::info;
 use web_time::{Duration, Instant};
 
@@ -86,6 +87,7 @@ pub type FreshWorldChannels = (
     Receiver<GameAppEvent>,
     Receiver<AssetRefreshMessage>,
     Sender<PickResult>,
+    Sender<Vec<HitRect>>,
 );
 
 #[derive(Clone)]
@@ -93,6 +95,7 @@ pub struct WorldChannels {
     pub render_tx: Sender<RenderMsg>,
     pub game_event_tx: Sender<GameAppEvent>,
     pub pick_result_rx: Receiver<PickResult>,
+    pub hit_rect_rx: Receiver<Vec<HitRect>>,
     viewports: HashMap<ViewportId, RenderTargets>,
     next_target_id: u64,
 }
@@ -102,6 +105,7 @@ impl WorldChannels {
         render_tx: Sender<RenderMsg>,
         game_event_tx: Sender<GameAppEvent>,
         pick_result_rx: Receiver<PickResult>,
+        hit_rect_rx: Receiver<Vec<HitRect>>,
     ) -> Self {
         let mut targets = HashMap::new();
         targets.insert(
@@ -116,6 +120,7 @@ impl WorldChannels {
             render_tx,
             game_event_tx,
             pick_result_rx,
+            hit_rect_rx,
             viewports: targets,
             next_target_id: ViewportId::PRIMARY.get() + 1,
         }
@@ -216,6 +221,7 @@ pub struct World {
     pub(crate) channels: WorldChannels,
     thread_binding: Option<WorldBinding>,
     pub strobe: StrobeFrame,
+    pub strobe_input: StrobeInputState,
 }
 
 impl World {
@@ -246,6 +252,7 @@ impl World {
             channels,
             thread_binding: None,
             strobe: StrobeFrame::default(),
+            strobe_input: StrobeInputState::default(),
         })
     }
 
@@ -255,8 +262,9 @@ impl World {
         render_tx: Sender<RenderMsg>,
         game_event_tx: Sender<GameAppEvent>,
         pick_result_rx: Receiver<PickResult>,
+        hit_rect_rx: Receiver<Vec<HitRect>>,
     ) -> Box<World> {
-        let channels = WorldChannels::new(render_tx, game_event_tx, pick_result_rx);
+        let channels = WorldChannels::new(render_tx, game_event_tx, pick_result_rx, hit_rect_rx);
         World::new_with_channels(assets, channels)
     }
 
@@ -272,9 +280,10 @@ impl World {
         let (tx1, rx1) = unbounded();
         let (tx2, rx2) = unbounded();
         let (pick_tx, pick_rx) = unbounded();
+        let (hit_rect_tx, hit_rect_rx) = unbounded();
         let (store, assets_rx) = AssetStore::new();
-        let world = World::new(store, tx1, tx2, pick_rx);
-        (world, rx1, rx2, assets_rx, pick_tx)
+        let world = World::new(store, tx1, tx2, pick_rx, hit_rect_rx);
+        (world, rx1, rx2, assets_rx, pick_tx, hit_rect_tx)
     }
 
     /// Returns a mutable reference to the global [`World`] instance.
@@ -831,6 +840,7 @@ impl World {
             self.execute_component_func(Component::post_update);
         }
 
+        self.update_strobe_input();
         self.execute_component_on_gui(world);
         self.sync_fresh_components();
         self.sync_removed_components();
@@ -878,6 +888,21 @@ impl World {
                 comp.update_proxy(&*world, ctx);
             }
         }
+    }
+
+    fn update_strobe_input(&mut self) {
+        profiling::scope!("Strobe input");
+        // Receive hit rects from render thread
+        while let Ok(rects) = self.channels.hit_rect_rx.try_recv() {
+            self.strobe_input.update_hit_rects(rects);
+        }
+        let pos = self.input.mouse_position();
+        let mouse_pos = glamx::Vec2::new(pos.x, pos.y);
+        let mouse_down = self.input.is_button_pressed(MouseButton::Left);
+        let just_pressed = self.input.is_button_down(MouseButton::Left);
+        let just_released = self.input.is_button_released(MouseButton::Left);
+        self.strobe_input
+            .begin_frame(mouse_pos, mouse_down, just_pressed, just_released);
     }
 
     fn execute_component_on_gui(&mut self, world: *mut World) {

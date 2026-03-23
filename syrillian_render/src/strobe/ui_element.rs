@@ -28,6 +28,13 @@ impl Rect {
     pub fn max(&self) -> Vec2 {
         self.position + self.size
     }
+
+    pub fn contains(&self, point: Vec2) -> bool {
+        point.x >= self.position.x
+            && point.y >= self.position.y
+            && point.x <= self.position.x + self.size.x
+            && point.y <= self.position.y + self.size.y
+    }
 }
 
 impl Div<Vec2> for Rect {

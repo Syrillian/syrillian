@@ -127,6 +127,7 @@ impl<S: AppState> App<S> {
         let (render_state_tx, render_state_rx) = unbounded();
         let (game_event_tx, game_event_rx) = unbounded();
         let (pick_result_tx, pick_result_rx) = unbounded();
+        let (hit_rect_tx, hit_rect_rx) = unbounded();
 
         let main_window = event_loop
             .create_window(self.main_window_attributes.clone())
@@ -168,6 +169,7 @@ impl<S: AppState> App<S> {
             assets_rx,
             render_state_rx,
             pick_result_tx,
+            hit_rect_tx,
             config.clone(),
         ) {
             Ok(thread) => thread,
@@ -180,7 +182,8 @@ impl<S: AppState> App<S> {
 
         trace!("Created Render Thread");
 
-        let channels = WorldChannels::new(render_state_tx, game_event_tx, pick_result_rx);
+        let channels =
+            WorldChannels::new(render_state_tx, game_event_tx, pick_result_rx, hit_rect_rx);
         let game_thread = GameThread::new(asset_store.clone(), channels, game_event_rx);
 
         if !game_thread.init() {

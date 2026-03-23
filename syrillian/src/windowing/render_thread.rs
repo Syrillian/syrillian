@@ -6,6 +6,7 @@ use syrillian_render::rendering::picking::PickResult;
 use syrillian_render::rendering::renderer::{RenderedFrame, Renderer};
 use syrillian_render::rendering::state::State;
 use syrillian_render::rendering::viewport::ViewportId;
+use syrillian_render::strobe::input::HitRect;
 use tracing::warn;
 use wgpu::SurfaceConfiguration;
 
@@ -34,10 +35,17 @@ impl RenderThreadInner {
         control_rx: Receiver<RenderControlMsg>,
         frame_tx: Sender<RenderBatch>,
         pick_result_tx: Sender<PickResult>,
+        hit_rect_tx: Sender<Vec<HitRect>>,
         assets_rx: Receiver<AssetRefreshMessage>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self, syrillian_render::error::RenderError> {
-        let renderer = Renderer::new(state, assets_rx, pick_result_tx, primary_config)?;
+        let renderer = Renderer::new(
+            state,
+            assets_rx,
+            pick_result_tx,
+            hit_rect_tx,
+            primary_config,
+        )?;
         Ok(Self {
             renderer,
             render_rx,
@@ -140,6 +148,7 @@ impl RenderThread {
         assets_rx: Receiver<AssetRefreshMessage>,
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
+        hit_rect_tx: Sender<Vec<HitRect>>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self, syrillian_render::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
@@ -150,6 +159,7 @@ impl RenderThread {
             control_rx,
             frame_tx,
             pick_result_tx,
+            hit_rect_tx,
             assets_rx,
             primary_config,
         )?;
@@ -209,6 +219,7 @@ impl RenderThread {
         state: Arc<State>,
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
+        hit_rect_tx: Sender<Vec<HitRect>>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self, syrillian_render::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
@@ -219,6 +230,7 @@ impl RenderThread {
             control_rx,
             frame_tx,
             pick_result_tx,
+            hit_rect_tx,
             primary_config,
         )?;
 

@@ -93,7 +93,7 @@ impl Component for Profiler {
                         .into(),
                 );
 
-                ui.spacing(Vec2::new(0.0, 5.0));
+                ui.style.padding = Padding::left(5.0);
 
                 ui.add(
                     UiLine::new(vec2(120.0, 0.0))

@@ -22,6 +22,7 @@ use crate::rendering::viewport::{RenderViewport, ViewportId};
 use crate::rendering::{FrameCtx, GPUDrawCtx, RenderPassType};
 use crate::strobe::StrobeRenderer;
 use crate::strobe::UiGPUContext;
+use crate::strobe::input::HitRect;
 use crossbeam_channel::{Receiver, Sender};
 use glamx::Affine3A;
 use itertools::Itertools;
@@ -68,6 +69,7 @@ impl Renderer {
         state: Arc<State>,
         assets_rx: Receiver<AssetRefreshMessage>,
         pick_result_tx: Sender<PickResult>,
+        hit_rect_tx: Sender<Vec<HitRect>>,
         primary_config: SurfaceConfiguration,
     ) -> Result<Self> {
         let cache = AssetCache::new(state.as_ref(), assets_rx);
@@ -84,13 +86,16 @@ impl Renderer {
             RenderViewport::new(ViewportId::PRIMARY, primary_config, &state.device, &cache),
         );
 
+        let mut strobe = StrobeRenderer::default();
+        strobe.set_hit_rect_sender(hit_rect_tx);
+
         Ok(Renderer {
             state,
             cache,
             viewports,
             start_time,
             proxies: HashMap::new(),
-            strobe: RefCell::new(StrobeRenderer::default()),
+            strobe: RefCell::new(strobe),
             pick_result_tx,
             pending_pick_requests: Vec::new(),
             lights,

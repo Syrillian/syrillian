@@ -7,8 +7,10 @@ use crate::rendering::RenderPassType;
 use crate::rendering::state::State;
 use crate::rendering::uniform::ShaderUniform;
 use crate::rendering::viewport::{RenderViewport, ViewportId};
+use crate::strobe::input::HitRect;
 use crate::strobe::ui_element::Rect;
 use crate::strobe::{CacheId, ContextWithId, LayoutElement, StrobeRoot};
+use crossbeam_channel::Sender;
 use delegate::delegate;
 use glamx::{Mat4, Vec2};
 use parking_lot::RwLock;
@@ -23,6 +25,7 @@ pub struct StrobeRenderer {
     strobe_roots: HashMap<ViewportId, Vec<StrobeRoot>>,
     image_cache: HashMap<(CacheId, u64), RenderMeshData>,
     text_cache: HashMap<(CacheId, u64), TextRenderData>,
+    hit_rect_tx: Option<Sender<Vec<HitRect>>>,
 }
 
 pub struct UiGPUContext<'a> {
@@ -41,11 +44,18 @@ pub struct UiDrawContext<'a, 'b, 'c, 'd, 'e> {
     viewport_size: PhysicalSize<u32>,
     start_time: Instant,
     state: &'d State,
+    hit_rects: Vec<HitRect>,
 }
 
 impl ContextWithId for UiDrawContext<'_, '_, '_, '_, '_> {
     fn set_id(&mut self, id: u32) {
         self.render_id = id;
+    }
+
+    fn register_hit_rect(&mut self, rect: Rect, id: u32) {
+        if self.gpu_ctx.pass_type == RenderPassType::Color2D {
+            self.hit_rects.push(HitRect { rect, node_id: id });
+        }
     }
 }
 
@@ -119,6 +129,10 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
 }
 
 impl StrobeRenderer {
+    pub fn set_hit_rect_sender(&mut self, tx: Sender<Vec<HitRect>>) {
+        self.hit_rect_tx = Some(tx);
+    }
+
     pub fn update_frame(&mut self, frame: StrobeFrame) {
         self.strobe_roots.clear();
 
@@ -161,6 +175,7 @@ impl StrobeRenderer {
             viewport_size,
             start_time: viewport.start_time,
             state,
+            hit_rects: Vec::new(),
         };
 
         if let Some(roots) = roots {
@@ -174,6 +189,11 @@ impl StrobeRenderer {
                 current_context.render_id = root.root.id;
                 root.root.render_layout(&mut current_context, full_rect);
             }
+        }
+
+        // Send collected hit rects to game thread for input processing
+        if let Some(tx) = &self.hit_rect_tx {
+            let _ = tx.send(mem::take(&mut current_context.hit_rects));
         }
 
         self.strobe_roots = roots_map;
