@@ -428,13 +428,6 @@ impl RenderPipeline {
         self.bloom_settings_dirty = false;
     }
 
-    fn ensure_route_configuration(&mut self, cache: &AssetCache) {
-        let desired = PostProcessRouting::current();
-        if desired != self.route_key {
-            self.rebuild_post_process_passes(cache, desired);
-        }
-    }
-
     pub fn prepare_frame(
         &mut self,
         render_data: &mut RenderUniformData,
