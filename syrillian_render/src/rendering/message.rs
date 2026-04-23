@@ -47,6 +47,8 @@ pub enum RenderMsg {
     SetSkybox(ViewportId, Option<HCubemap>),
     SetSkyboxMode(ViewportId, SkyboxMode),
     SetSkyAtmosphere(ViewportId, SkyAtmosphereSettings),
+    SetViewportRect(ViewportId, Option<[f32; 4]>),
+    SetDisablePostProcessing(ViewportId, bool),
     UpdateStrobe(StrobeFrame),
     FrameEnd(ViewportId, Sender<()>),
 }
@@ -71,6 +73,8 @@ impl Debug for RenderMsg {
             RenderMsg::SetSkybox(_, _) => "Set Skybox",
             RenderMsg::SetSkyboxMode(_, _) => "Set Skybox Mode",
             RenderMsg::SetSkyAtmosphere(_, _) => "Set Sky Atmosphere",
+            RenderMsg::SetViewportRect(_, _) => "Set Viewport Rect",
+            RenderMsg::SetDisablePostProcessing(_, _) => "Set Disable Post Processing",
             RenderMsg::UpdateStrobe(_) => "Update Strobe Draw List",
             RenderMsg::FrameEnd(_, _) => "Frame End",
         };

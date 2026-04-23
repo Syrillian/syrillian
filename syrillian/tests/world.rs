@@ -4,6 +4,10 @@ use syrillian::components::{CameraComponent, Component};
 use syrillian::core::EventType;
 use syrillian::core::GameObjectId;
 use syrillian::math::{Quat, Vec3};
+use syrillian::winit::dpi::PhysicalSize;
+use syrillian_render::rendering::message::RenderMsg;
+use syrillian_render::rendering::picking::PickResult;
+use syrillian_render::rendering::viewport::ViewportId;
 use web_time::Duration;
 
 thread_local! {
@@ -11,6 +15,7 @@ thread_local! {
     static TOUCH_PARENT_UPDATES: Cell<u32> = const { Cell::new(0) };
     static ADDED_COMPONENT_UPDATES: Cell<u32> = const { Cell::new(0) };
     static REMOVABLE_COMPONENT_UPDATES: Cell<u32> = const { Cell::new(0) };
+    static PICK_CLICK_COUNT: Cell<u32> = const { Cell::new(0) };
 }
 
 fn set_test_world_loop(loop_idx: u32) {
@@ -43,6 +48,14 @@ fn reset_removable_component_updates() {
 
 fn removable_component_updates() -> u32 {
     REMOVABLE_COMPONENT_UPDATES.with(Cell::get)
+}
+
+fn reset_pick_click_count() {
+    PICK_CLICK_COUNT.with(|slot| slot.set(0));
+}
+
+fn pick_click_count() -> u32 {
+    PICK_CLICK_COUNT.with(Cell::get)
 }
 
 #[derive(Default)]
@@ -139,6 +152,15 @@ impl Component for AddComponentInUpdateComponent {
 
         self.parent().add_component::<AddedInUpdateComponent>();
         self.added = true;
+    }
+}
+
+#[derive(Default)]
+struct ClickCountingComponent;
+
+impl Component for ClickCountingComponent {
+    fn on_click(&mut self, _world: &mut World) {
+        PICK_CLICK_COUNT.with(|slot| slot.set(slot.get() + 1));
     }
 }
 
@@ -446,4 +468,74 @@ fn removing_sibling_component_mid_phase_is_safe() {
 
     assert_eq!(removable_component_updates(), 0);
     assert_eq!(component_count::<RemovableInUpdateComponent>(&world), 0);
+}
+
+#[test]
+fn pick_results_are_stored_by_request_id_and_consumed_once() {
+    let (mut world, _render_rx, _event_rx, _assets_rx, pick_tx, _hit_rect_tx) = World::fresh();
+    reset_pick_click_count();
+
+    let mut picked = world.new_object("Pickable");
+    picked.add_component::<ClickCountingComponent>();
+    picked.notify_for(&mut world, EventType::CLICK);
+    let hash = picked.object_hash();
+    let empty_id = world.request_pick(ViewportId::PRIMARY, (1, 1)).unwrap();
+    let hit_id = world.request_pick(ViewportId::PRIMARY, (2, 2)).unwrap();
+
+    pick_tx
+        .send(PickResult {
+            id: empty_id,
+            target: ViewportId::PRIMARY,
+            hash: None,
+        })
+        .unwrap();
+    pick_tx
+        .send(PickResult {
+            id: hit_id,
+            target: ViewportId::PRIMARY,
+            hash: Some(hash),
+        })
+        .unwrap();
+    pick_tx
+        .send(PickResult {
+            id: 999,
+            target: ViewportId::PRIMARY,
+            hash: Some(hash),
+        })
+        .unwrap();
+    world.update();
+
+    let hit = world.take_pick_result(hit_id).unwrap();
+    assert_eq!(hit.request_id, hit_id);
+    assert_eq!(hit.target, ViewportId::PRIMARY);
+    assert_eq!(hit.hash, Some(hash));
+    assert_eq!(hit.object, Some(picked));
+    assert_eq!(world.take_pick_result(hit_id), None);
+
+    let empty = world.take_pick_result(empty_id).unwrap();
+    assert_eq!(empty.request_id, empty_id);
+    assert_eq!(empty.target, ViewportId::PRIMARY);
+    assert_eq!(empty.hash, None);
+    assert_eq!(empty.object, None);
+    assert_eq!(world.take_pick_result(empty_id), None);
+    assert_eq!(world.take_pick_result(999), None);
+    assert_eq!(pick_click_count(), 0);
+}
+
+#[test]
+fn request_pick_at_sends_clamped_request() {
+    let (mut world, render_rx, _event_rx, _assets_rx, _pick_tx, _hit_rect_tx) = World::fresh();
+    world.set_viewport_size(ViewportId::PRIMARY, PhysicalSize::new(100, 50));
+
+    let id = world
+        .request_pick_at(ViewportId::PRIMARY, 200.0, -5.0)
+        .unwrap();
+
+    assert_eq!(id, 0);
+    let RenderMsg::PickRequest(request) = render_rx.try_recv().unwrap() else {
+        panic!("expected pick request");
+    };
+    assert_eq!(request.id, 0);
+    assert_eq!(request.target, ViewportId::PRIMARY);
+    assert_eq!(request.position, (99, 0));
 }

@@ -56,6 +56,7 @@ pub struct FinalFrameContext<'a> {
     pub size: PhysicalSize<u32>,
     pub format: TextureFormat,
     pub frame_count: usize,
+    pub disable_post_processing: bool,
 }
 
 pub struct RenderPipeline {
@@ -527,7 +528,21 @@ impl RenderPipeline {
         cache: &AssetCache,
         context: FinalFrameContext<'_>,
     ) -> RenderedFrame {
-        self.ensure_route_configuration(cache);
+        // Determine effective post-processing routing
+        let effective_key = if context.disable_post_processing {
+            PostProcessRouting {
+                run_ssr: false,
+                run_ssao: false,
+                run_bloom: false,
+                run_fxaa: false,
+            }
+        } else {
+            PostProcessRouting::current()
+        };
+
+        if effective_key != self.route_key {
+            self.rebuild_post_process_passes(cache, effective_key);
+        }
 
         let current_idx = Self::current_surface_index(context.frame_count);
         let final_color = &self.final_surfaces[current_idx];

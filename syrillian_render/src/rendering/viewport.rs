@@ -49,6 +49,12 @@ pub struct RenderViewport {
     desired_skybox: Option<HCubemap>,
     resolved_skybox: Option<HCubemap>,
     sky_mode: SkyboxMode,
+    /// Optional viewport sub-rect [x, y, width, height] in pixels.
+    /// When set, 3D rendering is restricted to this region of the render target.
+    /// UI rendering is NOT affected.
+    pub viewport_rect: Option<[f32; 4]>,
+    /// When true, post-processing effects (SSAO, bloom, etc.) are skipped for this viewport.
+    pub disable_post_processing: bool,
 }
 
 impl RenderViewport {
@@ -85,6 +91,8 @@ impl RenderViewport {
             desired_skybox: None,
             resolved_skybox: None,
             sky_mode: SkyboxMode::Cubemap,
+            viewport_rect: None,
+            disable_post_processing: false,
         }
     }
 

@@ -102,4 +102,9 @@ impl StrobeInputState {
     pub fn active_node(&self) -> Option<UiNodeId> {
         self.active_node
     }
+
+    /// Returns true if any UI element is currently hovered or being pressed.
+    pub fn has_any_interaction(&self) -> bool {
+        self.active_node.is_some() || self.interactions.values().any(|i| i.hovered)
+    }
 }

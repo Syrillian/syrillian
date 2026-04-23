@@ -21,7 +21,6 @@ use crate::rendering::texture_export::{TextureExportError, save_texture_to_png};
 use crate::rendering::viewport::{RenderViewport, ViewportId};
 use crate::rendering::{FrameCtx, GPUDrawCtx, RenderPassType};
 use crate::strobe::StrobeRenderer;
-use crate::strobe::UiGPUContext;
 use crate::strobe::input::HitRect;
 use crossbeam_channel::{Receiver, Sender};
 use glamx::Affine3A;
@@ -298,6 +297,28 @@ impl Renderer {
         request: PickRequest,
         sorted_proxies: &[TypedComponentId],
     ) {
+        #[cfg(debug_assertions)]
+        {
+            let in_viewport_rect = viewport.viewport_rect.is_none_or(|[x, y, w, h]| {
+                let px = request.position.0 as f32;
+                let py = request.position.1 as f32;
+                px >= x && px < x + w && py >= y && py < y + h
+            });
+            tracing::debug!(
+                request_id = request.id,
+                target = ?request.target,
+                sample_x = request.position.0,
+                sample_y = request.position.1,
+                viewport_width = viewport.size().width,
+                viewport_height = viewport.size().height,
+                viewport_rect = ?viewport.viewport_rect,
+                in_viewport_rect,
+                proxy_count = self.proxies.len(),
+                sorted_proxy_count = sorted_proxies.len(),
+                "Running GPU picking pass"
+            );
+        }
+
         let mut encoder = self
             .state
             .device
@@ -306,7 +327,7 @@ impl Renderer {
             });
 
         {
-            let pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Picking Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: viewport.picking_surface.view(),
@@ -333,6 +354,8 @@ impl Renderer {
                 ..RenderPassDescriptor::default()
             });
 
+            Self::apply_viewport_rect(&mut pass, viewport);
+
             self.render_scene(
                 ctx,
                 pass,
@@ -340,33 +363,6 @@ impl Renderer {
                 sorted_proxies,
                 &viewport.render_data,
             );
-        }
-
-        let render_ui = self.strobe.borrow().has_draws(request.target);
-        if render_ui {
-            let pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Picking UI Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: viewport.picking_surface.view(),
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Load,
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                ..RenderPassDescriptor::default()
-            });
-
-            let draw_ctx = UiGPUContext {
-                pass: RwLock::new(pass),
-                pass_type: RenderPassType::PickingUi,
-                render_bind_group: viewport.render_data.uniform.bind_group(),
-            };
-            let mut strobe = self.strobe.borrow_mut();
-
-            strobe.render(&draw_ctx, &self.cache, &self.state, viewport);
         }
 
         let read_buffer = self.state.device.create_buffer(&BufferDescriptor {
@@ -677,6 +673,7 @@ impl Renderer {
                 size: viewport.size(),
                 format: viewport.config.format,
                 frame_count: viewport.frame_count(),
+                disable_post_processing: viewport.disable_post_processing,
             },
         );
 
@@ -834,6 +831,16 @@ impl Renderer {
                     viewport.set_sky_atmosphere(settings);
                 }
             }
+            RenderMsg::SetViewportRect(target, rect) => {
+                if let Some(viewport) = self.viewports.get_mut(&target) {
+                    viewport.viewport_rect = rect;
+                }
+            }
+            RenderMsg::SetDisablePostProcessing(target, disable) => {
+                if let Some(viewport) = self.viewports.get_mut(&target) {
+                    viewport.disable_post_processing = disable;
+                }
+            }
             RenderMsg::UpdateStrobe(frame) => {
                 self.strobe.borrow_mut().update_frame(frame);
             }
@@ -923,6 +930,14 @@ impl Renderer {
         })
     }
 
+    /// Apply viewport rect clipping for editor-style sub-viewport rendering.
+    fn apply_viewport_rect(pass: &mut RenderPass, viewport: &RenderViewport) {
+        if let Some([x, y, w, h]) = viewport.viewport_rect {
+            pass.set_viewport(x, y, w, h, 0.0, 1.0);
+            pass.set_scissor_rect(x as u32, y as u32, w as u32, h as u32);
+        }
+    }
+
     #[instrument(skip_all)]
     fn prepare_main_render_pass<'a>(
         &self,
@@ -939,7 +954,7 @@ impl Renderer {
             .render_pipeline
             .g_material
             .create_view(&TextureViewDescriptor::default());
-        encoder.begin_render_pass(&RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Offscreen Render Pass"),
             color_attachments: &[
                 Some(RenderPassColorAttachment {
@@ -979,7 +994,9 @@ impl Renderer {
                 stencil_ops: None,
             }),
             ..RenderPassDescriptor::default()
-        })
+        });
+        Self::apply_viewport_rect(&mut pass, viewport);
+        pass
     }
 
     fn prepare_skybox_render_pass<'a>(
@@ -988,7 +1005,7 @@ impl Renderer {
         viewport: &RenderViewport,
     ) -> RenderPass<'a> {
         let color_view = viewport.render_pipeline.offscreen_surface.view();
-        encoder.begin_render_pass(&RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Skybox Render Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: color_view,
@@ -1001,7 +1018,9 @@ impl Renderer {
             })],
             depth_stencil_attachment: None,
             ..RenderPassDescriptor::default()
-        })
+        });
+        Self::apply_viewport_rect(&mut pass, viewport);
+        pass
     }
 }
 

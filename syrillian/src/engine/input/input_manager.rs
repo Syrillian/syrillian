@@ -235,6 +235,7 @@ impl InputManager {
         self.state.key_just_updated.clear();
         self.state.button_just_updated.clear();
         self.state.mouse_delta = Vec2::ZERO;
+        self.state.mouse_wheel_delta = 0.0;
         self.state.suppress_auto_cursor_lock = false;
         self.gamepad.poll();
     }

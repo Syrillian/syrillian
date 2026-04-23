@@ -90,6 +90,14 @@ pub type FreshWorldChannels = (
     Sender<Vec<HitRect>>,
 );
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PickResultState {
+    pub request_id: u64,
+    pub target: ViewportId,
+    pub hash: Option<ObjectHash>,
+    pub object: Option<GameObjectId>,
+}
+
 #[derive(Clone)]
 pub struct WorldChannels {
     pub render_tx: Sender<RenderMsg>,
@@ -218,6 +226,17 @@ pub struct World {
 
     /// Flag indicating whether a shutdown has been requested
     requested_shutdown: bool,
+    /// When true, component `on_gui` callbacks are suppressed (e.g. editor mode)
+    pub suppress_component_gui: bool,
+    /// When true, automatic `on_click` picking is suppressed.
+    /// Explicit pick requests still store their result for request-id lookup.
+    pub suppress_pick_callbacks: bool,
+    tracked_pick_requests: HashSet<u64>,
+    callback_pick_requests: HashSet<u64>,
+    pending_pick_results: HashMap<u64, PickResultState>,
+    /// Current viewport sub-rect for coordinate adjustment during picking.
+    /// Set by the editor when using set_viewport_rect.
+    pub pick_viewport_rect: Option<[f32; 4]>,
     pub(crate) channels: WorldChannels,
     thread_binding: Option<WorldBinding>,
     pub strobe: StrobeFrame,
@@ -249,6 +268,12 @@ impl World {
             next_pick_request_id: 0,
 
             requested_shutdown: false,
+            suppress_component_gui: false,
+            suppress_pick_callbacks: false,
+            tracked_pick_requests: HashSet::new(),
+            callback_pick_requests: HashSet::new(),
+            pending_pick_results: HashMap::new(),
+            pick_viewport_rect: None,
             channels,
             thread_binding: None,
             strobe: StrobeFrame::default(),
@@ -604,8 +629,12 @@ impl World {
     }
 
     pub fn set_active_camera(&mut self, mut camera: CRef<CameraComponent>) {
+        let next_camera = camera.clone().downgrade();
+        if self.main_active_camera != next_camera {
+            camera.force_render_sync();
+        }
         camera.set_render_target(ViewportId::PRIMARY);
-        self.main_active_camera = camera.downgrade();
+        self.main_active_camera = next_camera;
         self.channels
             .set_active_camera(ViewportId::PRIMARY, self.main_active_camera);
     }
@@ -615,8 +644,12 @@ impl World {
         target: ViewportId,
         mut camera: CRef<CameraComponent>,
     ) {
+        let next_camera = camera.clone().downgrade();
+        if self.channels.active_camera_for(target) != next_camera {
+            camera.force_render_sync();
+        }
         camera.set_render_target(target);
-        self.channels.set_active_camera(target, camera.downgrade());
+        self.channels.set_active_camera(target, next_camera);
     }
 
     fn active_camera_for_target(&self, target: ViewportId) -> Option<CWeak<CameraComponent>> {
@@ -672,23 +705,52 @@ impl World {
     #[profiling::function]
     fn process_pick_results(&mut self) {
         while let Ok(result) = self.channels.pick_result_rx.try_recv() {
-            let Some(obj_hash) = result.hash else {
+            let should_notify_callbacks = self.callback_pick_requests.remove(&result.id);
+            let picked = result.hash.and_then(|obj_hash| {
+                self.objects
+                    .iter()
+                    .find(|(_, o)| o.object_hash() == obj_hash)
+                    .map(|(picked_id, obj)| {
+                        (
+                            picked_id,
+                            obj.is_alive(),
+                            obj.is_notified_for(EventType::CLICK),
+                            obj.components.clone(),
+                        )
+                    })
+            });
+            let picked_object = picked.as_ref().map(|(picked_id, _, _, _)| *picked_id);
+
+            if self.tracked_pick_requests.remove(&result.id) {
+                self.pending_pick_results.insert(
+                    result.id,
+                    PickResultState {
+                        request_id: result.id,
+                        target: result.target,
+                        hash: result.hash,
+                        object: picked_object,
+                    },
+                );
+            }
+
+            let Some((_, is_alive, is_notified_for_click, components)) = picked else {
                 continue;
             };
 
-            let Some((obj, _)) = self
-                .objects
-                .iter()
-                .find(|(_, o)| o.object_hash() == obj_hash)
-            else {
-                continue;
-            };
-
-            if !obj.is_alive() || !obj.is_notified_for(EventType::CLICK) {
+            if !should_notify_callbacks {
                 continue;
             }
 
-            let components = obj.components.clone();
+            // Skip on_click callbacks when suppressed (editor scene view)
+            if self.suppress_pick_callbacks {
+                continue;
+            }
+
+            // For normal game picking, only notify objects that registered for clicks
+            if !is_alive || !is_notified_for_click {
+                continue;
+            }
+
             let world = self as *mut World;
 
             for mut comp in components {
@@ -697,9 +759,19 @@ impl World {
         }
     }
 
+    pub fn take_pick_result(&mut self, request_id: u64) -> Option<PickResultState> {
+        self.pending_pick_results.remove(&request_id)
+    }
+
+    pub fn cancel_pick_result(&mut self, request_id: u64) {
+        self.tracked_pick_requests.remove(&request_id);
+        self.callback_pick_requests.remove(&request_id);
+        self.pending_pick_results.remove(&request_id);
+    }
+
     #[profiling::function]
     fn maybe_request_pick(&mut self) {
-        if self.click_listeners.is_empty() || self.input.is_cursor_locked() {
+        if self.suppress_pick_callbacks || self.click_listeners.is_empty() {
             return;
         }
 
@@ -708,30 +780,97 @@ impl World {
         }
 
         let target = self.input.active_target();
-        let Some(size) = self.viewport_size(target) else {
+        let Some(position) = self.cursor_pick_position(target) else {
             return;
         };
+        let _ = self.send_pick_request(target, position, false, true);
+    }
+
+    fn cursor_pick_position(&self, target: ViewportId) -> Option<(u32, u32)> {
+        if self.input.is_cursor_locked() {
+            return None;
+        }
+
+        let Some(size) = self.viewport_size(target) else {
+            return None;
+        };
         if size.width == 0 || size.height == 0 {
-            return;
+            return None;
         }
 
         let pos = self.input.mouse_position();
-        let x = pos.x.max(0.0).floor() as u32;
-        let y = pos.y.max(0.0).floor() as u32;
+        let (x, y) = if let Some([vp_x, vp_y, vp_w, vp_h]) = self.pick_viewport_rect {
+            // Transform screen coords to picking texture coords:
+            // Screen-relative to viewport -> absolute picking texture coords.
+            // The scene is rendered into a sub-rect of the full-size picking texture.
+            let rel_x = (pos.x - vp_x) / vp_w; // 0..1 within viewport
+            let rel_y = (pos.y - vp_y) / vp_h;
+            if !(0.0..=1.0).contains(&rel_x) || !(0.0..=1.0).contains(&rel_y) {
+                return None; // Click outside viewport area
+            }
+            let tex_x = vp_x + rel_x * vp_w;
+            let tex_y = vp_y + rel_y * vp_h;
+            (tex_x.floor() as u32, tex_y.floor() as u32)
+        } else {
+            (pos.x.max(0.0).floor() as u32, pos.y.max(0.0).floor() as u32)
+        };
         let clamped_x = x.min(size.width.saturating_sub(1));
         let clamped_y = y.min(size.height.saturating_sub(1));
 
+        Some((clamped_x, clamped_y))
+    }
+
+    pub fn request_pick_at_cursor(&mut self) -> Option<u64> {
+        let target = self.input.active_target();
+        let position = self.cursor_pick_position(target)?;
+        self.request_pick(target, position)
+    }
+
+    pub fn request_pick_at(&mut self, target: ViewportId, x: f32, y: f32) -> Option<u64> {
+        let size = self.viewport_size(target)?;
+        if size.width == 0 || size.height == 0 {
+            return None;
+        }
+
+        let x = x.max(0.0).floor() as u32;
+        let y = y.max(0.0).floor() as u32;
+        let position = (
+            x.min(size.width.saturating_sub(1)),
+            y.min(size.height.saturating_sub(1)),
+        );
+        self.request_pick(target, position)
+    }
+
+    pub fn request_pick(&mut self, target: ViewportId, position: (u32, u32)) -> Option<u64> {
+        self.send_pick_request(target, position, true, false)
+    }
+
+    fn send_pick_request(
+        &mut self,
+        target: ViewportId,
+        position: (u32, u32),
+        track_result: bool,
+        notify_callbacks: bool,
+    ) -> Option<u64> {
         let request = PickRequest {
             id: self.next_pick_request_id,
             target,
-            position: (clamped_x, clamped_y),
+            position,
         };
-        self.next_pick_request_id = self.next_pick_request_id.wrapping_add(1);
+        let request_id = request.id;
 
-        let _ = self
-            .channels
+        self.channels
             .render_tx
-            .send(RenderMsg::PickRequest(request));
+            .send(RenderMsg::PickRequest(request))
+            .ok()?;
+        if track_result {
+            self.tracked_pick_requests.insert(request_id);
+        }
+        if notify_callbacks {
+            self.callback_pick_requests.insert(request_id);
+        }
+        self.next_pick_request_id = self.next_pick_request_id.wrapping_add(1);
+        Some(request_id)
     }
 
     /// Adds a game object as a child of the world (root level)
@@ -906,6 +1045,9 @@ impl World {
     }
 
     fn execute_component_on_gui(&mut self, world: *mut World) {
+        if self.suppress_component_gui {
+            return;
+        }
         profiling::scope!("Component on_gui");
         for mut comp in self.components.iter_refs() {
             let ctx = UiContext::new(comp.ctx.parent.hash, comp.ctx.tid);
@@ -1103,6 +1245,24 @@ impl World {
         self.channels
             .render_tx
             .send(RenderMsg::SetGBufferDebug(target, targets))
+            .is_ok()
+    }
+
+    /// Set a sub-rect for 3D rendering within the viewport.
+    /// When set, the 3D scene renders only in the given [x, y, width, height] region.
+    /// UI (Strobe) rendering is not affected. Pass None to render full-viewport.
+    pub fn set_viewport_rect(&self, target: ViewportId, rect: Option<[f32; 4]>) -> bool {
+        self.channels
+            .render_tx
+            .send(RenderMsg::SetViewportRect(target, rect))
+            .is_ok()
+    }
+
+    /// Enable or disable post-processing for a specific viewport.
+    pub fn set_disable_post_processing(&self, target: ViewportId, disable: bool) -> bool {
+        self.channels
+            .render_tx
+            .send(RenderMsg::SetDisablePostProcessing(target, disable))
             .is_ok()
     }
 
