@@ -1,12 +1,12 @@
 use crate::GltfScene;
+use bevy_mikktspace::{Geometry, TangentSpace, generate_tangents};
 use gltf::{Node, mesh};
-use mikktspace::{Geometry, generate_tangents};
 use std::collections::HashMap;
 use std::sync::Arc;
 use syrillian::assets::Mesh;
 use syrillian::core::Bones;
 use syrillian::math::{Vec2, Vec3, Vec4, vec2, vec4};
-use syrillian::tracing::warn;
+use syrillian::tracing::{trace, warn};
 use syrillian::utils::iter::interpolate_zeros;
 use syrillian_asset::SkinnedMesh;
 use syrillian_asset::mesh::PartialMesh;
@@ -286,8 +286,8 @@ impl PrimitiveResult {
             warn!(
                 "Model has no tangents. Tangents will be generated. You might experience artifacts"
             );
-            if generate_tangents(&mut sources) {
-                warn!("Tangents couldn't be generated. The loaded primitive might look odd");
+            if let Err(e) = generate_tangents(&mut sources) {
+                trace!("Tangents couldn't be generated. The loaded primitive might look odd: {e}");
             }
         }
 
@@ -486,9 +486,13 @@ impl Geometry for VertexSources<'_> {
         self.uvs[index].to_array()
     }
 
-    fn set_tangent_encoded(&mut self, tangent: [f32; 4], face: usize, vert: usize) {
+    fn set_tangent(&mut self, tangent_space: Option<TangentSpace>, face: usize, vert: usize) {
+        let Some(tangent_space) = tangent_space else {
+            return;
+        };
+
         let index = self.vertex_index(face, vert);
-        self.tangents[index] = Vec4::from_array(tangent);
+        self.tangents[index] = Vec4::from_array(tangent_space.tangent_encoded());
     }
 }
 
