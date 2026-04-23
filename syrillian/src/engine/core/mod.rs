@@ -4,6 +4,7 @@
 //! rendering.
 
 pub(super) mod component_context_inference;
+pub mod component_factory;
 pub mod component_storage;
 pub mod object;
 pub mod object_extensions;

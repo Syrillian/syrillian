@@ -487,12 +487,20 @@ impl GameObject {
     where
         C: Component + Default + 'static,
     {
+        self.add_component_with(C::default())
+    }
+
+    /// Adds an already configured [`Component`] of type `C` to this game object, initializing it
+    /// after it has been inserted into the world.
+    pub fn add_component_with<C>(&mut self, comp: C) -> CRef<C>
+    where
+        C: Component + 'static,
+    {
         assert!(
             self.is_alive(),
             "cannot add a component to an object that has been deleted"
         );
         let world = self.world();
-        let comp: C = C::default();
         let mut new_comp = world.components.add(comp, self.id);
 
         if self

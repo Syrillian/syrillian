@@ -27,6 +27,7 @@ pub struct ReflectedField {
 #[derive(Copy, Clone, Debug)]
 pub struct ReflectedTypeActions {
     pub serialize: fn(*const u8) -> Value,
+    pub deserialize: fn(*mut u8, &Value),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -44,7 +45,17 @@ pub trait ReflectSerialize {
         Self: Sized;
 }
 
+pub trait ReflectDeserialize {
+    fn apply(target: &mut Self, value: &Value)
+    where
+        Self: Sized;
+}
+
+pub fn noop_deserialize(_ptr: *mut u8, _value: &Value) {}
+
 impl ReflectedTypeInfo {
+    /// Create type info for a type that supports serialization only (deserialization is a no-op).
+    /// Used for asset types that are loaded via their own codec, not via reflection.
     pub fn new_of<T: ReflectSerialize + 'static>() -> Self {
         let type_name = std::any::type_name::<T>();
         let base_name = type_name.split('<').next().unwrap_or(type_name);
@@ -56,6 +67,25 @@ impl ReflectedTypeInfo {
             name: short_name,
             actions: ReflectedTypeActions {
                 serialize: serialize_as::<T>,
+                deserialize: noop_deserialize,
+            },
+            fields: &[],
+        }
+    }
+
+    /// Create type info for a type that supports both serialization and deserialization.
+    pub fn new_of_full<T: ReflectSerialize + ReflectDeserialize + 'static>() -> Self {
+        let type_name = std::any::type_name::<T>();
+        let base_name = type_name.split('<').next().unwrap_or(type_name);
+        let short_name = base_name.rsplit("::").next().unwrap_or(base_name);
+
+        Self {
+            type_id: TypeId::of::<T>(),
+            full_path: type_name,
+            name: short_name,
+            actions: ReflectedTypeActions {
+                serialize: serialize_as::<T>,
+                deserialize: deserialize_as::<T>,
             },
             fields: &[],
         }
@@ -160,6 +190,35 @@ pub fn serialize_as<T: ReflectSerialize>(ptr: *const u8) -> Value {
     ReflectSerialize::serialize(value)
 }
 
+pub fn deserialize_as<T: ReflectDeserialize>(ptr: *mut u8, value: &Value) {
+    let target: &mut T = unsafe { &mut *(ptr as *mut T) };
+    ReflectDeserialize::apply(target, value);
+}
+
+/// Apply reflected field values from a map onto a reflected struct.
+///
+/// For each field in the type's reflection metadata, if the map contains a matching key,
+/// the field's deserialize action is called to write the value into the struct.
+fn apply_reflected_fields_raw(
+    base: *mut u8,
+    reflected_type: &ReflectedTypeInfo,
+    fields: &BTreeMap<String, Value>,
+) {
+    for field_info in reflected_type.fields {
+        if let Some(value) = fields.get(field_info.name) {
+            let Some(field_type_info) = type_info(field_info.type_id) else {
+                warn!(
+                    "Type of {}::{} was requested for deserialization but didn't have reflection data",
+                    reflected_type.name, field_info.name,
+                );
+                continue;
+            };
+            let field_ptr = unsafe { base.byte_add(field_info.offset) };
+            (field_type_info.actions.deserialize)(field_ptr, value);
+        }
+    }
+}
+
 impl<R: Reflect> ReflectSerialize for R {
     fn serialize(this: &Self) -> Value {
         let mut map = BTreeMap::new();
@@ -181,5 +240,18 @@ impl<R: Reflect> ReflectSerialize for R {
             map.insert(field.name.to_string(), (ty.actions.serialize)(field_ptr));
         }
         Value::Object(map)
+    }
+}
+
+impl<R: Reflect> ReflectDeserialize for R {
+    fn apply(target: &mut Self, value: &Value) {
+        let Value::Object(fields) = value else {
+            return;
+        };
+        let Some(type_data) = Self::reflected_info() else {
+            return;
+        };
+        let base = target as *mut Self as *mut u8;
+        apply_reflected_fields_raw(base, &type_data, fields);
     }
 }

@@ -10,6 +10,7 @@ use syrillian::utils::QuaternionEuler;
 use syrillian_utils::debug_panic;
 
 #[derive(Debug, Default, Reflect)]
+#[reflect(component)]
 pub struct RigidBodyComponent {
     pub body_handle: Option<RigidBodyHandle>,
     #[reflect]
@@ -23,7 +24,12 @@ impl Component for RigidBodyComponent {
         let parent = self.parent();
         let initial_translation = parent.transform.position();
         let initial_rotation = parent.transform.rotation();
-        let rigid_body = RigidBodyBuilder::dynamic()
+        let builder = if self.kinematic {
+            RigidBodyBuilder::kinematic_position_based()
+        } else {
+            RigidBodyBuilder::dynamic()
+        };
+        let rigid_body = builder
             .user_data(parent.as_ffi() as u128)
             .translation(initial_translation)
             .rotation(initial_rotation.euler_vector())

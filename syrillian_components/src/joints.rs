@@ -18,6 +18,7 @@ use syrillian::physics::rapier3d::{
         SpringJointBuilder,
     },
 };
+use syrillian::reflect::deserialize_as;
 use syrillian::tracing::warn;
 use syrillian::{World, components::Component, core::GameObjectId};
 
@@ -269,6 +270,7 @@ impl<T: JointTypeTrait> PartialReflect for JointComponent<T> {
         ],
         actions: ReflectedTypeActions {
             serialize: serialize_as::<Self>,
+            deserialize: deserialize_as::<Self>,
         },
     };
 }

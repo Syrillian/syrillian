@@ -7,6 +7,7 @@ macro_rules! reflect_type_info {
             name: stringify!($type_name),
             actions: ::syrillian_reflect::ReflectedTypeActions {
                 serialize: ::syrillian_reflect::serialize_as::<$type_name>,
+                deserialize: ::syrillian_reflect::deserialize_as::<$type_name>,
             },
             fields: &[],
         }
@@ -19,8 +20,22 @@ macro_rules! reflect_type_info {
             name: stringify!($type_name),
             actions: ::syrillian_reflect::ReflectedTypeActions {
                 serialize: ::syrillian_reflect::serialize_as::<$type_name>,
+                deserialize: ::syrillian_reflect::deserialize_as::<$type_name>,
             },
             fields: $fields,
+        }
+    };
+
+    ($path:path, $type_name:ty) => {
+        ::syrillian_reflect::ReflectedTypeInfo {
+            type_id: std::any::TypeId::of::<$type_name>(),
+            full_path: concat!(stringify!($path), "::", stringify!($type_name)),
+            name: stringify!($type_name),
+            actions: ::syrillian_reflect::ReflectedTypeActions {
+                serialize: ::syrillian_reflect::serialize_as::<$type_name>,
+                deserialize: ::syrillian_reflect::noop_deserialize,
+            },
+            fields: &[],
         }
     };
 }

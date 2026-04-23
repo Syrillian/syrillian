@@ -1,5 +1,7 @@
 use crate::assets::mesh::{Bones, Mesh};
-use crate::assets::prefab::{PrefabAsset, PrefabMaterial, PrefabMeshBinding, PrefabNode};
+use crate::assets::prefab::{
+    PrefabAsset, PrefabComponent, PrefabMaterial, PrefabMeshBinding, PrefabNode,
+};
 use crate::assets::shader::{Shader, ShaderCode, ShaderType};
 use crate::assets::texture_2d::Texture2D;
 use crate::mesh::{SkinnedVertex3D, UnskinnedVertex3D};
@@ -289,9 +291,21 @@ impl ReflectSerialize for AnimationClip {
     }
 }
 
-impl ReflectSerialize for PrefabNode {
+impl ReflectSerialize for PrefabComponent {
     fn serialize(this: &Self) -> Value {
         Value::Object(BTreeMap::from([
+            (
+                "type_name".to_string(),
+                Value::String(this.type_name.clone()),
+            ),
+            ("fields".to_string(), Value::Object(this.fields.clone())),
+        ]))
+    }
+}
+
+impl ReflectSerialize for PrefabNode {
+    fn serialize(this: &Self) -> Value {
+        let mut map = BTreeMap::from([
             ("name".to_string(), Value::String(this.name.clone())),
             (
                 "local_position".to_string(),
@@ -314,7 +328,18 @@ impl ReflectSerialize for PrefabNode {
                 "extras_json".to_string(),
                 ReflectSerialize::serialize(&this.extras_json),
             ),
-        ]))
+        ]);
+
+        if !this.components.is_empty() {
+            let components: Vec<Value> = this
+                .components
+                .iter()
+                .map(ReflectSerialize::serialize)
+                .collect();
+            map.insert("components".to_string(), Value::Array(components));
+        }
+
+        Value::Object(map)
     }
 }
 
@@ -388,77 +413,65 @@ impl ReflectSerialize for PrefabAsset {
 
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets::mesh,
-    SkinnedVertex3D,
-    &[]
+    SkinnedVertex3D
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets::mesh,
-    UnskinnedVertex3D,
-    &[]
+    UnskinnedVertex3D
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets::mesh,
-    Bones,
-    &[]
+    Bones
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    Mesh,
-    &[]
+    Mesh
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    Texture2D,
-    &[]
+    Texture2D
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets::shader,
-    ShaderCode,
-    &[]
+    ShaderCode
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets::shader,
-    ShaderType,
-    &[]
+    ShaderType
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    Shader,
-    &[]
+    Shader
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    TransformKeys,
-    &[]
+    TransformKeys
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    AnimationChannel,
-    &[]
+    AnimationChannel
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    AnimationClip,
-    &[]
-));
-
-syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
-    syrillian_asset::assets,
-    PrefabMeshBinding,
-    &[]
+    AnimationClip
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    PrefabNode,
-    &[]
+    PrefabComponent
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    PrefabMaterial,
-    &[]
+    PrefabMeshBinding
 ));
 syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
     syrillian_asset::assets,
-    PrefabAsset,
-    &[]
+    PrefabNode
+));
+syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
+    syrillian_asset::assets,
+    PrefabMaterial
+));
+syrillian_reflect::register_type!(syrillian_reflect::reflect_type_info!(
+    syrillian_asset::assets,
+    PrefabAsset
 ));

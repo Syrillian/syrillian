@@ -8,6 +8,7 @@ use syrillian::core::reflection::{
     PartialReflect, ReflectedTypeActions, ReflectedTypeInfo, serialize_as,
 };
 use syrillian::math::{Vec3, vec3};
+use syrillian::reflect::deserialize_as;
 use syrillian::utils::FloatMathExt;
 use syrillian_render::lighting::proxy::{LightProxy, LightType};
 use syrillian_render::rendering::CPUDrawCtx;
@@ -134,6 +135,7 @@ impl<T: LightTypeTrait> PartialReflect for LightComponent<T> {
         ],
         actions: ReflectedTypeActions {
             serialize: serialize_as::<Self>,
+            deserialize: deserialize_as::<Self>,
         },
     };
 }

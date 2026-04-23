@@ -119,6 +119,7 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
     }
 
     let reflect_all = has_attr(&input.attrs, "reflect_all");
+    let is_component = has_reflect_component_attr(&input.attrs);
 
     let type_ident = &input.ident;
 
@@ -166,15 +167,45 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
                 name: stringify!(#type_ident),
                 actions: ::syrillian::core::reflection::ReflectedTypeActions {
                     serialize: ::syrillian::core::reflection::serialize_as::<Self>,
+                    deserialize: ::syrillian::core::reflection::deserialize_as::<Self>,
                 },
                 fields: &[#( #reflected ),*],
             };
         }
     };
 
+    let factory_registration = if is_component {
+        quote! {
+            ::syrillian::inventory::submit! {
+                ::syrillian::core::component_factory::ComponentFactoryEntry {
+                    type_name: stringify!(#type_ident),
+                    full_path: concat!(module_path!(), "::", stringify!(#type_ident)),
+                    type_id: std::any::TypeId::of::<#type_ident>(),
+                    spawn_fn: |obj: &mut ::syrillian::core::GameObjectId| -> *mut u8 {
+                        let cref = obj.add_component::<#type_ident>();
+                        std::ptr::from_mut(cref.get_mut()).cast::<u8>()
+                    },
+                    spawn_with_fields_fn: |obj: &mut ::syrillian::core::GameObjectId, value: &::syrillian::core::reflection::Value| -> *mut u8 {
+                        let mut component = #type_ident::default();
+                        ::syrillian::core::reflection::ReflectDeserialize::apply(&mut component, value);
+                        let cref = obj.add_component_with(component);
+                        std::ptr::from_mut(cref.get_mut()).cast::<u8>()
+                    },
+                    apply_fn: |ptr: *mut u8, value: &::syrillian::core::reflection::Value| {
+                        let target = unsafe { &mut *(ptr as *mut #type_ident) };
+                        ::syrillian::core::reflection::ReflectDeserialize::apply(target, value);
+                    },
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         #reflect_impl
         #registration
+        #factory_registration
     }
     .into()
 }
@@ -185,6 +216,21 @@ fn has_attr(attrs: &[Attribute], name: &str) -> bool {
             && path.segments.iter().any(|s| s.ident == name)
         {
             return true;
+        }
+    }
+    false
+}
+
+/// Check for `#[reflect(component)]` attribute on the struct.
+fn has_reflect_component_attr(attrs: &[Attribute]) -> bool {
+    for attr in attrs {
+        if let Meta::List(list) = &attr.meta
+            && list.path.segments.iter().any(|s| s.ident == "reflect")
+        {
+            let tokens = list.tokens.to_string();
+            if tokens.contains("component") {
+                return true;
+            }
         }
     }
     false

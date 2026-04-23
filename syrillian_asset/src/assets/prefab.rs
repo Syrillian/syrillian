@@ -6,6 +6,8 @@ use crate::store::{AssetKey, AssetRefreshMessage, H, HandleName, StoreType, stre
 use crossbeam_channel::Sender;
 use glamx::{Quat, Vec3, Vec4};
 use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
+use syrillian_reflect::Value;
 use syrillian_reflect::serializer::JsonSerializer;
 
 #[derive(Debug, Clone, Default)]
@@ -14,6 +16,14 @@ pub struct PrefabAsset {
     pub root_nodes: Vec<u32>,
     pub nodes: Vec<PrefabNode>,
     pub animation_assets: Vec<String>,
+}
+
+/// A serialized component attached to a prefab node.
+/// Only reflected fields are stored; non-reflected fields use Default values on load.
+#[derive(Debug, Clone, Default)]
+pub struct PrefabComponent {
+    pub type_name: String,
+    pub fields: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -25,6 +35,7 @@ pub struct PrefabNode {
     pub children: Vec<u32>,
     pub mesh: Option<PrefabMeshBinding>,
     pub extras_json: Option<String>,
+    pub components: Vec<PrefabComponent>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -85,6 +96,39 @@ impl StoreType for PrefabAsset {
     }
 }
 
+fn json_to_reflect_value(json: &JsonValue) -> Value {
+    match json {
+        JsonValue::Null => Value::None,
+        JsonValue::Bool(b) => Value::Bool(*b),
+        JsonValue::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::BigInt(i)
+            } else if let Some(u) = n.as_u64() {
+                Value::BigUInt(u)
+            } else {
+                Value::Double(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        JsonValue::String(s) => Value::String(s.clone()),
+        JsonValue::Array(arr) => Value::Array(arr.iter().map(json_to_reflect_value).collect()),
+        JsonValue::Object(obj) => Value::Object(
+            obj.iter()
+                .map(|(k, v)| (k.clone(), json_to_reflect_value(v)))
+                .collect(),
+        ),
+    }
+}
+
+fn json_object_to_value_map(json: &JsonValue) -> BTreeMap<String, Value> {
+    match json {
+        JsonValue::Object(obj) => obj
+            .iter()
+            .map(|(k, v)| (k.clone(), json_to_reflect_value(v)))
+            .collect(),
+        _ => BTreeMap::new(),
+    }
+}
+
 impl ParseDecode<PrefabNode> for JsonValue {
     fn expect_parse(&self, _label: &str) -> streaming::error::Result<PrefabNode> {
         let object = self.expect_object("prefab node")?;
@@ -111,6 +155,21 @@ impl ParseDecode<PrefabNode> for JsonValue {
             Some(value) => Some(value.to_string()),
         };
 
+        let components = match object.optional_field("components") {
+            None | Some(JsonValue::Null) => Vec::new(),
+            Some(JsonValue::Array(arr)) => arr
+                .iter()
+                .filter_map(|item| {
+                    let obj = item.as_object()?;
+                    let type_name = obj.get("type_name")?.as_str()?.to_string();
+                    let fields_value = obj.get("fields")?;
+                    let fields = json_object_to_value_map(fields_value);
+                    Some(PrefabComponent { type_name, fields })
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+
         Ok(PrefabNode {
             name: object
                 .required_field("name")?
@@ -129,6 +188,7 @@ impl ParseDecode<PrefabNode> for JsonValue {
                 .expect_parse("prefab children")?,
             mesh,
             extras_json,
+            components,
         })
     }
 }
