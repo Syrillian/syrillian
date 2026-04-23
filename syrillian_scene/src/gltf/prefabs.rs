@@ -55,6 +55,7 @@ pub fn build_prefab_node(
         children: Vec::new(),
         mesh: mesh_binding,
         extras_json,
+        components: Vec::new(),
     });
 
     let children = node

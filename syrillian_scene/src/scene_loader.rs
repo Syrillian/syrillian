@@ -5,6 +5,8 @@ use std::collections::{HashMap, HashSet};
 use syrillian::World;
 use syrillian::assets::{HMaterialInstance, HMesh, HTexture2D, Mesh, Texture2D};
 use syrillian::core::GameObjectId;
+use syrillian::core::component_factory::ComponentFactory;
+use syrillian::core::reflection::Value;
 use syrillian::tracing::{trace, warn};
 use syrillian_asset::store::H;
 use syrillian_asset::store::streaming::AssetStreamingError;
@@ -176,6 +178,17 @@ impl<'a> PrefabInstantiationContext<'a> {
 
         if let Some(mesh_binding) = node.mesh.as_ref() {
             self.attach_mesh_binding(&mut object, mesh_binding);
+        }
+
+        // Spawn reflected components from prefab data
+        for prefab_comp in &node.components {
+            let fields = Value::Object(prefab_comp.fields.clone());
+            if !ComponentFactory::spawn_and_apply(&mut object, &prefab_comp.type_name, &fields) {
+                trace!(
+                    "Component '{}' not found in factory for node '{}'",
+                    prefab_comp.type_name, node.name
+                );
+            }
         }
 
         for child in node.children {
