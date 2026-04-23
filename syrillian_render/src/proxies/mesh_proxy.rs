@@ -290,7 +290,9 @@ impl MeshSceneProxy {
                 pass.set_bind_group(idx, &material.bind_group, &[]);
             }
 
-            if pass_type == RenderPassType::Color && shader.immediate_size > 0 {
+            if matches!(pass_type, RenderPassType::Color | RenderPassType::Picking)
+                && shader.immediate_size > 0
+            {
                 debug_assert_eq!(
                     shader.immediate_size as usize,
                     material.immediates.len(),
