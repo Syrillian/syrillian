@@ -107,7 +107,7 @@ impl CameraComponent {
     pub fn click_ray(&self, x: f32, y: f32) -> Ray {
         let eye = self.mouse_eye_dir(x, y);
 
-        let cam_to_world = self.parent().transform.rigid_view_matrix().to_mat4();
+        let cam_to_world = self.parent().transform.rigid_global_isometry().to_mat4();
 
         let origin = cam_to_world.transform_point3(Vec3::ZERO);
         let dir_world = (cam_to_world * eye).xyz().normalize();
@@ -138,6 +138,11 @@ impl CameraComponent {
         self.width = width;
         self.height = height;
         self.regenerate();
+    }
+
+    pub fn force_render_sync(&mut self) {
+        self.projection_dirty = true;
+        self.parent().transform.set_dirty();
     }
 
     pub fn render_target(&self) -> ViewportId {
