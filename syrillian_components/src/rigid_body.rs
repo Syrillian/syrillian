@@ -14,9 +14,7 @@ pub struct RigidBodyComponent {
     pub body_handle: Option<RigidBodyHandle>,
     #[reflect]
     kinematic: bool,
-    #[reflect]
     prev_iso: Pose,
-    #[reflect]
     curr_iso: Pose,
 }
 
