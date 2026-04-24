@@ -374,12 +374,10 @@ fn append_use_group(
         ),
         "light" | "shadow" => append_block_once(out, &mut imported.light, LIGHT_GROUP),
         "post_process" => append_block_once(out, &mut imported.post_process, POST_PROCESS_GROUP),
-        "default_vertex" if allow_default_vertex => {
-            if !imported.default_vertex {
-                out.push_str(MESH3D_GROUP);
-                out.push('\n');
-                imported.default_vertex = true;
-            }
+        "default_vertex" if allow_default_vertex && !imported.default_vertex => {
+            out.push_str(MESH3D_GROUP);
+            out.push('\n');
+            imported.default_vertex = true;
         }
         _ => {}
     }

@@ -28,17 +28,29 @@ struct RenderThreadInner {
     frame_tx: Sender<RenderBatch>,
 }
 
+struct RenderThreadInit {
+    state: Arc<State>,
+    render_rx: Receiver<RenderMsg>,
+    control_rx: Receiver<RenderControlMsg>,
+    frame_tx: Sender<RenderBatch>,
+    pick_result_tx: Sender<PickResult>,
+    hit_rect_tx: Sender<Vec<HitRect>>,
+    assets_rx: Receiver<AssetRefreshMessage>,
+    primary_config: SurfaceConfiguration,
+}
+
 impl RenderThreadInner {
-    fn new(
-        state: Arc<State>,
-        render_rx: Receiver<RenderMsg>,
-        control_rx: Receiver<RenderControlMsg>,
-        frame_tx: Sender<RenderBatch>,
-        pick_result_tx: Sender<PickResult>,
-        hit_rect_tx: Sender<Vec<HitRect>>,
-        assets_rx: Receiver<AssetRefreshMessage>,
-        primary_config: SurfaceConfiguration,
-    ) -> Result<Self, syrillian_render::error::RenderError> {
+    fn new(init: RenderThreadInit) -> Result<Self, syrillian_render::error::RenderError> {
+        let RenderThreadInit {
+            state,
+            render_rx,
+            control_rx,
+            frame_tx,
+            pick_result_tx,
+            hit_rect_tx,
+            assets_rx,
+            primary_config,
+        } = init;
         let renderer = Renderer::new(
             state,
             assets_rx,
@@ -153,7 +165,7 @@ impl RenderThread {
     ) -> Result<Self, syrillian_render::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
         let (frame_tx, frame_rx) = bounded(1);
-        let inner = RenderThreadInner::new(
+        let inner = RenderThreadInner::new(RenderThreadInit {
             state,
             render_rx,
             control_rx,
@@ -162,7 +174,7 @@ impl RenderThread {
             hit_rect_tx,
             assets_rx,
             primary_config,
-        )?;
+        })?;
 
         let thread = std::thread::spawn(move || {
             inner.run();
@@ -217,6 +229,7 @@ pub struct RenderThread {
 impl RenderThread {
     pub fn new(
         state: Arc<State>,
+        assets_rx: Receiver<AssetRefreshMessage>,
         render_rx: Receiver<RenderMsg>,
         pick_result_tx: Sender<PickResult>,
         hit_rect_tx: Sender<Vec<HitRect>>,
@@ -224,15 +237,16 @@ impl RenderThread {
     ) -> Result<Self, syrillian_render::error::RenderError> {
         let (control_tx, control_rx) = unbounded();
         let (frame_tx, frame_rx) = unbounded();
-        let inner = RenderThreadInner::new(
+        let inner = RenderThreadInner::new(RenderThreadInit {
             state,
             render_rx,
             control_rx,
             frame_tx,
             pick_result_tx,
             hit_rect_tx,
+            assets_rx,
             primary_config,
-        )?;
+        })?;
 
         Ok(RenderThread {
             inner,

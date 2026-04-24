@@ -166,7 +166,7 @@ impl TransformKeys {
         }
         times
             .binary_search_by(|k| k.partial_cmp(&t).unwrap_or(Ordering::Equal))
-            .unwrap_or_else(|i| (i - 1).max(0))
+            .unwrap_or_else(|i| i - 1)
     }
 
     // TODO: consider resorting the combined array so that the times always increase,

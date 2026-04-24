@@ -791,9 +791,7 @@ impl World {
             return None;
         }
 
-        let Some(size) = self.viewport_size(target) else {
-            return None;
-        };
+        let size = self.viewport_size(target)?;
         if size.width == 0 || size.height == 0 {
             return None;
         }

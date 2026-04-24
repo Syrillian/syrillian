@@ -20,6 +20,39 @@ fn extract_array_f32(value: &Value) -> Option<&[Value]> {
     }
 }
 
+fn extract_vec2(value: &Value) -> Option<Vec2> {
+    let arr = extract_array_f32(value)?;
+    if arr.len() < 2 {
+        return None;
+    }
+    Some(Vec2::new(extract_f32(&arr[0]), extract_f32(&arr[1])))
+}
+
+fn extract_vec3(value: &Value) -> Option<Vec3> {
+    let arr = extract_array_f32(value)?;
+    if arr.len() < 3 {
+        return None;
+    }
+    Some(Vec3::new(
+        extract_f32(&arr[0]),
+        extract_f32(&arr[1]),
+        extract_f32(&arr[2]),
+    ))
+}
+
+fn extract_vec4(value: &Value) -> Option<Vec4> {
+    let arr = extract_array_f32(value)?;
+    if arr.len() < 4 {
+        return None;
+    }
+    Some(Vec4::new(
+        extract_f32(&arr[0]),
+        extract_f32(&arr[1]),
+        extract_f32(&arr[2]),
+        extract_f32(&arr[3]),
+    ))
+}
+
 impl ReflectSerialize for Vec2 {
     fn serialize(this: &Self) -> Value {
         Value::Array(vec![Value::Float(this.x), Value::Float(this.y)])
@@ -28,10 +61,8 @@ impl ReflectSerialize for Vec2 {
 
 impl ReflectDeserialize for Vec2 {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(arr) = extract_array_f32(value) {
-            if arr.len() >= 2 {
-                *target = Vec2::new(extract_f32(&arr[0]), extract_f32(&arr[1]));
-            }
+        if let Some(vec) = extract_vec2(value) {
+            *target = vec;
         }
     }
 }
@@ -48,14 +79,8 @@ impl ReflectSerialize for Vec3 {
 
 impl ReflectDeserialize for Vec3 {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(arr) = extract_array_f32(value) {
-            if arr.len() >= 3 {
-                *target = Vec3::new(
-                    extract_f32(&arr[0]),
-                    extract_f32(&arr[1]),
-                    extract_f32(&arr[2]),
-                );
-            }
+        if let Some(vec) = extract_vec3(value) {
+            *target = vec;
         }
     }
 }
@@ -73,15 +98,8 @@ impl ReflectSerialize for Vec4 {
 
 impl ReflectDeserialize for Vec4 {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(arr) = extract_array_f32(value) {
-            if arr.len() >= 4 {
-                *target = Vec4::new(
-                    extract_f32(&arr[0]),
-                    extract_f32(&arr[1]),
-                    extract_f32(&arr[2]),
-                    extract_f32(&arr[3]),
-                );
-            }
+        if let Some(vec) = extract_vec4(value) {
+            *target = vec;
         }
     }
 }
@@ -99,15 +117,8 @@ impl ReflectSerialize for Quat {
 
 impl ReflectDeserialize for Quat {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(arr) = extract_array_f32(value) {
-            if arr.len() >= 4 {
-                *target = Quat::from_xyzw(
-                    extract_f32(&arr[0]),
-                    extract_f32(&arr[1]),
-                    extract_f32(&arr[2]),
-                    extract_f32(&arr[3]),
-                );
-            }
+        if let Some(vec) = extract_vec4(value) {
+            *target = Quat::from_xyzw(vec.x, vec.y, vec.z, vec.w);
         }
     }
 }
@@ -129,20 +140,16 @@ impl ReflectSerialize for Mat2 {
 
 impl ReflectDeserialize for Mat2 {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(cols) = extract_array_f32(value) {
-            if cols.len() >= 2 {
-                if let (Some(c0), Some(c1)) =
-                    (extract_array_f32(&cols[0]), extract_array_f32(&cols[1]))
-                {
-                    if c0.len() >= 2 && c1.len() >= 2 {
-                        *target = Mat2::from_cols(
-                            Vec2::new(extract_f32(&c0[0]), extract_f32(&c0[1])),
-                            Vec2::new(extract_f32(&c1[0]), extract_f32(&c1[1])),
-                        );
-                    }
-                }
-            }
+        let Some(cols) = extract_array_f32(value) else {
+            return;
+        };
+        if cols.len() < 2 {
+            return;
         }
+        let (Some(c0), Some(c1)) = (extract_vec2(&cols[0]), extract_vec2(&cols[1])) else {
+            return;
+        };
+        *target = Mat2::from_cols(c0, c1);
     }
 }
 
@@ -170,23 +177,20 @@ impl ReflectSerialize for Mat3 {
 
 impl ReflectDeserialize for Mat3 {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(cols) = extract_array_f32(value) {
-            if cols.len() >= 3 {
-                let mut vecs = [Vec3::ZERO; 3];
-                for (i, v) in vecs.iter_mut().enumerate() {
-                    if let Some(c) = extract_array_f32(&cols[i]) {
-                        if c.len() >= 3 {
-                            *v = Vec3::new(
-                                extract_f32(&c[0]),
-                                extract_f32(&c[1]),
-                                extract_f32(&c[2]),
-                            );
-                        }
-                    }
-                }
-                *target = Mat3::from_cols(vecs[0], vecs[1], vecs[2]);
+        let Some(cols) = extract_array_f32(value) else {
+            return;
+        };
+        if cols.len() < 3 {
+            return;
+        }
+
+        let mut vecs = [Vec3::ZERO; 3];
+        for (i, v) in vecs.iter_mut().enumerate() {
+            if let Some(col) = extract_vec3(&cols[i]) {
+                *v = col;
             }
         }
+        *target = Mat3::from_cols(vecs[0], vecs[1], vecs[2]);
     }
 }
 
@@ -214,7 +218,6 @@ impl ReflectSerialize for Mat3A {
 
 impl ReflectDeserialize for Mat3A {
     fn apply(target: &mut Self, value: &Value) {
-        // Deserialize as Mat3 then convert
         let mut m = Mat3::from_cols(
             Vec3::new(target.x_axis.x, target.x_axis.y, target.x_axis.z),
             Vec3::new(target.y_axis.x, target.y_axis.y, target.y_axis.z),
@@ -258,24 +261,20 @@ impl ReflectSerialize for Mat4 {
 
 impl ReflectDeserialize for Mat4 {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(cols) = extract_array_f32(value) {
-            if cols.len() >= 4 {
-                let mut vecs = [Vec4::ZERO; 4];
-                for (i, v) in vecs.iter_mut().enumerate() {
-                    if let Some(c) = extract_array_f32(&cols[i]) {
-                        if c.len() >= 4 {
-                            *v = Vec4::new(
-                                extract_f32(&c[0]),
-                                extract_f32(&c[1]),
-                                extract_f32(&c[2]),
-                                extract_f32(&c[3]),
-                            );
-                        }
-                    }
-                }
-                *target = Mat4::from_cols(vecs[0], vecs[1], vecs[2], vecs[3]);
+        let Some(cols) = extract_array_f32(value) else {
+            return;
+        };
+        if cols.len() < 4 {
+            return;
+        }
+
+        let mut vecs = [Vec4::ZERO; 4];
+        for (i, v) in vecs.iter_mut().enumerate() {
+            if let Some(col) = extract_vec4(&cols[i]) {
+                *v = col;
             }
         }
+        *target = Mat4::from_cols(vecs[0], vecs[1], vecs[2], vecs[3]);
     }
 }
 
@@ -309,21 +308,22 @@ impl ReflectSerialize for Affine3A {
 
 impl ReflectDeserialize for Affine3A {
     fn apply(target: &mut Self, value: &Value) {
-        if let Some(cols) = extract_array_f32(value) {
-            if cols.len() >= 4 {
-                let mut arr = [[0.0f32; 3]; 4];
-                for (i, col) in arr.iter_mut().enumerate() {
-                    if let Some(c) = extract_array_f32(&cols[i]) {
-                        for (j, val) in col.iter_mut().enumerate() {
-                            if j < c.len() {
-                                *val = extract_f32(&c[j]);
-                            }
-                        }
-                    }
+        let Some(cols) = extract_array_f32(value) else {
+            return;
+        };
+        if cols.len() < 4 {
+            return;
+        }
+
+        let mut arr = [[0.0f32; 3]; 4];
+        for (i, col) in arr.iter_mut().enumerate() {
+            if let Some(values) = extract_array_f32(&cols[i]) {
+                for (val, value) in col.iter_mut().zip(values) {
+                    *val = extract_f32(value);
                 }
-                *target = Affine3A::from_cols_array_2d(&arr);
             }
         }
+        *target = Affine3A::from_cols_array_2d(&arr);
     }
 }
 
