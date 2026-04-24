@@ -32,9 +32,13 @@ pub struct LightManager {
     pub shadow_texture: Arc<GpuTexture>,
     pub _shadow_sampler: Sampler,
     shadow_matrices: Vec<Mat4>,
+    shadow_layer_capacity: u32,
+    shadow_assignments_dirty: bool,
+    lights_uniform_dirty: bool,
+    shadow_camera_uniforms_dirty: bool,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ShadowAssignment {
     pub layer: u32,
     pub light_index: usize,
@@ -49,7 +53,15 @@ impl LightManager {
         device: &Device,
         cache: &AssetCache,
     ) -> u32 {
+        let capacity_changed = self.shadow_layer_capacity != layers;
+        if !self.shadow_assignments_dirty && !capacity_changed {
+            return self.shadow_assignments.len() as u32;
+        }
+
+        self.shadow_layer_capacity = layers;
+        let previous_assignments = self.shadow_assignments.clone();
         self.shadow_assignments.clear();
+        let mut mapping_changed = false;
 
         let render_bgl = cache.bgl_render();
         let fallback_skybox = cache.cubemap_fallback();
@@ -63,20 +75,23 @@ impl LightManager {
                 LightType::Sun => 0,
             };
 
-            if required_layers == 0 {
-                light.shadow_map_id = u32::MAX;
-                light.shadow_mat_base = u32::MAX;
-                continue;
+            let can_fit = self.shadow_assignments.len() as u32 + required_layers <= layers;
+            let (shadow_map_id, shadow_mat_base) = if required_layers == 0 || !can_fit {
+                (u32::MAX, u32::MAX)
+            } else {
+                (next_layer, next_layer)
+            };
+
+            if light.shadow_map_id != shadow_map_id || light.shadow_mat_base != shadow_mat_base {
+                mapping_changed = true;
             }
 
-            if self.shadow_assignments.len() as u32 + required_layers > layers {
-                light.shadow_map_id = u32::MAX;
-                light.shadow_mat_base = u32::MAX;
+            light.shadow_map_id = shadow_map_id;
+            light.shadow_mat_base = shadow_mat_base;
+
+            if required_layers == 0 || !can_fit {
                 continue;
             }
-
-            light.shadow_map_id = next_layer;
-            light.shadow_mat_base = next_layer;
 
             for face in 0..required_layers {
                 self.shadow_assignments.push(ShadowAssignment {
@@ -86,7 +101,7 @@ impl LightManager {
                 });
             }
 
-            while self.shadow_assignments.len() >= self.render_data.len() {
+            while self.render_data.len() < self.shadow_assignments.len() {
                 profiling::scope!("add render uniform");
                 self.render_data.push(RenderUniformData::empty(
                     device,
@@ -100,6 +115,10 @@ impl LightManager {
         }
 
         debug_assert_eq!(next_layer as usize, self.shadow_assignments.len());
+        let assignments_changed = previous_assignments != self.shadow_assignments;
+        self.shadow_assignments_dirty = false;
+        self.lights_uniform_dirty |= mapping_changed;
+        self.shadow_camera_uniforms_dirty |= mapping_changed || assignments_changed;
 
         next_layer
     }
@@ -117,6 +136,10 @@ impl LightManager {
             self.proxies.push(proxy);
             self.proxy_owners.push(owner);
         }
+
+        self.shadow_assignments_dirty = true;
+        self.lights_uniform_dirty = true;
+        self.shadow_camera_uniforms_dirty = true;
     }
 
     #[profiling::function]
@@ -131,6 +154,9 @@ impl LightManager {
 
         self.proxy_owners.remove(pos);
         self.proxies.remove(pos);
+        self.shadow_assignments_dirty = true;
+        self.lights_uniform_dirty = true;
+        self.shadow_camera_uniforms_dirty = true;
     }
 
     #[profiling::function]
@@ -149,7 +175,24 @@ impl LightManager {
             return;
         };
 
+        let old = *proxy;
         cmd(proxy);
+
+        // Shadow map assignment IDs are runtime-managed and must not be overwritten by component updates.
+        proxy.shadow_map_id = old.shadow_map_id;
+        proxy.shadow_mat_base = old.shadow_mat_base;
+
+        let new = *proxy;
+        if !light_payload_equal(&old, &new) {
+            self.lights_uniform_dirty = true;
+        }
+        if shadow_camera_inputs_changed(&old, &new) {
+            self.shadow_camera_uniforms_dirty = true;
+        }
+        if old.type_id != new.type_id {
+            self.shadow_assignments_dirty = true;
+            self.shadow_camera_uniforms_dirty = true;
+        }
     }
 
     pub fn shadow_array(&self) -> &GpuTexture {
@@ -194,8 +237,6 @@ impl LightManager {
 
     #[profiling::function]
     pub fn new(cache: &AssetCache, device: &Device, queue: &Queue) -> Self {
-        const DUMMY_POINT_LIGHT: LightProxy = LightProxy::dummy();
-
         let shadow_texture =
             RenderTexture2DArray::new_shadow_map(48, 1024, 1024).upload(device, queue);
         let empty_shadow_texture =
@@ -260,11 +301,19 @@ impl LightManager {
             shadow_texture,
             _shadow_sampler: shadow_sampler,
             shadow_matrices,
+            shadow_layer_capacity: 0,
+            shadow_assignments_dirty: true,
+            lights_uniform_dirty: false,
+            shadow_camera_uniforms_dirty: false,
         }
     }
 
     #[profiling::function]
     pub fn update(&mut self, cache: &AssetCache, queue: &Queue, device: &Device) {
+        if !self.lights_uniform_dirty && !self.shadow_camera_uniforms_dirty {
+            return;
+        }
+
         for light in self.proxies.iter_mut() {
             let inner = light.inner_angle.min(light.outer_angle);
             let outer = light.inner_angle.max(light.outer_angle);
@@ -272,59 +321,67 @@ impl LightManager {
             light.cos_outer = outer.cos();
         }
 
-        self.shadow_matrices.fill(Mat4::IDENTITY);
+        if self.shadow_camera_uniforms_dirty {
+            self.shadow_matrices.fill(Mat4::IDENTITY);
 
-        for (render_data, assignment) in self
-            .render_data
-            .iter_mut()
-            .zip(self.shadow_assignments.iter())
-        {
-            let Some(light) = self.proxies.get_mut(assignment.light_index) else {
-                debug_panic!("Invalid Light Index was stored");
-                continue;
-            };
+            for (render_data, assignment) in self
+                .render_data
+                .iter_mut()
+                .zip(self.shadow_assignments.iter())
+            {
+                let Some(light) = self.proxies.get(assignment.light_index) else {
+                    debug_panic!("Invalid Light Index was stored");
+                    continue;
+                };
 
-            let Ok(light_type) = LightType::try_from(light.type_id) else {
-                debug_panic!("Invalid Light Type Id was stored");
-                continue;
-            };
+                let Ok(light_type) = LightType::try_from(light.type_id) else {
+                    debug_panic!("Invalid Light Type Id was stored");
+                    continue;
+                };
 
-            match light_type {
-                LightType::Point => {
-                    render_data.update_shadow_camera_for_point(light, assignment.face, queue)
+                match light_type {
+                    LightType::Point => {
+                        render_data.update_shadow_camera_for_point(light, assignment.face, queue)
+                    }
+                    LightType::Spot => render_data.update_shadow_camera_for_spot(light, queue),
+                    LightType::Sun => (),
                 }
-                LightType::Spot => render_data.update_shadow_camera_for_spot(light, queue),
-                LightType::Sun => (),
+
+                if let Some(shadow_mat) = self.shadow_matrices.get_mut(assignment.layer as usize) {
+                    *shadow_mat = render_data.camera_data.proj_view_mat;
+                }
             }
 
-            if let Some(shadow_mat) = self.shadow_matrices.get_mut(assignment.layer as usize) {
-                *shadow_mat = render_data.camera_data.proj_view_mat;
-            }
+            queue.write_buffer(
+                self.shadow_uniform
+                    .buffer(ShadowUniformIndex::ShadowMatrices),
+                0,
+                self.shadow_matrices.as_bytes(),
+            );
+
+            self.shadow_camera_uniforms_dirty = false;
         }
 
-        queue.write_buffer(
-            self.shadow_uniform
-                .buffer(ShadowUniformIndex::ShadowMatrices),
-            0,
-            self.shadow_matrices.as_bytes(),
-        );
+        if self.lights_uniform_dirty {
+            let light_count = self.proxies.len();
+            let proxies = proxy_buffer_slice(&self.proxies);
 
-        let proxies = proxy_buffer_slice(&self.proxies);
-        let size = proxies.len();
+            let count = self.uniform.buffer(LightUniformIndex::Count);
+            let count_u32 = light_count as u32;
+            queue.write_buffer(count, 0, count_u32.as_bytes());
 
-        let count = self.uniform.buffer(LightUniformIndex::Count);
-        let count_u32 = size as u32;
-        queue.write_buffer(count, 0, count_u32.as_bytes());
+            let data = self.uniform.buffer(LightUniformIndex::Lights);
+            if size_of_val(proxies) > data.size() as usize {
+                let bgl = cache.bgl_light();
+                self.uniform = ShaderUniform::builder(bgl)
+                    .with_buffer(count.clone())
+                    .with_storage_buffer_data(proxies)
+                    .build(device);
+            } else {
+                queue.write_buffer(data, 0, proxies.as_bytes());
+            }
 
-        let data = self.uniform.buffer(LightUniformIndex::Lights);
-        if size_of_val(proxies) > data.size() as usize {
-            let bgl = cache.bgl_light();
-            self.uniform = ShaderUniform::builder(bgl)
-                .with_buffer(count.clone())
-                .with_storage_buffer_data(proxies)
-                .build(device);
-        } else {
-            queue.write_buffer(data, 0, proxies.as_bytes());
+            self.lights_uniform_dirty = false;
         }
     }
 
@@ -372,4 +429,17 @@ pub fn proxy_buffer_slice(proxies: &[LightProxy]) -> &[LightProxy] {
     } else {
         proxies
     }
+}
+
+fn light_payload_equal(old: &LightProxy, new: &LightProxy) -> bool {
+    old.as_bytes() == new.as_bytes()
+}
+
+fn shadow_camera_inputs_changed(old: &LightProxy, new: &LightProxy) -> bool {
+    old.type_id != new.type_id
+        || old.position != new.position
+        || old.direction != new.direction
+        || old.up != new.up
+        || old.range.to_bits() != new.range.to_bits()
+        || old.outer_angle.to_bits() != new.outer_angle.to_bits()
 }

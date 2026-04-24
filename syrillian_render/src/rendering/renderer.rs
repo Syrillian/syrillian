@@ -24,7 +24,6 @@ use crate::strobe::StrobeRenderer;
 use crate::strobe::input::HitRect;
 use crossbeam_channel::{Receiver, Sender};
 use glamx::Affine3A;
-use itertools::Itertools;
 use parking_lot::RwLock;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -249,6 +248,14 @@ impl Renderer {
         let frustum = camera_data.frustum();
 
         sorted_enabled_proxy_ids(&self.proxies, Some(&frustum), Some(&self.cache))
+    }
+
+    #[instrument(skip_all)]
+    #[profiling::function]
+    fn shadow_proxies(&self, camera_data: &CameraUniform) -> Vec<TypedComponentId> {
+        let frustum = camera_data.frustum();
+
+        culled_enabled_proxy_ids(&self.proxies, Some(&frustum))
     }
 
     #[instrument(skip_all)]
@@ -503,7 +510,7 @@ impl Renderer {
         render_data: &RenderUniformData,
         layer: u32,
     ) {
-        let sorted_proxies = self.sorted_proxies(&render_data.camera_data);
+        let shadow_proxies = self.shadow_proxies(&render_data.camera_data);
 
         let Some(layer_view) = self.lights.shadow_layer(layer) else {
             debug_panic!("Shadow layer view {layer} was not found");
@@ -516,7 +523,7 @@ impl Renderer {
             ctx,
             pass,
             RenderPassType::Shadow,
-            &sorted_proxies,
+            &shadow_proxies,
             render_data,
         );
     }
@@ -630,8 +637,8 @@ impl Renderer {
         }
 
         match ctx.pass_type {
-            RenderPassType::Color | RenderPassType::Shadow => (),
-            RenderPassType::Picking => return,
+            RenderPassType::Color => (),
+            RenderPassType::Shadow | RenderPassType::Picking => return,
             RenderPassType::Color2D | RenderPassType::PickingUi => {
                 debug_panic!("Shouldn't render scene in 2D passes");
                 return;
@@ -1032,27 +1039,62 @@ fn sorted_enabled_proxy_ids(
     cache: Option<&AssetCache>,
 ) -> Vec<TypedComponentId> {
     let is_culling_enabled = !EngineArgs::get().no_frustum_culling;
-    proxies
-        .iter()
-        .filter(|(_, binding)| binding.enabled)
-        .filter_map(|(tid, binding)| {
-            let priority = binding.proxy.priority(cache);
-            let mut distance = 0.0;
-            if let Some(f) = frustum
-                && let Some(bounds) = binding.bounds()
-            {
-                if is_culling_enabled && !f.intersects_sphere(&bounds) {
-                    return None;
-                }
+    let near_plane = frustum.map(|f| f.side(FrustumSide::Near));
+    let mut filtered =
+        Vec::<(TypedComponentId, u32, i64)>::with_capacity(proxies.len());
 
-                distance = f.side(FrustumSide::Near).distance_to(&bounds);
-            };
+    for (tid, binding) in proxies {
+        if !binding.enabled {
+            continue;
+        }
 
-            Some((tid, priority, distance))
-        })
-        .sorted_by_key(|(_, priority, distance)| (*priority, -(*distance * 100000.0) as i64))
-        .map(|(tid, _, _)| *tid)
-        .collect()
+        let mut distance_key = 0_i64;
+        if let Some(f) = frustum
+            && let Some(bounds) = binding.bounds()
+        {
+            if is_culling_enabled && !f.intersects_sphere(&bounds) {
+                continue;
+            }
+
+            if let Some(near) = near_plane {
+                distance_key = -(near.distance_to(&bounds) * 100000.0) as i64;
+            }
+        }
+
+        let priority = binding.proxy.priority(cache);
+        filtered.push((*tid, priority, distance_key));
+    }
+
+    filtered.sort_unstable_by_key(|(_, priority, distance_key)| (*priority, *distance_key));
+    filtered.into_iter().map(|(tid, _, _)| tid).collect()
+}
+
+#[instrument(skip_all)]
+#[profiling::function]
+fn culled_enabled_proxy_ids(
+    proxies: &HashMap<TypedComponentId, SceneProxyBinding>,
+    frustum: Option<&Frustum>,
+) -> Vec<TypedComponentId> {
+    let is_culling_enabled = !EngineArgs::get().no_frustum_culling;
+    let mut filtered = Vec::<TypedComponentId>::with_capacity(proxies.len());
+
+    for (tid, binding) in proxies {
+        if !binding.enabled {
+            continue;
+        }
+
+        if is_culling_enabled
+            && let Some(f) = frustum
+            && let Some(bounds) = binding.bounds()
+            && !f.intersects_sphere(&bounds)
+        {
+            continue;
+        }
+
+        filtered.push(*tid);
+    }
+
+    filtered
 }
 
 #[cfg(test)]
