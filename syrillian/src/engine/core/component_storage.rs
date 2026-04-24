@@ -8,7 +8,7 @@ use std::any::{Any, TypeId};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
-use syrillian_utils::{ComponentId, TypedComponentId};
+use syrillian_utils::{debug_panic, ComponentId, TypedComponentId};
 use tracing::trace;
 
 #[allow(unused)]
@@ -247,19 +247,19 @@ impl ComponentStorage {
             return;
         };
 
-        let comp = map.remove(ctid.component_id());
-        debug_assert!(
-            comp.is_some(),
-            "Component wasn't found despite still being owned by a game object."
-        );
+        let Some(comp) = map.remove(ctid.component_id()) else {
+            debug_panic!("Component wasn't found despite still being owned by a game object.");
+            return;
+        };
+
         self.removed.push(ctid);
 
         debug_assert_ne!(self.len, 0);
 
         self.len = self.len.saturating_sub(1);
 
-        if let Some(comp) = comp.and_then(|c| c.data) {
-            ComponentContextInference::tl_remove(Rc::as_ptr(&comp) as *const ());
+        if let Some(ref data) = comp.data {
+            ComponentContextInference::tl_remove(Rc::as_ptr(&data) as *const ());
         }
     }
 

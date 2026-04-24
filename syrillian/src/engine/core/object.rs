@@ -616,13 +616,13 @@ impl GameObject {
         let removed: Vec<_> = self
             .components
             .extract_if(.., |c| c.ctx.tid == comp)
-            .map(|c| c.ctx.tid)
             .collect();
         if removed.len() > 1 {
             debug_panic!("Removed more than one component by TID (which should be unique)");
         }
-        for tid in removed {
-            world.schedule_component_removal(tid);
+        for mut comp in removed {
+            comp.delete(world);
+            world.schedule_component_removal(comp.typed_id());
         }
     }
 

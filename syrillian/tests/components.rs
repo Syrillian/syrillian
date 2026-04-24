@@ -1,16 +1,40 @@
 use std::any::TypeId;
+use std::cell::Cell;
 use syrillian::Reflect;
 use syrillian::World;
 use syrillian::components::{CameraComponent, Component};
 use syrillian::math::{Quat, Vec3};
 use syrillian::utils::TypedComponentHelper;
 
+thread_local! {
+    static DELETE_HOOK_CALLS: Cell<u32> = const { Cell::new(0) };
+}
+
+fn reset_delete_hook_calls() {
+    DELETE_HOOK_CALLS.with(|slot| slot.set(0));
+}
+
+fn delete_hook_calls() -> u32 {
+    DELETE_HOOK_CALLS.with(Cell::get)
+}
+
 #[derive(Debug, Default, Reflect)]
+#[reflect(component)]
 struct MyComponent;
 
 impl Component for MyComponent {
     fn init(&mut self, _world: &mut World) {
         self.parent().transform.translate(Vec3::X);
+    }
+}
+
+#[derive(Debug, Default, Reflect)]
+#[reflect(component)]
+struct DeleteTrackingComponent;
+
+impl Component for DeleteTrackingComponent {
+    fn delete(&mut self, _world: &mut World) {
+        DELETE_HOOK_CALLS.with(|slot| slot.set(slot.get() + 1));
     }
 }
 
@@ -80,6 +104,7 @@ fn component_reflection() {
     assert_eq!(info_pre.type_id, TypeId::of::<MyComponent>());
     assert_eq!(info_pre.full_path, std::any::type_name::<MyComponent>());
     assert_eq!(info_pre.name, "MyComponent");
+    assert!(info_pre.default_fn.is_some());
 
     let (mut world, _rx1, _rx2, _assets_rx, _pick_tx, _hit_rect_tx) = World::fresh();
     let mut obj = world.new_object("Test");
@@ -113,4 +138,30 @@ fn camera_click_ray_uses_camera_world_transform() {
 
     assert!((ray.origin - position).length() < 1e-4);
     assert!((ray.dir - expected_dir).length() < 1e-4);
+}
+
+#[test]
+fn remove_component_calls_delete_hook_once() {
+    reset_delete_hook_calls();
+
+    let (mut world, ..) = World::fresh();
+    let mut obj = world.new_object("DeleteHook");
+    let comp = obj.add_component::<DeleteTrackingComponent>();
+
+    obj.remove_component(comp, &mut world);
+
+    assert_eq!(delete_hook_calls(), 1);
+}
+
+#[test]
+fn deleting_object_calls_component_delete_hook_once() {
+    reset_delete_hook_calls();
+
+    let (mut world, ..) = World::fresh();
+    let mut obj = world.new_object("DeleteObject");
+    obj.add_component::<DeleteTrackingComponent>();
+
+    obj.delete();
+
+    assert_eq!(delete_hook_calls(), 1);
 }
