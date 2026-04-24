@@ -109,7 +109,12 @@ impl<'a, 'b, 'c, 'd, 'e> UiDrawContext<'a, 'b, 'c, 'd, 'e> {
                 mapped_at_creation: false,
             });
 
-            TextRenderData { uniform, glyph_vbo }
+            TextRenderData {
+                uniform,
+                glyph_vbo,
+                #[cfg(debug_assertions)]
+                bounds_uniform: None,
+            }
         })
     }
 

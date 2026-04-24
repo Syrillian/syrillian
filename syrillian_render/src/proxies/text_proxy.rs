@@ -2,6 +2,8 @@
 use crate::rendering::debug_renderer::DebugRenderer;
 
 use crate::cache::AssetCache;
+#[cfg(debug_assertions)]
+use crate::cache::mesh::BindMeshBuffers;
 use crate::cache::glyph::{GlyphRenderData, generate_glyph_geometry_stream};
 use crate::model_uniform::ModelUniform;
 use crate::proxies::mesh_proxy::MeshUniformIndex;
@@ -22,9 +24,10 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use syrillian_asset::shader::immediates::TextImmediate;
-use syrillian_asset::{HFont, HShader, ensure_aligned};
+use syrillian_asset::{HFont, HMesh, HShader, ensure_aligned};
 use syrillian_utils::color::hsv_to_rgb;
 use syrillian_utils::debug_panic;
+use syrillian_utils::BoundingSphere;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{Buffer, BufferUsages, RenderPass};
 use zerocopy::IntoBytes;
@@ -33,6 +36,8 @@ use zerocopy::IntoBytes;
 pub struct TextRenderData {
     pub uniform: ShaderUniform<MeshUniformIndex>,
     pub glyph_vbo: Buffer,
+    #[cfg(debug_assertions)]
+    pub bounds_uniform: Option<ShaderUniform<MeshUniformIndex>>,
 }
 
 ensure_aligned!(TextImmediate { position, color }, align <= 16 * 2 => size);
@@ -66,6 +71,12 @@ pub struct TextProxy<const D: u8, DIM: TextDim<D>> {
     rainbow_mode: bool,
     constants_dirty: bool,
     translation: ModelUniform,
+    model_bounding: Option<BoundingSphere>,
+    local_bounding: Option<BoundingSphere>,
+    bounds_dirty_local: bool,
+    bounds_dirty_model: bool,
+    pc_bounds_dirty: bool,
+    current_render_affine: Affine3A,
 
     draw_order: u32,
     order_dirty: bool,
@@ -97,6 +108,12 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
             rainbow_mode: false,
             constants_dirty: false,
             translation: ModelUniform::empty(),
+            model_bounding: None,
+            local_bounding: None,
+            bounds_dirty_local: true,
+            bounds_dirty_model: true,
+            pc_bounds_dirty: false,
+            current_render_affine: Affine3A::IDENTITY,
 
             draw_order: 0,
             order_dirty: false,
@@ -155,13 +172,18 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         if self.constants_dirty {
             let constants = self.pc;
             let rainbow_mode = self.rainbow_mode;
+            let pc_bounds_dirty = self.pc_bounds_dirty;
             ctx.send_proxy_update(move |proxy| {
                 let proxy: &mut Self = proxy_data_mut!(proxy);
 
                 proxy.pc = constants;
                 proxy.rainbow_mode = rainbow_mode;
+                if pc_bounds_dirty {
+                    proxy.bounds_dirty_local = true;
+                }
             });
             self.constants_dirty = false;
+            self.pc_bounds_dirty = false;
         }
 
         if self.order_dirty {
@@ -226,11 +248,20 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
             self.last_text_len = self.text.len();
             self.text_dirty = false;
+            self.bounds_dirty_local = true;
         }
 
         if self.rainbow_mode {
             let time = renderer.start_time().elapsed().as_secs_f32() * 100.;
             self.pc.color = hsv_to_rgb(time % 360., 1.0, 1.0);
+        }
+
+        let bounds_were_dirty = self.bounds_dirty_local || self.bounds_dirty_model;
+        self.update_bounds();
+
+        #[cfg(debug_assertions)]
+        if bounds_were_dirty {
+            self.sync_bounds_uniform(renderer, data);
         }
     }
 
@@ -268,6 +299,11 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         if DebugRenderer::text_geometry() {
             self.draw_debug_edges(cache, &mut pass, ctx, &data.uniform);
         }
+
+        #[cfg(debug_assertions)]
+        if D == 3 && !ctx.transparency_pass && DebugRenderer::mesh_bounds() {
+            self.draw_debug_bounds(cache, &mut pass, ctx, data);
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -291,6 +327,37 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         pass.draw(0..self.glyph_data.len() as u32 * 6, 0..1);
     }
 
+    #[cfg(debug_assertions)]
+    fn draw_debug_bounds(
+        &self,
+        cache: &AssetCache,
+        pass: &mut RenderPass,
+        ctx: &GPUDrawCtx,
+        data: &TextRenderData,
+    ) {
+        use glamx::Vec4;
+
+        const COLOR: Vec4 = Vec4::new(0.2, 1.0, 1.0, 1.0);
+
+        let Some(bounds_uniform) = &data.bounds_uniform else {
+            return;
+        };
+
+        let Some(bounds_mesh) = cache.mesh(HMesh::BOUNDS_GIZMO) else {
+            return;
+        };
+
+        let shader = cache.shader(HShader::DEBUG_MESH_BOUNDS);
+        shader.activate(pass, ctx);
+        pass.set_immediates(0, COLOR.as_bytes());
+
+        if let Some(idx) = shader.bind_groups().model {
+            pass.set_bind_group(idx, bounds_uniform.bind_group(), &[]);
+        }
+
+        bounds_mesh.draw_all(pass, BindMeshBuffers::POSITION);
+    }
+
     pub fn regenerate_geometry(&mut self, renderer: &Renderer) {
         let hot_font = renderer.cache.font(self.font);
 
@@ -305,6 +372,95 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
         );
     }
 
+    fn update_bounds(&mut self) {
+        if D != 3 {
+            self.local_bounding = None;
+            self.model_bounding = None;
+            self.bounds_dirty_local = false;
+            self.bounds_dirty_model = false;
+            return;
+        }
+
+        if self.bounds_dirty_local {
+            self.local_bounding = self.compute_local_bounding();
+            self.bounds_dirty_local = false;
+            self.bounds_dirty_model = true;
+        }
+
+        if self.bounds_dirty_model {
+            let transform = self.current_render_affine.into();
+            self.model_bounding = self.local_bounding.map(|b| b.transformed(&transform));
+            self.bounds_dirty_model = false;
+        }
+    }
+
+    fn compute_local_bounding(&self) -> Option<BoundingSphere> {
+        if self.glyph_data.is_empty() || self.text.is_empty() {
+            return None;
+        }
+
+        let mut min = Vec3::splat(f32::INFINITY);
+        let mut max = Vec3::splat(f32::NEG_INFINITY);
+        let mut has_points = false;
+
+        for glyph in &self.glyph_data {
+            for v in glyph.vertices() {
+                let world_x = self.pc.position.x + v.pos[0] * self.pc.em_scale;
+                let world_y = self.pc.position.y + v.pos[1] * self.pc.em_scale;
+                let point = Vec3::new(world_x, world_y, 0.0);
+                min = min.min(point);
+                max = max.max(point);
+                has_points = true;
+            }
+        }
+
+        if !has_points || !min.is_finite() || !max.is_finite() {
+            return None;
+        }
+
+        let center = (min + max) * 0.5;
+        let radius = (max - center).length();
+        Some(BoundingSphere { center, radius })
+    }
+
+    #[cfg(debug_assertions)]
+    fn bounds_model_uniform(&self) -> Option<ModelUniform> {
+        let bounds = self.model_bounding?;
+        let radius = bounds.radius.abs().max(f32::EPSILON);
+        let transform = glamx::Mat4::from_scale_rotation_translation(
+            glamx::Vec3::splat(radius),
+            glamx::Quat::IDENTITY,
+            bounds.center,
+        );
+        Some(ModelUniform::from_matrix(&transform))
+    }
+
+    #[cfg(debug_assertions)]
+    fn sync_bounds_uniform(&self, renderer: &Renderer, data: &mut TextRenderData) {
+        if D != 3 {
+            data.bounds_uniform = None;
+            return;
+        }
+
+        if let Some(bounds_data) = self.bounds_model_uniform() {
+            if let Some(bounds_uniform) = &data.bounds_uniform {
+                bounds_uniform.write_buffer(
+                    MeshUniformIndex::MeshData,
+                    &bounds_data,
+                    &renderer.state.queue,
+                );
+            } else {
+                data.bounds_uniform = Some(
+                    ShaderUniform::<MeshUniformIndex>::builder(renderer.cache.bgl_model().clone())
+                        .with_buffer_data(&bounds_data)
+                        .build(&renderer.state.device),
+                );
+            }
+        } else {
+            data.bounds_uniform = None;
+        }
+    }
+
     pub fn set_text(&mut self, text: impl Into<String>) {
         let new_text = text.into();
         if self.text == new_text {
@@ -313,6 +469,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
         self.text = new_text;
         self.text_dirty = true;
+        self.bounds_dirty_local = true;
     }
 
     pub fn set_font(&mut self, font: HFont) {
@@ -322,6 +479,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
         self.font = font;
         self.text_dirty = true;
+        self.bounds_dirty_local = true;
     }
 
     pub fn set_letter_spacing(&mut self, spacing_em: f32) {
@@ -332,6 +490,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
         self.letter_spacing_em = new_spacing;
         self.text_dirty = true;
+        self.bounds_dirty_local = true;
     }
 
     pub const fn set_position(&mut self, x: f32, y: f32) {
@@ -345,11 +504,13 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
 
         self.alignment = alignment;
         self.text_dirty = true;
+        self.bounds_dirty_local = true;
     }
 
     pub const fn set_position_vec(&mut self, pos: Vec2) {
         self.pc.position = pos;
         self.constants_dirty = true;
+        self.pc_bounds_dirty = true;
     }
 
     pub const fn set_color(&mut self, r: f32, g: f32, b: f32) {
@@ -364,6 +525,7 @@ impl<const D: u8, DIM: TextDim<D>> TextProxy<D, DIM> {
     pub const fn set_size(&mut self, text_size_em: f32) {
         self.pc.em_scale = text_size_em;
         self.constants_dirty = true;
+        self.pc_bounds_dirty = true;
     }
 
     pub const fn set_rainbow_mode(&mut self, enabled: bool) {
@@ -376,10 +538,15 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
     fn setup_render(
         &mut self,
         renderer: &Renderer,
-        _render_affine: Affine3A,
+        render_affine: Affine3A,
         _world_affine: Option<Affine3A>,
     ) -> Box<dyn Any + Send> {
         self.regenerate_geometry(renderer);
+        self.current_render_affine = render_affine;
+        self.translation.update(&render_affine);
+        self.bounds_dirty_local = true;
+        self.bounds_dirty_model = true;
+        self.update_bounds();
 
         let device = &renderer.state.device;
 
@@ -393,8 +560,21 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         let uniform = ShaderUniform::<MeshUniformIndex>::builder(model_bgl)
             .with_buffer_data(&self.translation)
             .build(device);
+        #[cfg(debug_assertions)]
+        let bounds_uniform = self
+            .bounds_model_uniform()
+            .map(|bounds_data| {
+                ShaderUniform::<MeshUniformIndex>::builder(renderer.cache.bgl_model().clone())
+                    .with_buffer_data(&bounds_data)
+                    .build(device)
+            });
 
-        Box::new(TextRenderData { uniform, glyph_vbo })
+        Box::new(TextRenderData {
+            uniform,
+            glyph_vbo,
+            #[cfg(debug_assertions)]
+            bounds_uniform,
+        })
     }
 
     fn refresh_transform(
@@ -408,11 +588,20 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
 
         let mesh_buffer = data.uniform.buffer(MeshUniformIndex::MeshData);
         self.translation.update(&render_affine);
+        self.current_render_affine = render_affine;
+        self.bounds_dirty_model = true;
+        let bounds_were_dirty = self.bounds_dirty_local || self.bounds_dirty_model;
+        self.update_bounds();
 
         renderer
             .state
             .queue
             .write_buffer(mesh_buffer, 0, self.translation.as_bytes());
+
+        #[cfg(debug_assertions)]
+        if bounds_were_dirty {
+            self.sync_bounds_uniform(renderer, data);
+        }
     }
 
     fn update_render(&mut self, renderer: &Renderer, data: &mut (dyn Any + Send)) {
@@ -505,6 +694,14 @@ impl<const D: u8, DIM: TextDim<D>> SceneProxy for TextProxy<D, DIM> {
         match D {
             2 => self.draw_order,
             _ => PROXY_PRIORITY_TRANSPARENT,
+        }
+    }
+
+    fn bounds(&self) -> Option<BoundingSphere> {
+        if D == 3 {
+            self.model_bounding
+        } else {
+            None
         }
     }
 }
