@@ -5,6 +5,7 @@ use syrillian::math::{EulerRot, Quat, Vec2, Vec3, Vec3Swizzles};
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct FlashlightComponent {
     /// When true, the component captures the parents local transform as the base pose on init.
     pub use_initial_transform: bool,

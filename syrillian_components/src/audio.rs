@@ -9,9 +9,11 @@ use syrillian::components::Component;
 use syrillian::tracing::{trace, warn};
 
 #[derive(Debug, Default, Reflect)]
+#[reflect(default)]
 pub struct AudioReceiver;
 
 #[derive(Debug, Default, Reflect)]
+#[reflect(default)]
 pub struct AudioEmitter {
     asset_handle: Option<HSound>,
     sound_handle: Option<StaticSoundHandle>,

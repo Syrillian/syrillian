@@ -122,6 +122,7 @@ impl ActiveLayer {
 }
 
 #[derive(Default, Reflect)]
+#[reflect(default)]
 pub struct AnimationComponent {
     // Multiple clips (by name)
     clips: Vec<AnimationClip>,

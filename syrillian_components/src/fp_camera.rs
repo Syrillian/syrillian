@@ -12,6 +12,7 @@ use syrillian_render::rendering::viewport::ViewportId;
 /// All tweakable parameters for the FPS Camera
 #[derive(Debug, Clone, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct FPSCameraConfig {
     /// Mouse sensitivity coefficient. Default: X & Y = 0.6
     pub mouse_sensitivity: Vec2,
@@ -52,6 +53,7 @@ pub struct FPSCameraConfig {
 }
 
 #[derive(Debug, Reflect)]
+#[reflect(default)]
 pub struct FirstPersonCameraController {
     #[reflect]
     pub config: FPSCameraConfig,

@@ -8,6 +8,7 @@ use syrillian_render::rendering::viewport::ViewportId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct FreecamController {
     pub move_speed: f32,
     pub look_sensitivity: f32,

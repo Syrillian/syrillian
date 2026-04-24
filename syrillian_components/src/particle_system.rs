@@ -83,6 +83,7 @@ pub enum ParticleShape {
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct ParticleSystemComponent {
     pub shape: ParticleShape,
     pub data: ParticleSystemSettings,

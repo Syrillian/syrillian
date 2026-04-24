@@ -10,6 +10,7 @@ use syrillian::tracing::warn;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct SkeletalComponent {
     bones_static: Bones,
     skin_transform: Vec<Mat4>,

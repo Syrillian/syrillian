@@ -30,6 +30,7 @@ impl From<&DebugRay> for DebugLine {
 }
 
 #[derive(Debug, Reflect)]
+#[reflect(default)]
 pub struct CameraDebug {
     rays: Vec<DebugRay>,
     ray_times: Vec<Instant>,

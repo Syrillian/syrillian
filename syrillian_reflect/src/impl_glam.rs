@@ -327,12 +327,12 @@ impl ReflectDeserialize for Affine3A {
     }
 }
 
-crate::register_type!(crate::reflect_type_info!(glamx, Vec2, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Vec3, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Vec4, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Mat2, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Mat3, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Mat3A, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Mat4, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Quat, &[]));
-crate::register_type!(crate::reflect_type_info!(glamx, Affine3A, &[]));
+crate::register_type!(crate::reflect_type_info!(glamx, Vec2, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Vec3, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Vec4, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat2, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat3, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat3A, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Mat4, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Quat, &[], default));
+crate::register_type!(crate::reflect_type_info!(glamx, Affine3A, &[], default));

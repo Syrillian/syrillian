@@ -6,6 +6,7 @@ use syrillian::core::EventType;
 type ButtonClickHandler = Box<dyn FnMut(&mut World) + 'static>;
 
 #[derive(Default, Reflect)]
+#[reflect(default)]
 pub struct Button {
     click_handler: Vec<ButtonClickHandler>,
 }

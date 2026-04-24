@@ -29,6 +29,7 @@ use syrillian::rendering::proxy_data_mut;
 use syrillian::rendering::rendering::CPUDrawCtx;
 
 #[derive(Debug, Reflect)]
+#[reflect(default)]
 pub struct Collider3D {
     pub phys_handle: Option<ColliderHandle>,
     linked_to_body: Option<RigidBodyHandle>,

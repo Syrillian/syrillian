@@ -21,6 +21,7 @@ use syrillian_render::rendering::viewport::ViewportId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct ThirdPersonCharacterController {
     pub move_speed: f32,
     pub sprint_multiplier: f32,

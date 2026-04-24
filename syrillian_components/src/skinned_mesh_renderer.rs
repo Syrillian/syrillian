@@ -27,6 +27,7 @@ pub struct DebugVertexNormal {
 }
 
 #[derive(Debug, Reflect)]
+#[reflect(default)]
 pub struct SkinnedMeshRenderer {
     mesh: HSkinnedMesh,
     materials: Vec<HMaterialInstance>,

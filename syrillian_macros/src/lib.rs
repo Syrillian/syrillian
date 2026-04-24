@@ -118,8 +118,9 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
         .into();
     }
 
-    let reflect_all = has_attr(&input.attrs, "reflect_all");
-    let is_component = has_reflect_component_attr(&input.attrs);
+    let reflect_all = has_path_attr(&input.attrs, "reflect_all");
+    let is_component = has_nested_attr(&input.attrs, "reflect", "component");
+    let has_default = is_component || has_nested_attr(&input.attrs, "reflect", "default");
 
     let type_ident = &input.ident;
 
@@ -159,6 +160,12 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
         }
     };
 
+    let default_fn = if has_default {
+        quote! { Some(::syrillian::core::reflection::default_as::<Self>) }
+    } else {
+        quote! { None }
+    };
+
     let reflect_impl = quote! {
         impl ::syrillian::core::reflection::PartialReflect for #type_ident {
             const DATA: ::syrillian::core::reflection::ReflectedTypeInfo = ::syrillian::core::reflection::ReflectedTypeInfo {
@@ -170,6 +177,7 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
                     deserialize: ::syrillian::core::reflection::deserialize_as::<Self>,
                 },
                 fields: &[#( #reflected ),*],
+                default_fn: #default_fn,
             };
         }
     };
@@ -210,7 +218,7 @@ pub fn reflect_derive(input: TokenStream) -> TokenStream {
     .into()
 }
 
-fn has_attr(attrs: &[Attribute], name: &str) -> bool {
+fn has_path_attr(attrs: &[Attribute], name: &str) -> bool {
     for attr in attrs {
         if let Meta::Path(path) = &attr.meta
             && path.segments.iter().any(|s| s.ident == name)
@@ -221,27 +229,29 @@ fn has_attr(attrs: &[Attribute], name: &str) -> bool {
     false
 }
 
-/// Check for `#[reflect(component)]` attribute on the struct.
-fn has_reflect_component_attr(attrs: &[Attribute]) -> bool {
-    for attr in attrs {
-        if let Meta::List(list) = &attr.meta
-            && list.path.segments.iter().any(|s| s.ident == "reflect")
-        {
-            let tokens = list.tokens.to_string();
-            if tokens.contains("component") {
-                return true;
-            }
+fn has_nested_attr(attrs: &[Attribute], outer: &str, inner: &str) -> bool {
+    attrs.iter().any(|attr| {
+        if !attr.path().is_ident(outer) {
+            return false;
         }
-    }
-    false
+
+        let mut found = false;
+        let _ = attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident(inner) {
+                found = true;
+            }
+            Ok(())
+        });
+        found
+    })
 }
 
 fn should_reflect(field: &Field, reflect_all: bool) -> bool {
-    if reflect_all && !has_attr(&field.attrs, "dont_reflect") {
+    if reflect_all && !has_path_attr(&field.attrs, "dont_reflect") {
         return true;
     }
 
-    has_attr(&field.attrs, "reflect")
+    has_path_attr(&field.attrs, "reflect")
 }
 
 #[proc_macro_attribute]

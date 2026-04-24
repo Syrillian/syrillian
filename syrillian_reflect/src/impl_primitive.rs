@@ -11,6 +11,14 @@ macro_rules! register_primitive_type {
     };
 }
 
+macro_rules! register_default_primitive_type {
+    ($primitive:ty) => {
+        ::syrillian_reflect::register_type!({
+            ::syrillian_reflect::reflect_type_info!(primitive, $primitive, default)
+        });
+    };
+}
+
 macro_rules! reflect_primitive {
     ($primitive:ty, $name:ident => $data:expr, $deser_name:ident, $deser_val:ident => $deser_body:expr) => {
         impl ReflectSerialize for $primitive {
@@ -25,7 +33,7 @@ macro_rules! reflect_primitive {
             }
         }
 
-        register_primitive_type!($primitive);
+        register_default_primitive_type!($primitive);
     };
     ($primitive:ty, $name:ident => $data:expr, $deser_name:ident, $deser_val:ident => $deser_body:expr, cell) => {
         impl ReflectSerialize for Cell<$primitive> {
@@ -43,7 +51,7 @@ macro_rules! reflect_primitive {
             }
         }
 
-        register_primitive_type!(Cell<$primitive>);
+        register_default_primitive_type!(Cell<$primitive>);
 
         reflect_primitive!($primitive, $name => $data, $deser_name, $deser_val => $deser_body);
     };
@@ -100,15 +108,26 @@ reflect_primitive!(u128, this => Value::VeryBigUInt(*this),
 reflect_primitive!(bool, this => Value::Bool(*this),
     target, value => if let Value::Bool(b) = value { *target = *b; }, cell);
 
-reflect_primitive!(Value, this => this.clone(),
-    target, value => { *target = value.clone(); });
-
 reflect_primitive!(Duration, this => Value::VeryBigUInt(this.as_millis()),
     target, value => {
         if let Some(ms) = value.to_u128() {
             *target = Duration::from_millis(ms as u64);
         }
     }, cell);
+
+impl ReflectSerialize for Value {
+    fn serialize(this: &Self) -> Value {
+        this.clone()
+    }
+}
+
+impl ReflectDeserialize for Value {
+    fn apply(target: &mut Self, value: &Value) {
+        *target = value.clone();
+    }
+}
+
+register_primitive_type!(Value);
 
 impl ReflectDeserialize for HashMap<String, Value> {
     fn apply(target: &mut Self, value: &Value) {
@@ -121,4 +140,4 @@ impl ReflectDeserialize for HashMap<String, Value> {
     }
 }
 
-register_primitive_type!(HashMap<String, Value>);
+register_default_primitive_type!(HashMap<String, Value>);

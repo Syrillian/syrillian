@@ -51,6 +51,7 @@ pub struct Spring;
 
 #[derive(Clone, Default, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct FixedConfig {
     pub frame1: Pose,
     pub frame2: Pose,
@@ -58,6 +59,7 @@ pub struct FixedConfig {
 
 #[derive(Clone, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct RevoluteConfig {
     pub axis: Vector,
     pub limits: Option<[f32; 2]>,
@@ -65,6 +67,7 @@ pub struct RevoluteConfig {
 
 #[derive(Clone, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct PrismaticConfig {
     pub axis: Vector,
     pub limits: Option<[f32; 2]>,
@@ -72,16 +75,19 @@ pub struct PrismaticConfig {
 
 #[derive(Clone, Default, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct SphericalConfig;
 
 #[derive(Clone, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct RopeConfig {
     pub max_distance: f32,
 }
 
 #[derive(Clone, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct SpringConfig {
     pub rest_length: f32,
     pub stiffness: f32,
@@ -272,6 +278,7 @@ impl<T: JointTypeTrait> PartialReflect for JointComponent<T> {
             serialize: serialize_as::<Self>,
             deserialize: deserialize_as::<Self>,
         },
+        default_fn: Some(syrillian::core::reflection::default_as::<Self>),
     };
 }
 

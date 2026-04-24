@@ -12,6 +12,7 @@ use syrillian_render::rendering::viewport::ViewportId;
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct FirstPersonMovementController {
     pub move_speed: f32,
     pub jump_factor: f32,

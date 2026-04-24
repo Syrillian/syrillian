@@ -12,7 +12,7 @@ pub use serialize_primitive::Value;
 
 use dashmap::DashMap;
 use parking_lot::Once;
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 use tracing::warn;
@@ -30,6 +30,8 @@ pub struct ReflectedTypeActions {
     pub deserialize: fn(*mut u8, &Value),
 }
 
+pub type DefaultFn = fn() -> Box<dyn Any>;
+
 #[derive(Copy, Clone, Debug)]
 pub struct ReflectedTypeInfo {
     pub type_id: TypeId,
@@ -37,6 +39,7 @@ pub struct ReflectedTypeInfo {
     pub name: &'static str,
     pub fields: &'static [ReflectedField],
     pub actions: ReflectedTypeActions,
+    pub default_fn: Option<DefaultFn>,
 }
 
 pub trait ReflectSerialize {
@@ -70,6 +73,7 @@ impl ReflectedTypeInfo {
                 deserialize: noop_deserialize,
             },
             fields: &[],
+            default_fn: None,
         }
     }
 
@@ -88,6 +92,7 @@ impl ReflectedTypeInfo {
                 deserialize: deserialize_as::<T>,
             },
             fields: &[],
+            default_fn: None,
         }
     }
 }
@@ -193,6 +198,10 @@ pub fn serialize_as<T: ReflectSerialize>(ptr: *const u8) -> Value {
 pub fn deserialize_as<T: ReflectDeserialize>(ptr: *mut u8, value: &Value) {
     let target: &mut T = unsafe { &mut *(ptr as *mut T) };
     ReflectDeserialize::apply(target, value);
+}
+
+pub fn default_as<T: Default + 'static>() -> Box<dyn Any> {
+    Box::new(T::default())
 }
 
 /// Apply reflected field values from a map onto a reflected struct.

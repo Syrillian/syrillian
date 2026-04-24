@@ -23,6 +23,7 @@ pub struct DebugVertexNormal {
 }
 
 #[derive(Debug, Reflect)]
+#[reflect(default)]
 pub struct MeshRenderer {
     mesh: HMesh,
     materials: Vec<HMaterialInstance>,

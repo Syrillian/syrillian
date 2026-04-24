@@ -137,6 +137,7 @@ impl<T: LightTypeTrait> PartialReflect for LightComponent<T> {
             serialize: serialize_as::<Self>,
             deserialize: deserialize_as::<Self>,
         },
+        default_fn: None,
     };
 }
 

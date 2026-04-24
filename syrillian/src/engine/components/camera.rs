@@ -19,6 +19,7 @@ pub enum CameraError {
 
 #[derive(Debug, Reflect)]
 #[reflect_all]
+#[reflect(default)]
 pub struct CameraComponent {
     pub projection: Mat4,
     pub projection_inverse: Mat4,

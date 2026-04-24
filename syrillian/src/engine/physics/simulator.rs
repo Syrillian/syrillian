@@ -15,6 +15,7 @@ use syrillian_utils::EngineArgs;
 use web_time::{Duration, Instant};
 
 #[derive(Reflect)]
+#[reflect(default)]
 pub struct PhysicsSimulation {
     #[reflect]
     pub gravity: Vector,

@@ -11,6 +11,7 @@ use syrillian_render::rendering::viewport::ViewportId;
 use syrillian_render::strobe::TextAlignment;
 
 #[derive(Debug, Clone, Reflect)]
+#[reflect(default)]
 pub struct Text3D {
     proxy: TextProxy<3, ThreeD>,
 }
